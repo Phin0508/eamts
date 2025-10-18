@@ -1,0 +1,6 @@
+[14-Oct-2025 10:07:31 Europe/Berlin] Database error in login: SQLSTATE[HY093]: Invalid parameter number
+[14-Oct-2025 10:07:31 Europe/Berlin] Stack trace: #0 C:\php\htdocs\eamts\public\login.php(60): PDOStatement->execute(Array)
+#1 {main}
+[14-Oct-2025 10:08:37 Europe/Berlin] Database error in login: SQLSTATE[HY093]: Invalid parameter number
+[14-Oct-2025 10:08:37 Europe/Berlin] Stack trace: #0 C:\php\htdocs\eamts\public\login.php(60): PDOStatement->execute(Array)
+#1 {main}

@@ -1,0 +1,1 @@
+create nav bar not header ask claude ltr remember to not put content tell cluase is use for inc 
