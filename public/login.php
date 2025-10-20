@@ -131,7 +131,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 header("Location: dashboard.php");
                                 break;
                             case 'manager':
-                                header("Location: manager/dashboard.php");
+                                header("Location: ../users/managerDashboard.php");
+                                break;
+                            case 'emplyee':
+                                header("Location: ../users/userDashboard.php");
                                 break;
                             default:
                                 header("Location: dashboard.php");

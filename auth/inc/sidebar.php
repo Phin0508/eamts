@@ -47,76 +47,78 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
     </div>
 
     <!-- Navigation Menu -->
-    <li class="nav-item">
-        <a href="../public/dashboard.php" class="nav-link" data-tooltip="Dashboard">
-            <i class="nav-icon">📊</i>
-            <span class="nav-text">Dashboard</span>
-        </a>
-    </li>
-    <li class="nav-item">
-        <a href="../public/asset.php" class="nav-link" data-tooltip="My Assets">
-            <i class="nav-icon">📦</i>
-            <span class="nav-text">My Assets</span>
-        </a>
-    </li>
-    <li class="nav-item">
-        <a href="../public/userV.php" class="nav-link" data-tooltip="Requests">
-            <i class="nav-icon">📋</i>
-            <span class="nav-text">Requests</span>
-        </a>
-    </li>
-    <li class="nav-item">
-        <a href="../public/ticket.php" class="nav-link" data-tooltip="Tickets">
-            <i class="nav-icon">🎫</i>
-            <span class="nav-text">Tickets</span>
-        </a>
-    </li>
-    <li class="nav-item">
-        <a href="../reports/index.php" class="nav-link" data-tooltip="Reports">
-            <i class="nav-icon">📈</i>
-            <span class="nav-text">Reports</span>
-        </a>
-    </li>
-
-    <?php if ($role === 'admin' || $role === 'manager'): ?>
-        <li class="nav-divider"></li>
-        <li class="nav-section-title">
-            <span>Administration</span>
-        </li>
-        <li class="nav-item">
-            <a href="../admin/users.php" class="nav-link">
-                <i class="nav-icon"></i>
-                <span class="nav-text">Users</span>
-            </a>
-        </li>
-        <li class="nav-item">
-            <a href="../admin/departments.php" class="nav-link">
-                <i class="nav-icon"></i>
-                <span class="nav-text">Departments</span>
-            </a>
-        </li>
-        <li class="nav-item">
-            <a href="../admin/settings.php" class="nav-link">
-                <i class="nav-icon"></i>
-                <span class="nav-text">System Settings</span>
-            </a>
-        </li>
-    <?php endif; ?>
-
-    <li class="nav-divider"></li>
-    <li class="nav-item">
-        <a href="../users/userProfile.php" class="nav-link">
-            <i class="nav-icon"></i>
-            <span class="nav-text">My Profile</span>
-        </a>
-    </li>
-    <li class="nav-item">
-        <a href="../settings/index.php" class="nav-link">
-            <i class="nav-icon"></i>
-            <span class="nav-text">Settings</span>
-        </a>
-    </li>
-    </ul>
+    <nav class="sidebar-nav">
+        <ul class="nav-menu">
+            <li class="nav-item">
+                <a href="../public/dashboard.php" class="nav-link">
+                    <i class="nav-icon"></i>
+                    <span class="nav-text">Dashboard</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="../public/asset.php" class="nav-link">
+                    <i class="nav-icon"></i>
+                    <span class="nav-text">My Assets</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="../public/userV.php" class="nav-link">
+                    <i class="nav-icon"></i>
+                    <span class="nav-text">Requests</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="../public/ticket.php" class="nav-link">
+                    <i class="nav-icon"></i>
+                    <span class="nav-text">Tickets</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="../reports/index.php" class="nav-link">
+                    <i class="nav-icon"></i>
+                    <span class="nav-text">Reports</span>
+                </a>
+            </li>
+            
+            <?php if ($role === 'admin' || $role === 'manager'): ?>
+            <li class="nav-divider"></li>
+            <li class="nav-section-title">
+                <span>Administration</span>
+            </li>
+            <li class="nav-item">
+                <a href="../admin/users.php" class="nav-link">
+                    <i class="nav-icon"></i>
+                    <span class="nav-text">Users</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="../admin/departments.php" class="nav-link">
+                    <i class="nav-icon"></i>
+                    <span class="nav-text">Departments</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="../admin/settings.php" class="nav-link">
+                    <i class="nav-icon"></i>
+                    <span class="nav-text">System Settings</span>
+                </a>
+            </li>
+            <?php endif; ?>
+            
+            <li class="nav-divider"></li>
+            <li class="nav-item">
+                <a href="../users/userProfile.php" class="nav-link">
+                    <i class="nav-icon"></i>
+                    <span class="nav-text">My Profile</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="../settings/index.php" class="nav-link">
+                    <i class="nav-icon"></i>
+                    <span class="nav-text">Settings</span>
+                </a>
+            </li>
+        </ul>
     </nav>
 
     <!-- Session Information -->
@@ -164,14 +166,14 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
             sidebarToggle.addEventListener('click', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
-
+                
                 console.log('Toggle clicked - current state:', sidebar.classList.contains('collapsed'));
-
+                
                 sidebar.classList.toggle('collapsed');
-
+                
                 // Force reflow to ensure transition works
                 sidebar.offsetWidth;
-
+                
                 console.log('New state:', sidebar.classList.contains('collapsed'));
             });
         }
@@ -181,7 +183,7 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
             mobileToggle.addEventListener('click', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
-
+                
                 if (window.innerWidth <= 768) {
                     sidebar.classList.toggle('show');
                     overlay.classList.toggle('show');
@@ -206,7 +208,7 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
         }
 
         window.addEventListener('resize', handleResize);
-
+        
         // Initial setup
         handleResize();
     }
@@ -214,11 +216,11 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
     // FIXED: Highlight active page based on current URL (no preventDefault)
     function highlightActivePage() {
         const currentPath = window.location.pathname;
-
+        
         document.querySelectorAll('.sidebar-nav .nav-link').forEach(link => {
             // Get the href attribute and create full path
             const linkHref = link.getAttribute('href');
-
+            
             // Check if current page matches the link
             if (currentPath.endsWith(linkHref) || currentPath.includes(linkHref)) {
                 link.classList.add('active');

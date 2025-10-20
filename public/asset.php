@@ -164,8 +164,6 @@ try {
 </head>
 
 <body>
-    <!-- Include Navigation Bar -->
-    <?php include("../auth/inc/navbar.php"); ?>
 
     <!-- Include Sidebar -->
     <?php include("../auth/inc/sidebar.php"); ?>

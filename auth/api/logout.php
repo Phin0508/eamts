@@ -2,8 +2,7 @@
 // logout.php
 session_start();
 
-// Include database configuration if you want to log logout activity
-// include("../auth/config/database.php");
+include("../auth/config/database.php");
 
 // Optional: Log logout activity in database
 /*

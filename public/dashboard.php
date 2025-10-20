@@ -248,7 +248,7 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
     </style>
 </head>
 <body>
-    <?php include("../auth/inc/navbar.php"); ?>
+    
     <?php include("../auth/inc/sidebar.php"); ?>
 
     <main class="main-content">
