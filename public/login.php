@@ -317,7 +317,7 @@ if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && $_SERVE
                     <input type="checkbox" id="remember_me" name="remember_me">
                     <label for="remember_me">Remember me for 30 days</label>
                 </div>
-                <a href="forgot-password.php" class="forgot-password">Forgot Password?</a>
+                <a href="../auth/api/forgotpassword.php" class="forgot-password">Forgot Password?</a>
             </div>
 
             <button type="submit" class="btn-primary">Sign In</button>

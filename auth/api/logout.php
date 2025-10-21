@@ -1,11 +1,11 @@
 <?php
-// logout.php
+// logout.php - Located at: auth/api/logout.php
 session_start();
-
-include("../auth/config/database.php");
 
 // Optional: Log logout activity in database
 /*
+include("../config/database.php");
+
 if (isset($_SESSION['user_id'])) {
     try {
         $stmt = $pdo->prepare("INSERT INTO user_activity (user_id, activity_type, activity_time) VALUES (?, 'logout', NOW())");
@@ -38,6 +38,7 @@ if (isset($_COOKIE['remember_token'])) {
 session_destroy();
 
 // Redirect to login page with success message
-header("Location: login.php?message=logged_out");
+// Correct path from auth/api/ to auth/
+header("Location: ../../public/login.php?message=logged_out");
 exit();
 ?>

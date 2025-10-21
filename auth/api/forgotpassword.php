@@ -1,7 +1,6 @@
 <?php
-// forgot-password.php
 // Include database configuration
-include("../auth/config/database.php");
+include("../config/database.php");
 
 $error_message = '';
 $success_message = '';
@@ -27,20 +26,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $token = bin2hex(random_bytes(32));
                 $expires = date('Y-m-d H:i:s', time() + 3600); // 1 hour expiry
                 
-                // Store token in database (you may need to create this table)
-                /*
-                CREATE TABLE password_reset_tokens (
-                    id INT PRIMARY KEY AUTO_INCREMENT,
-                    user_id INT NOT NULL,
-                    token VARCHAR(64) NOT NULL,
-                    expires_at DATETIME NOT NULL,
-                    used BOOLEAN DEFAULT FALSE,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (user_id) REFERENCES users(user_id),
-                    INDEX idx_token (token),
-                    INDEX idx_expires (expires_at)
-                );
-                */
                 
                 try {
                     $reset_stmt = $pdo->prepare("INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)");
@@ -89,6 +74,259 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>E-Asset Management System - Forgot Password</title>
     <link rel="stylesheet" href="../style/login.css">
+    <style>
+        * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.container {
+    background: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    width: 100%;
+    max-width: 450px;
+    padding: 40px;
+    animation: slideUp 0.5s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.logo-section {
+    text-align: center;
+    margin-bottom: 32px;
+}
+
+.logo {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.logo svg {
+    width: 45px;
+    height: 45px;
+    fill: #ffffff;
+}
+
+.logo-section h1 {
+    font-size: 28px;
+    font-weight: 700;
+    color: #1a202c;
+    margin-bottom: 8px;
+}
+
+.subtitle {
+    font-size: 14px;
+    color: #718096;
+    line-height: 1.5;
+}
+
+/* Success and Error Messages */
+.success-message,
+.error-message-box {
+    padding: 16px;
+    border-radius: 8px;
+    margin-bottom: 24px;
+    font-size: 14px;
+    line-height: 1.5;
+    display: none;
+    animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.success-message {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.error-message-box {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+/* Form Styles */
+form {
+    margin-bottom: 24px;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    color: #2d3748;
+    margin-bottom: 8px;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 12px 16px;
+    font-size: 15px;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    background-color: #ffffff;
+    color: #1a202c;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.form-group input::placeholder {
+    color: #a0aec0;
+}
+
+/* Error Message under Input */
+.form-group .error-message {
+    display: none;
+    color: #e53e3e;
+    font-size: 13px;
+    margin-top: 6px;
+}
+
+/* Buttons */
+.btn-primary {
+    width: 100%;
+    padding: 14px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #ffffff;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(102, 126, 234, 0.5);
+}
+
+.btn-primary:active {
+    transform: translateY(0);
+}
+
+/* Divider */
+.divider {
+    display: flex;
+    align-items: center;
+    margin: 24px 0;
+    color: #a0aec0;
+    font-size: 13px;
+}
+
+.divider::before,
+.divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background-color: #e2e8f0;
+}
+
+.divider span {
+    padding: 0 16px;
+    font-weight: 500;
+}
+
+/* Links */
+.signup-link {
+    text-align: center;
+    font-size: 14px;
+    color: #4a5568;
+}
+
+.signup-link a {
+    color: #667eea;
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 0.2s ease;
+}
+
+.signup-link a:hover {
+    color: #764ba2;
+    text-decoration: underline;
+}
+
+/* Responsive Design */
+@media (max-width: 480px) {
+    .container {
+        padding: 30px 24px;
+    }
+
+    .logo-section h1 {
+        font-size: 24px;
+    }
+
+    .logo {
+        width: 70px;
+        height: 70px;
+    }
+
+    .logo svg {
+        width: 40px;
+        height: 40px;
+    }
+}
+
+/* Loading State */
+.btn-primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Focus Visible for Accessibility */
+*:focus-visible {
+    outline: 2px solid #667eea;
+    outline-offset: 2px;
+}
+    </style>
+
 </head>
 <body>
     <div class="container">
@@ -132,11 +370,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
 
         <div class="signup-link">
-            Remember your password? <a href="login.php">Sign In</a>
+            Remember your password? <a href="../../public/login.php">Sign In</a>
         </div>
 
         <div class="signup-link" style="margin-top: 16px;">
-            Don't have an account? <a href="signup.php">Create Account</a>
+            Don't have an account? <a href="../../public/signup.php">Create Account</a>
         </div>
     </div>
 

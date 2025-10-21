@@ -347,7 +347,7 @@ $ticket_priority_values = json_encode(array_column($my_ticket_priority_data, 'co
     </style>
 </head>
 <body>
-    <?php include("../auth/inc/sidebar.php"); ?>
+    <?php include("../auth/inc/Usidebar.php"); ?>
 
     <main class="main-content">
         <div class="dashboard-content">

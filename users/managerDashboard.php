@@ -509,7 +509,7 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
     </style>
 </head>
 <body>
-    <?php include("../auth/inc/sidebar.php"); ?>
+    <?php include("../auth/inc/Usidebar.php"); ?>
 
     <main class="main-content">
         <div class="dashboard-content">
@@ -533,14 +533,14 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
                     <div class="stat-number-small">My Assets: <?php echo $stats['my_assets']; ?></div>
                 </div>
 
-                <div class="stat-card" onclick="window.location.href='../public/tickets.php'">
+                <div class="stat-card" onclick="window.location.href='../public/ticket.php'">
                     <span class="stat-icon">🎫</span>
                     <div class="stat-number"><?php echo $stats['department_tickets']; ?></div>
                     <div class="stat-label">Department Tickets</div>
                     <div class="stat-number-small">Pending: <?php echo $stats['pending_tickets']; ?></div>
                 </div>
 
-                <div class="stat-card" onclick="window.location.href='../public/tickets.php?filter=urgent'">
+                <div class="stat-card" onclick="window.location.href='../public/ticket.php?filter=urgent'">
                     <span class="stat-icon">⚡</span>
                     <div class="stat-number"><?php echo $stats['urgent_tickets']; ?></div>
                     <div class="stat-label">Urgent Tickets</div>
@@ -639,7 +639,7 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
                                             <a href="../public/asset.php?user=<?php echo $employee['user_id']; ?>" class="btn-sm btn-view" title="View Assets">
                                                 <i class="fas fa-box"></i>
                                             </a>
-                                            <a href="../public/tickets.php?user=<?php echo $employee['user_id']; ?>" class="btn-sm btn-view" title="View Tickets">
+                                            <a href="../public/ticket.php?user=<?php echo $employee['user_id']; ?>" class="btn-sm btn-view" title="View Tickets">
                                                 <i class="fas fa-ticket-alt"></i>
                                             </a>
                                         </div>
@@ -690,7 +690,7 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
                             <?php endforeach; ?>
                         </ul>
                         <div class="quick-actions">
-                            <a href="../public/tickets.php" class="action-btn btn-primary">View All Tickets</a>
+                            <a href="../public/ticket.php" class="action-btn btn-primary">View All Tickets</a>
                         </div>
                     <?php else: ?>
                         <div class="empty-state">
@@ -741,7 +741,7 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
                     <a href="../public/asset.php?department=<?php echo urlencode($department); ?>" class="action-btn btn-primary">
                         <i class="fas fa-box"></i> Manage Department Assets
                     </a>
-                    <a href="../public/tickets.php?department=<?php echo urlencode($department); ?>" class="action-btn btn-primary">
+                    <a href="../public/ticket.php?department=<?php echo urlencode($department); ?>" class="action-btn btn-primary">
                         <i class="fas fa-ticket-alt"></i> Manage Department Tickets
                     </a>
                     <a href="../public/createTicket.php" class="action-btn btn-primary">
