@@ -1,8 +1,11 @@
 <?php
+// Start output buffering to prevent header errors
+ob_start();
+
 // Start session
 session_start();
 
-// Check if user is logged in
+// Check if user is logged in - MUST BE BEFORE ANY OUTPUT
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
     exit();
@@ -158,6 +161,7 @@ $ticket_priority_values = json_encode(array_column($my_ticket_priority_data, 'co
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
     
     <style>
+        /* Keep all your existing styles */
         .charts-section {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
@@ -345,9 +349,12 @@ $ticket_priority_values = json_encode(array_column($my_ticket_priority_data, 'co
             }
         }
     </style>
+    
 </head>
 <body>
-    <?php include("../auth/inc/Usidebar.php"); ?>
+
+<?php include("../auth/inc/Usidebar.php"); ?>
+    
 
     <main class="main-content">
         <div class="dashboard-content">
@@ -687,3 +694,7 @@ $ticket_priority_values = json_encode(array_column($my_ticket_priority_data, 'co
     </script>
 </body>
 </html>
+<?php
+// Flush output buffer at the end
+ob_end_flush();
+?>

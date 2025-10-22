@@ -1,16 +1,18 @@
 <?php
-// Start session if not already started (this is a sidebar for users(like manahgers and emp)
+// Start session if not already started
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Check if user is logged in and is a manager
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'manager') {
-    header("Location: ../auth/login.php");
-    exit();
+// NOTE: Authorization checks should be done in the parent file BEFORE including this sidebar
+// This file only handles display logic
+
+// Get user information from session (with safety checks)
+if (!isset($_SESSION['user_id'])) {
+    // If session doesn't exist, don't display sidebar
+    return;
 }
 
-// Get user information from session
 $user_name = $_SESSION['first_name'] . ' ' . $_SESSION['last_name'];
 $username = $_SESSION['username'];
 $email = $_SESSION['email'];
@@ -62,6 +64,7 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
                 </a>
             </li>
             
+            <?php if ($role === 'manager'): ?>
             <li class="nav-divider"></li>
             <li class="nav-section-title">
                 <span>Department Management</span>
@@ -109,6 +112,7 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
                     <span class="nav-text">Asset Analytics</span>
                 </a>
             </li>
+            <?php endif; ?>
             
             <li class="nav-divider"></li>
             <li class="nav-item">

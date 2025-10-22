@@ -133,7 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             case 'manager':
                                 header("Location: ../users/managerDashboard.php");
                                 break;
-                            case 'emplyee':
+                            case 'employee':
                                 header("Location: ../users/userDashboard.php");
                                 break;
                             default:
