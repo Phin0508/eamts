@@ -72,7 +72,14 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
                     <span class="nav-text">Create Ticket</span>
                 </a>
             </li>
-            
+            <li class="nav-item">
+                <a href="../users/userChat.php" class="nav-link" <?php if (basename($_SERVER['PHP_SELF']) == 'userChat.php') echo 'class="active"'; ?>>
+                    <i class="nav-icon">💬</i>
+                    <span class="nav-text">Messages</span>
+                    <span id="unreadBadge" class="badge-notification" style="display: none;"></span>
+                </a>
+            </li>
+
             <!-- COMMON MENU ITEMS -->
             <li class="nav-divider"></li>
             <li class="nav-item">
@@ -127,7 +134,7 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
 
 <script>
     console.log('Employee Sidebar Loaded');
-    
+
     function initializeSidebar() {
         const sidebar = document.getElementById('sidebar');
         const sidebarToggle = document.getElementById('sidebarToggle');
@@ -147,7 +154,7 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
             mobileToggle.addEventListener('click', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
-                
+
                 if (window.innerWidth <= 768) {
                     sidebar.classList.toggle('show');
                     overlay.classList.toggle('show');
@@ -176,11 +183,11 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
     function highlightActivePage() {
         const currentPath = window.location.pathname;
         const currentFile = currentPath.split('/').pop();
-        
+
         document.querySelectorAll('.sidebar-nav .nav-link').forEach(link => {
             const linkHref = link.getAttribute('href');
             const linkFile = linkHref.split('/').pop();
-            
+
             if (currentFile === linkFile) {
                 link.classList.add('active');
             } else {
@@ -198,4 +205,25 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
         initializeSidebar();
         highlightActivePage();
     }
+
+    function updateUnreadCount() {
+        fetch('../api/chat_get_unread_count.php')
+            .then(r => r.json())
+            .then(data => {
+                const badge = document.getElementById('unreadBadge');
+                if (data.unread > 0) {
+                    badge.textContent = data.unread;
+                    badge.style.display = 'inline-block';
+                    // Update page title
+                    document.title = `(${data.unread}) Messages - E-Asset Management`;
+                } else {
+                    badge.style.display = 'none';
+                }
+            })
+            .catch(err => console.error('Error loading unread count:', err));
+    }
+
+    // Update every 10 seconds
+    setInterval(updateUnreadCount, 10000);
+    updateUnreadCount(); // Initial load
 </script>

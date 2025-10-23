@@ -80,37 +80,38 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
                 </a>
             </li>
             <li class="nav-item">
-                <a href="../reports/index.php" class="nav-link">
+                <a href="../public/chat.php" class="nav-link" <?php if (basename($_SERVER['PHP_SELF']) == 'chat.php') echo 'class="active"'; ?> >
                     <i class="nav-icon"></i>
-                    <span class="nav-text">Reports</span>
+                    <span class="nav-text">Chat</span>
                 </a>
             </li>
-            
+            <li>
+
             <?php if ($role === 'admin' || $role === 'manager'): ?>
-            <li class="nav-divider"></li>
-            <li class="nav-section-title">
-                <span>Administration</span>
-            </li>
-            <li class="nav-item">
-                <a href="../admin/users.php" class="nav-link">
-                    <i class="nav-icon"></i>
-                    <span class="nav-text">Users</span>
-                </a>
-            </li>
-            <li class="nav-item">
-                <a href="../admin/departments.php" class="nav-link">
-                    <i class="nav-icon"></i>
-                    <span class="nav-text">Departments</span>
-                </a>
-            </li>
-            <li class="nav-item">
-                <a href="../admin/settings.php" class="nav-link">
-                    <i class="nav-icon"></i>
-                    <span class="nav-text">System Settings</span>
-                </a>
-            </li>
+                <li class="nav-divider"></li>
+                <li class="nav-section-title">
+                    <span>Administration</span>
+                </li>
+                <li class="nav-item">
+                    <a href="../public/userList.php" class="nav-link">
+                        <i class="nav-icon"></i>
+                        <span class="nav-text">Users</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="../public/departments.php" class="nav-link">
+                        <i class="nav-icon"></i>
+                        <span class="nav-text">Departments</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="../admin/settings.php" class="nav-link">
+                        <i class="nav-icon"></i>
+                        <span class="nav-text">System Settings</span>
+                    </a>
+                </li>
             <?php endif; ?>
-            
+
             <li class="nav-divider"></li>
             <li class="nav-item">
                 <a href="../public/adminProfile.php" class="nav-link">
@@ -172,14 +173,14 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
             sidebarToggle.addEventListener('click', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
-                
+
                 console.log('Toggle clicked - current state:', sidebar.classList.contains('collapsed'));
-                
+
                 sidebar.classList.toggle('collapsed');
-                
+
                 // Force reflow to ensure transition works
                 sidebar.offsetWidth;
-                
+
                 console.log('New state:', sidebar.classList.contains('collapsed'));
             });
         }
@@ -189,7 +190,7 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
             mobileToggle.addEventListener('click', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
-                
+
                 if (window.innerWidth <= 768) {
                     sidebar.classList.toggle('show');
                     overlay.classList.toggle('show');
@@ -214,7 +215,7 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
         }
 
         window.addEventListener('resize', handleResize);
-        
+
         // Initial setup
         handleResize();
     }
@@ -222,11 +223,11 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
     // FIXED: Highlight active page based on current URL (no preventDefault)
     function highlightActivePage() {
         const currentPath = window.location.pathname;
-        
+
         document.querySelectorAll('.sidebar-nav .nav-link').forEach(link => {
             // Get the href attribute and create full path
             const linkHref = link.getAttribute('href');
-            
+
             // Check if current page matches the link
             if (currentPath.endsWith(linkHref) || currentPath.includes(linkHref)) {
                 link.classList.add('active');
@@ -258,4 +259,25 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
             });
         });
     });
+
+    function updateUnreadCount() {
+    fetch('../api/chat_get_unread_count.php')
+        .then(r => r.json())
+        .then(data => {
+            const badge = document.getElementById('unreadBadge');
+            if (data.unread > 0) {
+                badge.textContent = data.unread;
+                badge.style.display = 'inline-block';
+                // Update page title
+                document.title = `(${data.unread}) Messages - E-Asset Management`;
+            } else {
+                badge.style.display = 'none';
+            }
+        })
+        .catch(err => console.error('Error loading unread count:', err));
+}
+
+// Update every 60 seconds
+setInterval(updateUnreadCount, 60000);
+updateUnreadCount(); // Initial load
 </script>
