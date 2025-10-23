@@ -74,6 +74,12 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
                 </a>
             </li>
             <li class="nav-item">
+                <a href="../public/Uastatus.php" class="nav-link">
+                    <i class="nav-icon"></i>
+                    <span class="nav-text">UA Tracking</span>
+                </a>
+            </li>
+            <li class="nav-item">
                 <a href="../reports/index.php" class="nav-link">
                     <i class="nav-icon"></i>
                     <span class="nav-text">Reports</span>
@@ -107,7 +113,7 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
             
             <li class="nav-divider"></li>
             <li class="nav-item">
-                <a href="../users/userProfile.php" class="nav-link">
+                <a href="../public/adminProfile.php" class="nav-link">
                     <i class="nav-icon"></i>
                     <span class="nav-text">My Profile</span>
                 </a>

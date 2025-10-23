@@ -509,7 +509,7 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
     </style>
 </head>
 <body>
-    <?php include("../auth/inc/Usidebar.php"); ?>
+    <?php include("../auth/inc/Msidebar.php"); ?>
 
     <main class="main-content">
         <div class="dashboard-content">

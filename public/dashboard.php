@@ -139,12 +139,7 @@ try {
     $stmt = $pdo->prepare("SELECT priority, COUNT(*) as count FROM tickets $ticket_base_where GROUP BY priority");
     $stmt->execute($ticket_params);
     $ticket_priority_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    
-
-} 
-
-catch (PDOException $e) {
+} catch (PDOException $e) {
     // Keep default values on error
     error_log("Dashboard stats error: " . $e->getMessage());
 }
@@ -198,6 +193,7 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -205,7 +201,8 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
     <link rel="stylesheet" href="../auth/inc/navigation.css">
     <link rel="stylesheet" href="../style/dashboard.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
-    
+    <script src="../js/deviceTracker.js" defer></script>
+
     <style>
         .charts-section {
             display: grid;
@@ -247,8 +244,9 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
         }
     </style>
 </head>
+
 <body>
-    
+
     <?php include("../auth/inc/sidebar.php"); ?>
 
     <main class="main-content">
@@ -264,19 +262,19 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
                     <div class="stat-number"><?php echo $stats['my_assets']; ?></div>
                     <div class="stat-label">My Assets</div>
                 </div>
-                
+
                 <?php if ($role === 'admin'): ?>
-                <div class="stat-card" onclick="window.location.href='../public/userV.php'">
-                    <span class="stat-icon">👥</span>
-                    <div class="stat-number"><?php echo $stats['pending_requests']; ?></div>
-                    <div class="stat-label">Pending Verifications</div>
-                </div>
+                    <div class="stat-card" onclick="window.location.href='../public/userV.php'">
+                        <span class="stat-icon">👥</span>
+                        <div class="stat-number"><?php echo $stats['pending_requests']; ?></div>
+                        <div class="stat-label">Pending Verifications</div>
+                    </div>
                 <?php else: ?>
-                <div class="stat-card" onclick="window.location.href='../public/tickets.php'">
-                    <span class="stat-icon">🎫</span>
-                    <div class="stat-number"><?php echo $stats['total_tickets']; ?></div>
-                    <div class="stat-label">Total Tickets</div>
-                </div>
+                    <div class="stat-card" onclick="window.location.href='../public/tickets.php'">
+                        <span class="stat-icon">🎫</span>
+                        <div class="stat-number"><?php echo $stats['total_tickets']; ?></div>
+                        <div class="stat-label">Total Tickets</div>
+                    </div>
                 <?php endif; ?>
 
                 <div class="stat-card">
@@ -286,73 +284,73 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
                 </div>
 
                 <?php if ($role === 'admin' || $role === 'manager'): ?>
-                <div class="stat-card" onclick="window.location.href='../public/asset.php'">
-                    <span class="stat-icon">📊</span>
-                    <div class="stat-number"><?php echo $stats['total_assets']; ?></div>
-                    <div class="stat-label">Total Assets</div>
-                </div>
+                    <div class="stat-card" onclick="window.location.href='../public/asset.php'">
+                        <span class="stat-icon">📊</span>
+                        <div class="stat-number"><?php echo $stats['total_assets']; ?></div>
+                        <div class="stat-label">Total Assets</div>
+                    </div>
                 <?php else: ?>
-                <div class="stat-card" onclick="window.location.href='../public/tickets.php'">
-                    <span class="stat-icon">⚡</span>
-                    <div class="stat-number"><?php echo $stats['urgent_tickets']; ?></div>
-                    <div class="stat-label">Urgent Tickets</div>
-                </div>
+                    <div class="stat-card" onclick="window.location.href='../public/tickets.php'">
+                        <span class="stat-icon">⚡</span>
+                        <div class="stat-number"><?php echo $stats['urgent_tickets']; ?></div>
+                        <div class="stat-label">Urgent Tickets</div>
+                    </div>
                 <?php endif; ?>
             </div>
 
             <!-- Charts Section -->
             <?php if ($role === 'admin' || $role === 'manager'): ?>
-            <div class="charts-section">
-                <!-- Asset Status Chart -->
-                <div class="chart-card">
-                    <h3>📊 Asset Status Distribution</h3>
-                    <div class="chart-container">
-                        <canvas id="assetStatusChart"></canvas>
+                <div class="charts-section">
+                    <!-- Asset Status Chart -->
+                    <div class="chart-card">
+                        <h3>📊 Asset Status Distribution</h3>
+                        <div class="chart-container">
+                            <canvas id="assetStatusChart"></canvas>
+                        </div>
                     </div>
-                </div>
 
-                <!-- Asset Category Chart -->
-                <div class="chart-card">
-                    <h3>📈 Assets by Category</h3>
-                    <div class="chart-container">
-                        <canvas id="assetCategoryChart"></canvas>
+                    <!-- Asset Category Chart -->
+                    <div class="chart-card">
+                        <h3>📈 Assets by Category</h3>
+                        <div class="chart-container">
+                            <canvas id="assetCategoryChart"></canvas>
+                        </div>
                     </div>
-                </div>
 
-                <!-- Ticket Status Chart -->
-                <div class="chart-card">
-                    <h3>🎫 Ticket Status Overview</h3>
-                    <div class="chart-container">
-                        <canvas id="ticketStatusChart"></canvas>
+                    <!-- Ticket Status Chart -->
+                    <div class="chart-card">
+                        <h3>🎫 Ticket Status Overview</h3>
+                        <div class="chart-container">
+                            <canvas id="ticketStatusChart"></canvas>
+                        </div>
                     </div>
-                </div>
 
-                <!-- Ticket Priority Chart -->
-                <div class="chart-card">
-                    <h3>⚠️ Tickets by Priority</h3>
-                    <div class="chart-container">
-                        <canvas id="ticketPriorityChart"></canvas>
+                    <!-- Ticket Priority Chart -->
+                    <div class="chart-card">
+                        <h3>⚠️ Tickets by Priority</h3>
+                        <div class="chart-container">
+                            <canvas id="ticketPriorityChart"></canvas>
+                        </div>
                     </div>
                 </div>
-            </div>
             <?php else: ?>
-            <div class="charts-section">
-                <!-- Ticket Status Chart for Employees -->
-                <div class="chart-card">
-                    <h3>🎫 My Ticket Status</h3>
-                    <div class="chart-container">
-                        <canvas id="ticketStatusChart"></canvas>
+                <div class="charts-section">
+                    <!-- Ticket Status Chart for Employees -->
+                    <div class="chart-card">
+                        <h3>🎫 My Ticket Status</h3>
+                        <div class="chart-container">
+                            <canvas id="ticketStatusChart"></canvas>
+                        </div>
                     </div>
-                </div>
 
-                <!-- Ticket Priority Chart for Employees -->
-                <div class="chart-card">
-                    <h3>⚠️ My Tickets by Priority</h3>
-                    <div class="chart-container">
-                        <canvas id="ticketPriorityChart"></canvas>
+                    <!-- Ticket Priority Chart for Employees -->
+                    <div class="chart-card">
+                        <h3>⚠️ My Tickets by Priority</h3>
+                        <div class="chart-container">
+                            <canvas id="ticketPriorityChart"></canvas>
+                        </div>
                     </div>
                 </div>
-            </div>
             <?php endif; ?>
 
             <div class="dashboard-grid">
@@ -414,37 +412,87 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
             </div>
 
             <?php if (count($recent_activity) > 0): ?>
-            <div class="card">
-                <h2>📊 Recent Activity</h2>
-                <ul class="activity-list">
-                    <?php foreach ($recent_activity as $activity): ?>
-                        <li class="activity-item">
-                            <div class="activity-type"><?php echo ucfirst(htmlspecialchars($activity['action_type'])); ?></div>
-                            <div class="activity-details">
-                                <?php echo htmlspecialchars($activity['asset_name']); ?> 
-                                (<?php echo htmlspecialchars($activity['asset_code']); ?>)
-                            </div>
-                            <div class="activity-time"><?php echo date('M j, Y H:i', strtotime($activity['created_at'])); ?></div>
-                        </li>
-                    <?php endforeach; ?>
-                </ul>
-            </div>
+                <div class="card">
+                    <h2>📊 Recent Activity</h2>
+                    <ul class="activity-list">
+                        <?php foreach ($recent_activity as $activity): ?>
+                            <li class="activity-item">
+                                <div class="activity-type"><?php echo ucfirst(htmlspecialchars($activity['action_type'])); ?></div>
+                                <div class="activity-details">
+                                    <?php echo htmlspecialchars($activity['asset_name']); ?>
+                                    (<?php echo htmlspecialchars($activity['asset_code']); ?>)
+                                </div>
+                                <div class="activity-time"><?php echo date('M j, Y H:i', strtotime($activity['created_at'])); ?></div>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
             <?php endif; ?>
 
             <?php if ($role === 'admin' || $role === 'manager'): ?>
-            <div class="card">
-                <h2>⚡ Quick Actions</h2>
-                <div class="quick-actions">
-                    <a href="../public/asset.php" class="action-btn btn-primary">Manage Assets</a>
-                    <?php if ($role === 'admin'): ?>
-                        <a href="../public/userV.php" class="action-btn btn-primary">Verify Users</a>
-                    <?php endif; ?>
-                    <a href="../public/tickets.php" class="action-btn btn-primary">View Tickets</a>
-                    <a href="../public/assetHistory.php" class="action-btn btn-secondary">View History</a>
+                <div class="card">
+                    <h2>⚡ Quick Actions</h2>
+                    <div class="quick-actions">
+                        <a href="../public/asset.php" class="action-btn btn-primary">Manage Assets</a>
+                        <?php if ($role === 'admin'): ?>
+                            <a href="../public/userV.php" class="action-btn btn-primary">Verify Users</a>
+                        <?php endif; ?>
+                        <a href="../public/tickets.php" class="action-btn btn-primary">View Tickets</a>
+                        <a href="../public/assetHistory.php" class="action-btn btn-secondary">View History</a>
+                    </div>
                 </div>
-            </div>
             <?php endif; ?>
         </div>
+        <?php if ($role === 'admin'): ?>
+            <div class="card">
+                <h2>🟢 Currently Online Users</h2>
+                <?php
+                try {
+                    $stmt = $pdo->query("
+            SELECT 
+                u.first_name, u.last_name, u.department,
+                us.ip_address, us.device_serial, us.last_activity
+            FROM user_sessions us
+            JOIN users u ON us.user_id = u.user_id
+            WHERE us.is_active = 1 
+            AND us.last_activity >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+            ORDER BY us.last_activity DESC
+            LIMIT 5
+        ");
+                    $online_users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                    if (count($online_users) > 0):
+                ?>
+                        <ul class="activity-list">
+                            <?php foreach ($online_users as $user): ?>
+                                <li class="activity-item">
+                                    <div class="activity-type">
+                                        🟢 <?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?>
+                                    </div>
+                                    <div class="activity-details">
+                                        IP: <?php echo htmlspecialchars($user['ip_address']); ?> |
+                                        Device: <?php echo htmlspecialchars(substr($user['device_serial'], 0, 12)); ?>...
+                                    </div>
+                                    <div class="activity-time">
+                                        <?php echo date('H:i', strtotime($user['last_activity'])); ?>
+                                    </div>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                        <div class="quick-actions">
+                            <a href="../public/Uastatus.php" class="action-btn btn-primary">View All Active Users</a>
+                        </div>
+                    <?php else: ?>
+                        <div class="no-data">
+                            <p>No users currently online</p>
+                        </div>
+                    <?php endif; ?>
+                <?php } catch (PDOException $e) {
+                    error_log("Online users error: " . $e->getMessage());
+                } ?>
+            </div>
+        <?php endif; ?>
+        
     </main>
 
     <script>
@@ -473,81 +521,81 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
         };
 
         <?php if ($role === 'admin' || $role === 'manager'): ?>
-        // Asset Status Pie Chart
-        const assetStatusCtx = document.getElementById('assetStatusChart').getContext('2d');
-        const assetStatusLabels = <?php echo $asset_status_labels; ?>;
-        const assetStatusData = <?php echo $asset_status_values; ?>;
-        
-        new Chart(assetStatusCtx, {
-            type: 'doughnut',
-            data: {
-                labels: assetStatusLabels,
-                datasets: [{
-                    data: assetStatusData,
-                    backgroundColor: assetStatusLabels.map(label => statusColors[label] || '#6b7280'),
-                    borderWidth: 2,
-                    borderColor: '#fff'
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: {
-                            padding: 15,
-                            font: {
-                                size: 12
+            // Asset Status Pie Chart
+            const assetStatusCtx = document.getElementById('assetStatusChart').getContext('2d');
+            const assetStatusLabels = <?php echo $asset_status_labels; ?>;
+            const assetStatusData = <?php echo $asset_status_values; ?>;
+
+            new Chart(assetStatusCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: assetStatusLabels,
+                    datasets: [{
+                        data: assetStatusData,
+                        backgroundColor: assetStatusLabels.map(label => statusColors[label] || '#6b7280'),
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 15,
+                                font: {
+                                    size: 12
+                                }
                             }
                         }
                     }
                 }
-            }
-        });
+            });
 
-        // Asset Category Bar Chart
-        const assetCategoryCtx = document.getElementById('assetCategoryChart').getContext('2d');
-        const assetCategoryLabels = <?php echo $asset_category_labels; ?>;
-        const assetCategoryData = <?php echo $asset_category_values; ?>;
-        
-        new Chart(assetCategoryCtx, {
-            type: 'bar',
-            data: {
-                labels: assetCategoryLabels,
-                datasets: [{
-                    label: 'Number of Assets',
-                    data: assetCategoryData,
-                    backgroundColor: 'rgba(102, 126, 234, 0.8)',
-                    borderColor: 'rgba(102, 126, 234, 1)',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            stepSize: 1
+            // Asset Category Bar Chart
+            const assetCategoryCtx = document.getElementById('assetCategoryChart').getContext('2d');
+            const assetCategoryLabels = <?php echo $asset_category_labels; ?>;
+            const assetCategoryData = <?php echo $asset_category_values; ?>;
+
+            new Chart(assetCategoryCtx, {
+                type: 'bar',
+                data: {
+                    labels: assetCategoryLabels,
+                    datasets: [{
+                        label: 'Number of Assets',
+                        data: assetCategoryData,
+                        backgroundColor: 'rgba(102, 126, 234, 0.8)',
+                        borderColor: 'rgba(102, 126, 234, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
                         }
                     }
-                },
-                plugins: {
-                    legend: {
-                        display: false
-                    }
                 }
-            }
-        });
+            });
         <?php endif; ?>
 
         // Ticket Status Pie Chart
         const ticketStatusCtx = document.getElementById('ticketStatusChart').getContext('2d');
         const ticketStatusLabels = <?php echo $ticket_status_labels; ?>;
         const ticketStatusData = <?php echo $ticket_status_values; ?>;
-        
+
         new Chart(ticketStatusCtx, {
             type: 'doughnut',
             data: {
@@ -580,7 +628,7 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
         const ticketPriorityCtx = document.getElementById('ticketPriorityChart').getContext('2d');
         const ticketPriorityLabels = <?php echo $ticket_priority_labels; ?>;
         const ticketPriorityData = <?php echo $ticket_priority_values; ?>;
-        
+
         new Chart(ticketPriorityCtx, {
             type: 'bar',
             data: {
@@ -612,4 +660,5 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
         });
     </script>
 </body>
+
 </html>

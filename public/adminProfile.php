@@ -441,7 +441,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 <body>
     <div class="container">
         <div class="header">
-            <a href="../users/userDashboard.php" class="back-button">← Back to Homepage</a>
+            <a href="../public/dashboard.php" class="back-button">← Back to Homepage</a>
             <h1>Account Settings</h1>
             <p>Manage your profile and account preferences</p>
         </div>
@@ -611,7 +611,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     <p>Your account was created on <?php echo date('F j, Y', strtotime($user['created_at'])); ?>. You are currently registered as a <?php echo htmlspecialchars($user['role']); ?> in the <?php echo htmlspecialchars($user['department']); ?> department.</p>
                 </div>
 
-                <button onclick="window.location.href='../users/userDashboard.php'" class="btn-secondary" style="width: auto;">
+                <button onclick="window.location.href='../public/dashboard.php'" class="btn-secondary" style="width: auto;">
                     ← Back to Dashboard
                 </button>
             </div>

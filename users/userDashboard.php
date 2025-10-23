@@ -159,6 +159,7 @@ $ticket_priority_values = json_encode(array_column($my_ticket_priority_data, 'co
     <link rel="stylesheet" href="../style/dashboard.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+    <script src="../js/deviceTracker.js" defer></script>
     
     <style>
         /* Keep all your existing styles */
@@ -349,6 +350,7 @@ $ticket_priority_values = json_encode(array_column($my_ticket_priority_data, 'co
             }
         }
     </style>
+    
     
 </head>
 <body>

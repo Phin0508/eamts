@@ -4,8 +4,8 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Authorization check - Only employees can use this sidebar
-if (!isset($_SESSION['user_id']) || strtolower(trim($_SESSION['role'])) !== 'employee') {
+// Authorization check - Only managers can use this sidebar
+if (!isset($_SESSION['user_id']) || strtolower(trim($_SESSION['role'])) !== 'manager') {
     return;
 }
 
@@ -35,7 +35,7 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
         </div>
         <div class="user-details">
             <h3 class="user-name"><?php echo htmlspecialchars($user_name); ?></h3>
-            <p class="user-role">Employee</p>
+            <p class="user-role">Manager</p>
             <p class="user-department"><?php echo htmlspecialchars($department); ?></p>
         </div>
         <div class="user-status">
@@ -47,9 +47,9 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
     <!-- Navigation Menu -->
     <nav class="sidebar-nav">
         <ul class="nav-menu">
-            <!-- EMPLOYEE MENU ITEMS -->
+            <!-- MANAGER DASHBOARD & PERSONAL -->
             <li class="nav-item">
-                <a href="userDashboard.php" class="nav-link">
+                <a href="managerDashboard.php" class="nav-link">
                     <i class="nav-icon">📊</i>
                     <span class="nav-text">Dashboard</span>
                 </a>
@@ -60,16 +60,54 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
                     <span class="nav-text">My Assets</span>
                 </a>
             </li>
+            
+            <!-- DEPARTMENT MANAGEMENT SECTION -->
+            <li class="nav-divider"></li>
+            <li class="nav-section-title">
+                <span>Department Management</span>
+            </li>
+            
             <li class="nav-item">
-                <a href="userTicket.php" class="nav-link">
-                    <i class="nav-icon">🎫</i>
-                    <span class="nav-text">My Tickets</span>
+                <a href="department_assets.php" class="nav-link">
+                    <i class="nav-icon">🏢</i>
+                    <span class="nav-text">Department Assets</span>
                 </a>
             </li>
             <li class="nav-item">
-                <a href="userCreateticket.php" class="nav-link">
-                    <i class="nav-icon">➕</i>
-                    <span class="nav-text">Create Ticket</span>
+                <a href="department_tickets.php" class="nav-link">
+                    <i class="nav-icon">🎫</i>
+                    <span class="nav-text">Department Tickets</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="department_requests.php" class="nav-link">
+                    <i class="nav-icon">📝</i>
+                    <span class="nav-text">Department Requests</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="team_members.php" class="nav-link">
+                    <i class="nav-icon">👥</i>
+                    <span class="nav-text">Team Members</span>
+                </a>
+            </li>
+            
+            <!-- REPORTS & ANALYTICS SECTION -->
+            <li class="nav-divider"></li>
+            <li class="nav-section-title">
+                <span>Reports & Analytics</span>
+            </li>
+            
+            <li class="nav-item">
+                <a href="department_reports.php" class="nav-link">
+                    <i class="nav-icon">📈</i>
+                    <span class="nav-text">Department Reports</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="asset_analytics.php" class="nav-link">
+                    <i class="nav-icon">📉</i>
+                    <span class="nav-text">Asset Analytics</span>
                 </a>
             </li>
             
@@ -100,7 +138,7 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
             </div>
             <div class="session-item">
                 <span class="session-label">Role:</span>
-                <span class="session-value">Employee</span>
+                <span class="session-value">Manager</span>
             </div>
             <div class="session-item">
                 <span class="session-label">Department:</span>
@@ -126,7 +164,7 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
 <script>
-    console.log('Employee Sidebar Loaded');
+    console.log('Manager Sidebar Loaded - Role: Manager');
     
     function initializeSidebar() {
         const sidebar = document.getElementById('sidebar');
@@ -134,6 +172,7 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
         const mobileToggle = document.getElementById('mobileToggle');
         const overlay = document.getElementById('sidebarOverlay');
 
+        // Desktop sidebar toggle
         if (sidebarToggle) {
             sidebarToggle.addEventListener('click', function(e) {
                 e.preventDefault();
@@ -143,6 +182,7 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
             });
         }
 
+        // Mobile toggle
         if (mobileToggle) {
             mobileToggle.addEventListener('click', function(e) {
                 e.preventDefault();
@@ -155,6 +195,7 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
             });
         }
 
+        // Close sidebar when clicking overlay (mobile)
         if (overlay) {
             overlay.addEventListener('click', function() {
                 sidebar.classList.remove('show');
@@ -162,6 +203,7 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
             });
         }
 
+        // Handle window resize
         function handleResize() {
             if (window.innerWidth > 768) {
                 sidebar.classList.remove('show');
@@ -173,6 +215,7 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
         handleResize();
     }
 
+    // Highlight active page
     function highlightActivePage() {
         const currentPath = window.location.pathname;
         const currentFile = currentPath.split('/').pop();
@@ -181,6 +224,7 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
             const linkHref = link.getAttribute('href');
             const linkFile = linkHref.split('/').pop();
             
+            // Match by filename
             if (currentFile === linkFile) {
                 link.classList.add('active');
             } else {
@@ -189,6 +233,7 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
         });
     }
 
+    // Initialize when DOM is loaded
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function() {
             initializeSidebar();
