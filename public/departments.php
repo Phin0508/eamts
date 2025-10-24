@@ -560,8 +560,10 @@ $total_employees = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
             }
         }
     </style>
+    <link rel="stylesheet" href="../auth/inc/navigation.css">
 </head>
 <body>
+    <?php include("../auth/inc/sidebar.php"); ?>
     <div class="container">
         <div class="header">
             <h1>🏢 Department Management</h1>
@@ -823,8 +825,14 @@ $total_employees = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
         });
 
         // Auto-hide messages after 5 seconds
-        setTimeout(() => {
+         setTimeout(() => {
             const messages = document.querySelectorAll('.message');
             messages.forEach(msg => {
                 msg.style.transition = 'opacity 0.5s';
-                msg.style.opacity
+                msg.style.opacity = '0';
+                setTimeout(() => msg.remove(), 500);
+            });
+        }, 5000);
+    </script>
+</body>
+</html>

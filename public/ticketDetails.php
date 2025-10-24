@@ -733,8 +733,6 @@ if (isset($_GET['assigned'])) $success_message = "Ticket assigned successfully!"
     </style>
 </head>
 <body>
-    <!-- Include Navigation Bar -->
-    <?php include("../auth/inc/navbar.php"); ?>
     
     <!-- Include Sidebar -->
     <?php include("../auth/inc/sidebar.php"); ?>

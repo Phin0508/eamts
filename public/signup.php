@@ -6,13 +6,31 @@ if (isset($_COOKIE['remember_token'])) {
     setcookie('remember_token', '', time() - 3600, '/', '', isset($_SERVER['HTTPS']), true);
     unset($_COOKIE['remember_token']); // Also unset from current request
 }
-?>
-<?php
+
 // Include database configuration
 include("../auth/config/database.php");
 
 $error_message = '';
 $success_message = '';
+
+// Fetch active departments from database for the dropdown
+$departments_list = [];
+try {
+    $dept_query = $pdo->query("SELECT dept_id, dept_name, dept_code FROM departments WHERE is_active = 1 ORDER BY dept_name ASC");
+    $departments_list = $dept_query->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    // If departments table doesn't exist or error, use fallback
+    $departments_list = [
+        ['dept_name' => 'IT', 'dept_code' => 'IT'],
+        ['dept_name' => 'Human Resources', 'dept_code' => 'HR'],
+        ['dept_name' => 'Finance', 'dept_code' => 'FIN'],
+        ['dept_name' => 'Operations', 'dept_code' => 'OPS'],
+        ['dept_name' => 'Sales', 'dept_code' => 'SALES'],
+        ['dept_name' => 'Marketing', 'dept_code' => 'MKT'],
+        ['dept_name' => 'Engineering', 'dept_code' => 'ENG'],
+        ['dept_name' => 'Support', 'dept_code' => 'SUP']
+    ];
+}
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -45,6 +63,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errors[] = "Invalid role selected";
         }
         
+        // Validate department exists in database
+        if (!empty($department)) {
+            $dept_check = $pdo->prepare("SELECT dept_id FROM departments WHERE dept_name = ? AND is_active = 1");
+            $dept_check->execute([$department]);
+            if ($dept_check->rowCount() === 0) {
+                $errors[] = "Invalid department selected";
+            }
+        }
+        
         // Check if username, email, or employee_id already exists
         if (empty($errors)) {
             $check_stmt = $pdo->prepare("SELECT user_id FROM users WHERE username = ? OR email = ? OR (employee_id IS NOT NULL AND employee_id = ?)");
@@ -61,14 +88,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Prepare insert statement
             $stmt = $pdo->prepare("
-        INSERT INTO users (
-            first_name, last_name, email, username, password_hash, 
-            phone, department, role, employee_id, is_active, is_verified, 
-            created_at, updated_at
-        ) VALUES (
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, NOW(), NOW()
-        )
-    ");
+                INSERT INTO users (
+                    first_name, last_name, email, username, password_hash, 
+                    phone, department, role, employee_id, is_active, is_verified, 
+                    created_at, updated_at
+                ) VALUES (
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, NOW(), NOW()
+                )
+            ");
 
             // Execute the statement
             if ($stmt->execute([
@@ -83,7 +110,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $employee_id
             ])) {
                 // Set session flag to prevent auto-login
-                session_start();
                 $_SESSION['just_registered'] = true;
 
                 // Redirect to login page with success message
@@ -197,14 +223,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <label for="department">Department *</label>
                     <select id="department" name="department" required>
                         <option value="">Select Department</option>
-                        <option value="IT" <?php echo (($_POST['department'] ?? '') === 'IT') ? 'selected' : ''; ?>>IT</option>
-                        <option value="HR" <?php echo (($_POST['department'] ?? '') === 'HR') ? 'selected' : ''; ?>>Human Resources</option>
-                        <option value="Finance" <?php echo (($_POST['department'] ?? '') === 'Finance') ? 'selected' : ''; ?>>Finance</option>
-                        <option value="Operations" <?php echo (($_POST['department'] ?? '') === 'Operations') ? 'selected' : ''; ?>>Operations</option>
-                        <option value="Sales" <?php echo (($_POST['department'] ?? '') === 'Sales') ? 'selected' : ''; ?>>Sales</option>
-                        <option value="Marketing" <?php echo (($_POST['department'] ?? '') === 'Marketing') ? 'selected' : ''; ?>>Marketing</option>
-                        <option value="Engineering" <?php echo (($_POST['department'] ?? '') === 'Engineering') ? 'selected' : ''; ?>>Engineering</option>
-                        <option value="Support" <?php echo (($_POST['department'] ?? '') === 'Support') ? 'selected' : ''; ?>>Support</option>
+                        <?php foreach ($departments_list as $dept): ?>
+                            <option value="<?php echo htmlspecialchars($dept['dept_name']); ?>" 
+                                    <?php echo (($_POST['department'] ?? '') === $dept['dept_name']) ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($dept['dept_name']); ?>
+                                <?php if (isset($dept['dept_code'])): ?>
+                                    (<?php echo htmlspecialchars($dept['dept_code']); ?>)
+                                <?php endif; ?>
+                            </option>
+                        <?php endforeach; ?>
                     </select>
                     <span class="error-message">Please select a department</span>
                 </div>

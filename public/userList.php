@@ -511,7 +511,7 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                     <span style="opacity: 0.9;">Welcome, <?php echo htmlspecialchars($_SESSION['first_name']); ?></span>
                 </div>
                 <div style="display: flex; gap: 10px;">
-                    <a href="signup.php" class="btn btn-primary">+ Add New User</a>
+                    <a href="admin_create_user.php" class="btn btn-primary">+ Add New User</a>
                     <a href="dashboard.php" class="btn btn-primary">← Back to Dashboard</a>
                 </div>
             </div>

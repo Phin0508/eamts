@@ -437,7 +437,7 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
                         <?php if ($role === 'admin'): ?>
                             <a href="../public/userV.php" class="action-btn btn-primary">Verify Users</a>
                         <?php endif; ?>
-                        <a href="../public/tickets.php" class="action-btn btn-primary">View Tickets</a>
+                        <a href="../public/ticket.php" class="action-btn btn-primary">View Tickets</a>
                         <a href="../public/assetHistory.php" class="action-btn btn-secondary">View History</a>
                     </div>
                 </div>

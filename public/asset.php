@@ -337,7 +337,11 @@ try {
                         <tbody>
                             <?php foreach ($assets as $asset): ?>
                                 <tr>
-                                    <td><strong><?php echo htmlspecialchars($asset['asset_code']); ?></strong></td>
+                                    <td>
+                                        <a href="assetDetails.php?id=<?php echo $asset['id']; ?>" class="asset-code-link">
+                                            <strong><?php echo htmlspecialchars($asset['asset_code']); ?></strong>
+                                        </a>
+                                    </td>
                                     <td><?php echo htmlspecialchars($asset['asset_name']); ?></td>
                                     <td><?php echo htmlspecialchars($asset['category']); ?></td>
                                     <td>
