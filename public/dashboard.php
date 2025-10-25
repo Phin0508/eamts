@@ -20,6 +20,100 @@ $department = $_SESSION['department'];
 $user_id = $_SESSION['user_id'];
 $login_time = isset($_SESSION['login_time']) ? date('Y-m-d H:i:s', $_SESSION['login_time']) : 'Unknown';
 
+// ============================================
+// DEBUG CODE - REMOVE THIS IN PRODUCTION
+// ============================================
+$show_debug = false; // Set to true only when debugging
+// $show_debug = isset($_GET['debug']) && $_GET['debug'] === 'true';
+
+if ($show_debug) {
+    echo "<pre style='background: #f0f0f0; padding: 20px; margin: 20px; border: 2px solid #333; font-size: 12px;'>";
+    echo "<h3 style='color: #e74c3c;'>🔍 DEBUG INFORMATION - TICKET ISSUES</h3>";
+    echo "<p style='color: #555;'>URL: Add ?debug=true to see this | Current Role: <strong>{$role}</strong> | User ID: <strong>{$user_id}</strong></p>";
+    echo "<hr>";
+
+    // Check tickets table structure
+    echo "\n<strong style='color: #2980b9;'>1. ALL TICKETS IN DATABASE:</strong>\n";
+    try {
+        $debug_stmt = $pdo->query("SELECT ticket_id, ticket_number, approval_status, status, requester_id, created_at FROM tickets ORDER BY created_at DESC");
+        $all_tickets = $debug_stmt->fetchAll(PDO::FETCH_ASSOC);
+        echo "📊 Total tickets in database: <strong>" . count($all_tickets) . "</strong>\n\n";
+        
+        if (count($all_tickets) > 0) {
+            foreach ($all_tickets as $t) {
+                echo "Ticket #{$t['ticket_number']}: ";
+                echo "approval_status=<strong style='color: #e74c3c;'>'{$t['approval_status']}'</strong>, ";
+                echo "status='{$t['status']}', ";
+                echo "requester_id={$t['requester_id']}, ";
+                echo "created=" . date('M d, Y H:i', strtotime($t['created_at'])) . "\n";
+            }
+        } else {
+            echo "⚠️ No tickets found in database!\n";
+        }
+    } catch (PDOException $e) {
+        echo "❌ Error: " . $e->getMessage() . "\n";
+    }
+
+    // Check approval status values
+    echo "\n<strong style='color: #2980b9;'>2. APPROVAL STATUS BREAKDOWN:</strong>\n";
+    try {
+        $status_stmt = $pdo->query("SELECT approval_status, COUNT(*) as count FROM tickets GROUP BY approval_status");
+        $statuses = $status_stmt->fetchAll(PDO::FETCH_ASSOC);
+        echo "Different approval_status values found:\n";
+        foreach ($statuses as $s) {
+            $approval = $s['approval_status'] === null ? 'NULL' : "'{$s['approval_status']}'";
+            echo "  • {$approval}: <strong>{$s['count']}</strong> tickets\n";
+        }
+    } catch (PDOException $e) {
+        echo "❌ Error: " . $e->getMessage() . "\n";
+    }
+
+    // Check what admin query returns
+    if ($role === 'admin') {
+        echo "\n<strong style='color: #2980b9;'>3. ADMIN TICKET QUERY TEST:</strong>\n";
+        try {
+            // Test current query
+            $test_stmt = $pdo->query("SELECT COUNT(*) FROM tickets WHERE approval_status = 'approved'");
+            $approved_count = $test_stmt->fetchColumn();
+            echo "Tickets WHERE approval_status='approved': <strong>{$approved_count}</strong>\n";
+            
+            // Test alternative query
+            $test_stmt2 = $pdo->query("SELECT COUNT(*) FROM tickets WHERE (approval_status = 'approved' OR approval_status IS NULL)");
+            $alt_count = $test_stmt2->fetchColumn();
+            echo "Tickets WHERE approval_status='approved' OR NULL: <strong>{$alt_count}</strong>\n";
+            
+            // Test show all
+            $test_stmt3 = $pdo->query("SELECT COUNT(*) FROM tickets");
+            $all_count = $test_stmt3->fetchColumn();
+            echo "All tickets (no filter): <strong>{$all_count}</strong>\n";
+        } catch (PDOException $e) {
+            echo "❌ Error: " . $e->getMessage() . "\n";
+        }
+    }
+
+    // Check tickets table structure
+    echo "\n<strong style='color: #2980b9;'>4. TICKETS TABLE STRUCTURE:</strong>\n";
+    try {
+        $struct_stmt = $pdo->query("DESCRIBE tickets");
+        $columns = $struct_stmt->fetchAll(PDO::FETCH_ASSOC);
+        echo "Columns in tickets table:\n";
+        foreach ($columns as $col) {
+            if (stripos($col['Field'], 'approval') !== false || stripos($col['Field'], 'status') !== false) {
+                echo "  • {$col['Field']}: {$col['Type']} (Null: {$col['Null']}, Default: {$col['Default']})\n";
+            }
+        }
+    } catch (PDOException $e) {
+        echo "❌ Error: " . $e->getMessage() . "\n";
+    }
+
+    echo "\n<hr>";
+    echo "<p style='color: #27ae60;'><strong>✅ Debug complete!</strong> Remove ?debug=true from URL to hide this.</p>";
+    echo "</pre>";
+}
+// ============================================
+// END DEBUG CODE
+// ============================================
+
 // Handle logout
 if (isset($_GET['action']) && $_GET['action'] === 'logout') {
     session_unset();
@@ -96,53 +190,138 @@ try {
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM asset_history WHERE performed_by = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)");
     $stmt->execute([$user_id]);
     $stats['reports'] = $stmt->fetchColumn();
+} catch (PDOException $e) {
+    // Keep default values on error
+    error_log("Dashboard stats error: " . $e->getMessage());
+    if ($show_debug) {
+        echo "<div style='background: #f8d7da; padding: 20px; margin: 20px; border: 2px solid #dc3545;'>";
+        echo "<strong>❌ ASSET STATISTICS ERROR:</strong><br>";
+        echo $e->getMessage();
+        echo "</div>";
+    }
+}
 
-    // TICKET STATISTICS
+// ============================================
+// TICKET STATISTICS (SEPARATE TRY-CATCH BLOCK)
+// ============================================
+try {
     // Build ticket query based on role
     $ticket_base_where = "";
     $ticket_params = [];
 
     if ($role === 'employee') {
-        $ticket_base_where = "WHERE requester_id = ?";
+        $ticket_base_where = "WHERE t.requester_id = ?";
         $ticket_params = [$user_id];
     } elseif ($role === 'manager') {
-        $ticket_base_where = "WHERE (requester_department = (SELECT department FROM users WHERE user_id = ?) OR assigned_to = ?)";
+        $ticket_base_where = "WHERE (t.requester_department = (SELECT department FROM users WHERE user_id = ?) OR t.assigned_to = ?)";
         $ticket_params = [$user_id, $user_id];
+    } elseif ($role === 'admin') {
+        // Admins see only approved tickets
+        $ticket_base_where = "WHERE t.approval_status = 'approved'";
+        $ticket_params = [];
     }
 
     // Get total tickets
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets $ticket_base_where");
-    $stmt->execute($ticket_params);
-    $stats['total_tickets'] = $stmt->fetchColumn();
+    try {
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets t $ticket_base_where");
+        $stmt->execute($ticket_params);
+        $stats['total_tickets'] = $stmt->fetchColumn();
+    } catch (PDOException $e) {
+        error_log("Total tickets error: " . $e->getMessage());
+    }
 
     // Get open tickets
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets $ticket_base_where " . ($ticket_base_where ? "AND" : "WHERE") . " status = 'open'");
-    $stmt->execute($ticket_params);
-    $stats['open_tickets'] = $stmt->fetchColumn();
+    $where_and = $ticket_base_where ? "AND" : "WHERE";
+    try {
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets t $ticket_base_where $where_and t.status = 'open'");
+        $stmt->execute($ticket_params);
+        $stats['open_tickets'] = $stmt->fetchColumn();
+    } catch (PDOException $e) {
+        error_log("Open tickets error: " . $e->getMessage());
+    }
 
     // Get resolved tickets
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets $ticket_base_where " . ($ticket_base_where ? "AND" : "WHERE") . " status = 'resolved'");
-    $stmt->execute($ticket_params);
-    $stats['resolved_tickets'] = $stmt->fetchColumn();
+    try {
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets t $ticket_base_where $where_and t.status = 'resolved'");
+        $stmt->execute($ticket_params);
+        $stats['resolved_tickets'] = $stmt->fetchColumn();
+    } catch (PDOException $e) {
+        error_log("Resolved tickets error: " . $e->getMessage());
+    }
 
     // Get urgent tickets
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets $ticket_base_where " . ($ticket_base_where ? "AND" : "WHERE") . " priority = 'urgent'");
-    $stmt->execute($ticket_params);
-    $stats['urgent_tickets'] = $stmt->fetchColumn();
+    try {
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets t $ticket_base_where $where_and t.priority = 'urgent'");
+        $stmt->execute($ticket_params);
+        $stats['urgent_tickets'] = $stmt->fetchColumn();
+    } catch (PDOException $e) {
+        error_log("Urgent tickets error: " . $e->getMessage());
+    }
 
     // Get ticket status distribution
-    $stmt = $pdo->prepare("SELECT status, COUNT(*) as count FROM tickets $ticket_base_where GROUP BY status");
-    $stmt->execute($ticket_params);
-    $ticket_status_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    try {
+        $stmt = $pdo->prepare("SELECT t.status, COUNT(*) as count FROM tickets t $ticket_base_where GROUP BY t.status");
+        $stmt->execute($ticket_params);
+        $ticket_status_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        error_log("Ticket status data error: " . $e->getMessage());
+    }
 
     // Get ticket priority distribution
-    $stmt = $pdo->prepare("SELECT priority, COUNT(*) as count FROM tickets $ticket_base_where GROUP BY priority");
-    $stmt->execute($ticket_params);
-    $ticket_priority_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    try {
+        $stmt = $pdo->prepare("SELECT t.priority, COUNT(*) as count FROM tickets t $ticket_base_where GROUP BY t.priority");
+        $stmt->execute($ticket_params);
+        $ticket_priority_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        error_log("Ticket priority data error: " . $e->getMessage());
+    }
 } catch (PDOException $e) {
     // Keep default values on error
-    error_log("Dashboard stats error: " . $e->getMessage());
+    error_log("Ticket statistics error: " . $e->getMessage());
+    if ($show_debug) {
+        echo "<div style='background: #f8d7da; padding: 20px; margin: 20px; border: 2px solid #dc3545;'>";
+        echo "<strong>❌ TICKET STATISTICS ERROR:</strong><br>";
+        echo $e->getMessage();
+        echo "</div>";
+    }
 }
+// ============================================
+// END TICKET STATISTICS
+// ============================================
+
+// ============================================
+// CHART DATA DEBUG (After statistics are calculated)
+// ============================================
+if ($show_debug) {
+    echo "<pre style='background: #e8f5e9; padding: 20px; margin: 20px; border: 2px solid #4caf50;'>";
+    echo "<h3 style='color: #2e7d32;'>📊 CHART DATA DEBUG (After Stats Calculation)</h3>";
+    echo "\n<strong>Stats Array:</strong>\n";
+    print_r($stats);
+    echo "\n<strong>Ticket Status Data (for charts):</strong>\n";
+    print_r($ticket_status_data);
+    echo "\n<strong>Ticket Priority Data (for charts):</strong>\n";
+    print_r($ticket_priority_data);
+    
+    if (!empty($ticket_status_data)) {
+        echo "\n<strong>JSON for JavaScript (Status):</strong>\n";
+        echo "ticket_status_labels = " . json_encode(array_column($ticket_status_data, 'status')) . "\n";
+        echo "ticket_status_values = " . json_encode(array_column($ticket_status_data, 'count')) . "\n";
+    } else {
+        echo "\n<strong style='color: #d32f2f;'>⚠️ ticket_status_data is EMPTY!</strong>\n";
+    }
+    
+    if (!empty($ticket_priority_data)) {
+        echo "\n<strong>JSON for JavaScript (Priority):</strong>\n";
+        echo "ticket_priority_labels = " . json_encode(array_column($ticket_priority_data, 'priority')) . "\n";
+        echo "ticket_priority_values = " . json_encode(array_column($ticket_priority_data, 'count')) . "\n";
+    } else {
+        echo "\n<strong style='color: #d32f2f;'>⚠️ ticket_priority_data is EMPTY!</strong>\n";
+    }
+    echo "</pre>";
+}
+// ============================================
+// END CHART DATA DEBUG
+// ============================================
 
 // Fetch user's recent assets
 $recent_assets = [];
@@ -298,6 +477,9 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
                 <?php endif; ?>
             </div>
 
+            <!-- REST OF YOUR DASHBOARD HTML CONTINUES HERE... -->
+            <!-- (I'm keeping the rest of the file the same as your original) -->
+
             <!-- Charts Section -->
             <?php if ($role === 'admin' || $role === 'manager'): ?>
                 <div class="charts-section">
@@ -436,63 +618,65 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
                         <a href="../public/asset.php" class="action-btn btn-primary">Manage Assets</a>
                         <?php if ($role === 'admin'): ?>
                             <a href="../public/userV.php" class="action-btn btn-primary">Verify Users</a>
+                            <a href="../public/tickets.php" class="action-btn btn-primary">View Approved Tickets</a>
+                        <?php else: ?>
+                            <a href="../public/tickets.php" class="action-btn btn-primary">View Tickets</a>
                         <?php endif; ?>
-                        <a href="../public/ticket.php" class="action-btn btn-primary">View Tickets</a>
                         <a href="../public/assetHistory.php" class="action-btn btn-secondary">View History</a>
                     </div>
                 </div>
             <?php endif; ?>
-        </div>
-        <?php if ($role === 'admin'): ?>
-            <div class="card">
-                <h2>🟢 Currently Online Users</h2>
-                <?php
-                try {
-                    $stmt = $pdo->query("
-            SELECT 
-                u.first_name, u.last_name, u.department,
-                us.ip_address, us.device_serial, us.last_activity
-            FROM user_sessions us
-            JOIN users u ON us.user_id = u.user_id
-            WHERE us.is_active = 1 
-            AND us.last_activity >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
-            ORDER BY us.last_activity DESC
-            LIMIT 5
-        ");
-                    $online_users = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-                    if (count($online_users) > 0):
-                ?>
-                        <ul class="activity-list">
-                            <?php foreach ($online_users as $user): ?>
-                                <li class="activity-item">
-                                    <div class="activity-type">
-                                        🟢 <?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?>
-                                    </div>
-                                    <div class="activity-details">
-                                        IP: <?php echo htmlspecialchars($user['ip_address']); ?> |
-                                        Device: <?php echo htmlspecialchars(substr($user['device_serial'], 0, 12)); ?>...
-                                    </div>
-                                    <div class="activity-time">
-                                        <?php echo date('H:i', strtotime($user['last_activity'])); ?>
-                                    </div>
-                                </li>
-                            <?php endforeach; ?>
-                        </ul>
-                        <div class="quick-actions">
-                            <a href="../public/Uastatus.php" class="action-btn btn-primary">View All Active Users</a>
-                        </div>
-                    <?php else: ?>
-                        <div class="no-data">
-                            <p>No users currently online</p>
-                        </div>
-                    <?php endif; ?>
-                <?php } catch (PDOException $e) {
-                    error_log("Online users error: " . $e->getMessage());
-                } ?>
-            </div>
-        <?php endif; ?>
-        
+            <?php if ($role === 'admin'): ?>
+                <div class="card">
+                    <h2>🟢 Currently Online Users</h2>
+                    <?php
+                    try {
+                        $stmt = $pdo->query("
+                            SELECT 
+                                u.first_name, u.last_name, u.department,
+                                us.ip_address, us.device_serial, us.last_activity
+                            FROM user_sessions us
+                            JOIN users u ON us.user_id = u.user_id
+                            WHERE us.is_active = 1 
+                            AND us.last_activity >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+                            ORDER BY us.last_activity DESC
+                            LIMIT 5
+                        ");
+                        $online_users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                        if (count($online_users) > 0):
+                    ?>
+                            <ul class="activity-list">
+                                <?php foreach ($online_users as $user): ?>
+                                    <li class="activity-item">
+                                        <div class="activity-type">
+                                            🟢 <?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?>
+                                        </div>
+                                        <div class="activity-details">
+                                            IP: <?php echo htmlspecialchars($user['ip_address']); ?> |
+                                            Device: <?php echo htmlspecialchars(substr($user['device_serial'], 0, 12)); ?>...
+                                        </div>
+                                        <div class="activity-time">
+                                            <?php echo date('H:i', strtotime($user['last_activity'])); ?>
+                                        </div>
+                                    </li>
+                                <?php endforeach; ?>
+                            </ul>
+                            <div class="quick-actions">
+                                <a href="../public/Uastatus.php" class="action-btn btn-primary">View All Active Users</a>
+                            </div>
+                        <?php else: ?>
+                            <div class="no-data">
+                                <p>No users currently online</p>
+                            </div>
+                        <?php endif; ?>
+                    <?php } catch (PDOException $e) {
+                        error_log("Online users error: " . $e->getMessage());
+                    } ?>
+                </div>
+            <?php endif; ?>
+        </div>
     </main>
 
     <script>

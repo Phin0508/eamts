@@ -451,11 +451,10 @@ $categories = $pdo->query("SELECT DISTINCT category FROM assets WHERE category I
                 width: 100%;
             }
         }
-        
     </style>
 </head>
 <body>
-    <?php include("../auth/inc/Msidebar.php"); ?>
+    <?php include("../auth/inc/sidebar.php"); ?>
     <div class="container">
         <div class="header">
             <div class="header-top">

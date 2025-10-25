@@ -248,36 +248,24 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
         highlightActivePage();
     }
 
-    // Demo: Make stat cards clickable (if they exist on the page)
-    document.addEventListener('DOMContentLoaded', function() {
-        document.querySelectorAll('.stat-card').forEach(card => {
-            card.addEventListener('click', function() {
-                const label = this.querySelector('.stat-label');
-                if (label) {
-                    alert(`${label.textContent} feature coming soon!`);
-                }
-            });
-        });
-    });
-
     function updateUnreadCount() {
-    fetch('../api/chat_get_unread_count.php')
-        .then(r => r.json())
-        .then(data => {
-            const badge = document.getElementById('unreadBadge');
-            if (data.unread > 0) {
-                badge.textContent = data.unread;
-                badge.style.display = 'inline-block';
-                // Update page title
-                document.title = `(${data.unread}) Messages - E-Asset Management`;
-            } else {
-                badge.style.display = 'none';
-            }
-        })
-        .catch(err => console.error('Error loading unread count:', err));
-}
+        fetch('../api/chat_get_unread_count.php')
+            .then(r => r.json())
+            .then(data => {
+                const badge = document.getElementById('unreadBadge');
+                if (data.unread > 0) {
+                    badge.textContent = data.unread;
+                    badge.style.display = 'inline-block';
+                    // Update page title
+                    document.title = `(${data.unread}) Messages - E-Asset Management`;
+                } else {
+                    badge.style.display = 'none';
+                }
+            })
+            .catch(err => console.error('Error loading unread count:', err));
+    }
 
-// Update every 60 seconds
-setInterval(updateUnreadCount, 60000);
-updateUnreadCount(); // Initial load
+    // Update every 60 seconds
+    setInterval(updateUnreadCount, 60000);
+    updateUnreadCount(); // Initial load
 </script>

@@ -68,13 +68,13 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
             </li>
             
             <li class="nav-item">
-                <a href="department_assets.php" class="nav-link">
+                <a href="departmentAsset.php" class="nav-link">
                     <i class="nav-icon">🏢</i>
                     <span class="nav-text">Department Assets</span>
                 </a>
             </li>
             <li class="nav-item">
-                <a href="department_tickets.php" class="nav-link">
+                <a href="departmentTicket.php" class="nav-link">
                     <i class="nav-icon">🎫</i>
                     <span class="nav-text">Department Tickets</span>
                 </a>
@@ -86,7 +86,7 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
                 </a>
             </li>
             <li class="nav-item">
-                <a href="team_members.php" class="nav-link">
+                <a href="teamMembers.php" class="nav-link">
                     <i class="nav-icon">👥</i>
                     <span class="nav-text">Team Members</span>
                 </a>

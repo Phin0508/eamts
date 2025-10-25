@@ -29,8 +29,11 @@ if ($user_role === 'employee') {
     $where_clauses[] = "(t.requester_department = (SELECT department FROM users WHERE user_id = ?) OR t.assigned_to = ?)";
     $params[] = $user_id;
     $params[] = $user_id;
+} elseif ($user_role === 'admin') {
+    // Admins only see approved tickets
+    $where_clauses[] = "t.approval_status = 'approved'";
 }
-// Admins see all tickets (no filter)
+// If role is something else (e.g., 'superadmin'), see all tickets (no filter)
 
 if ($filter_status !== 'all') {
     $where_clauses[] = "t.status = ?";
@@ -62,6 +65,7 @@ $query = "
         t.*,
         CONCAT(requester.first_name, ' ', requester.last_name) as requester_name,
         requester.email as requester_email,
+        requester.department as requester_department,
         CONCAT(assigned.first_name, ' ', assigned.last_name) as assigned_to_name,
         a.asset_name,
         a.asset_code
@@ -104,6 +108,10 @@ if ($user_role === 'employee') {
     $stats_query .= " WHERE t.requester_department = (SELECT department FROM users WHERE user_id = ?) OR t.assigned_to = ?";
     $stats_stmt = $pdo->prepare($stats_query);
     $stats_stmt->execute([$user_id, $user_id]);
+} elseif ($user_role === 'admin') {
+    $stats_query .= " WHERE t.approval_status = 'approved'";
+    $stats_stmt = $pdo->prepare($stats_query);
+    $stats_stmt->execute();
 } else {
     $stats_stmt = $pdo->prepare($stats_query);
     $stats_stmt->execute();
@@ -140,9 +148,11 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                     <p>Manage and track all support tickets</p>
                 </div>
                 <div class="header-right">
+                    <?php if ($user_role === 'employee'): ?>
                     <a href="create_ticket.php" class="btn btn-primary">
                         <i class="fas fa-plus"></i> Create Ticket
                     </a>
+                    <?php endif; ?>
                 </div>
             </header>
 

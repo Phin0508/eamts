@@ -78,9 +78,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $insert_query = "
                 INSERT INTO tickets (
                     ticket_number, ticket_type, subject, description, 
-                    priority, status, requester_id, requester_department, 
-                    asset_id, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?, NOW(), NOW())
+                    priority, status, approval_status, requester_id, 
+                    requester_department, asset_id, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, 'open', 'pending', ?, ?, ?, NOW(), NOW())
             ";
             
             $stmt = $pdo->prepare($insert_query);
