@@ -422,6 +422,7 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
             }
         }
     </style>
+    
 </head>
 
 <body>

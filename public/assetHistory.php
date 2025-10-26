@@ -53,6 +53,15 @@ try {
 // Get complete asset history
 $history = [];
 try {
+    // First, let's check if any records exist for this asset
+    $check_query = "SELECT COUNT(*) as count FROM assets_history WHERE asset_id = ?";
+    $check_stmt = $pdo->prepare($check_query);
+    $check_stmt->execute([$asset_id]);
+    $count_result = $check_stmt->fetch(PDO::FETCH_ASSOC);
+    
+    echo "<!-- DEBUG: Found " . $count_result['count'] . " history records for asset_id: " . $asset_id . " -->";
+    
+    // Now fetch the actual history
     $history_query = "SELECT ah.*, 
                       performer.username as performer_name,
                       CONCAT(performer.first_name, ' ', performer.last_name) as performer_full_name,
@@ -60,18 +69,32 @@ try {
                       CONCAT(prev_user.first_name, ' ', prev_user.last_name) as prev_user_name,
                       new_user.username as new_username,
                       CONCAT(new_user.first_name, ' ', new_user.last_name) as new_user_name
-                      FROM asset_history ah
+                      FROM assets_history ah
                       LEFT JOIN users performer ON ah.performed_by = performer.user_id
-                      LEFT JOIN users prev_user ON ah.previous_user_id = prev_user.user_id
-                      LEFT JOIN users new_user ON ah.new_user_id = new_user.user_id
+                      LEFT JOIN users prev_user ON ah.assigned_from = prev_user.user_id
+                      LEFT JOIN users new_user ON ah.assigned_to = new_user.user_id
                       WHERE ah.asset_id = ?
                       ORDER BY ah.created_at DESC";
     $history_stmt = $pdo->prepare($history_query);
     $history_stmt->execute([$asset_id]);
     $history = $history_stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Debug output
+    echo "<!-- DEBUG: Fetched " . count($history) . " history records -->";
+    if (count($history) > 0) {
+        echo "<!-- DEBUG: First record: ";
+        print_r($history[0]);
+        echo " -->";
+    }
+    
 } catch (PDOException $e) {
     $error_message = "Error fetching history: " . $e->getMessage();
+    echo "<!-- DEBUG ERROR: " . $e->getMessage() . " -->";
 }
+
+// Additional debug - check what asset_id we're using
+echo "<!-- DEBUG: Current asset ID: " . $asset_id . " -->";
+echo "<!-- DEBUG: Asset table ID: " . $asset['id'] . " -->";
 ?>
 
 <!DOCTYPE html>
@@ -343,8 +366,6 @@ try {
     </style>
 </head>
 <body>
-    <!-- Include Navigation Bar -->
-    <?php include("../auth/inc/navbar.php"); ?>
     
     <!-- Include Sidebar -->
     <?php include("../auth/inc/sidebar.php"); ?>

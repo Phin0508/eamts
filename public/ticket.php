@@ -140,19 +140,17 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
     <?php include("../auth/inc/sidebar.php"); ?>
 
     <!-- Main Content Area -->
-    <main class="main-content">
-        <div class="dashboard-content">
+     <main class="main-content">
+        <div class="content-wrapper">
             <header class="page-header">
                 <div class="header-left">
                     <h1>Ticket Management</h1>
                     <p>Manage and track all support tickets</p>
                 </div>
                 <div class="header-right">
-                    <?php if ($user_role === 'employee'): ?>
-                    <a href="create_ticket.php" class="btn btn-primary">
-                        <i class="fas fa-plus"></i> Create Ticket
+                    <a href="ticketHistory.php" class="btn btn-secondary">
+                        <i class="fas fa-history"></i> Ticket History
                     </a>
-                    <?php endif; ?>
                 </div>
             </header>
 
