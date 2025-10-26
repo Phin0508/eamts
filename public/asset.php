@@ -94,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_asset'])) {
         if ($update_stmt->execute([$assigned_to, $new_status, $asset_id])) {
             // Log the assignment change
             $action = $assigned_to ? 'assigned' : 'unassigned';
-            $log_stmt = $pdo->prepare("INSERT INTO asset_history (asset_id, action_type, previous_user_id, new_user_id, performed_by, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
+            $log_stmt = $pdo->prepare("INSERT INTO assets_history (asset_id, action_type, assigned_from, assigned_to, performed_by, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
             $log_stmt->execute([$asset_id, $action, $current_user_id, $assigned_to, $_SESSION['user_id']]);
 
             header("Location: asset.php?assigned=1");

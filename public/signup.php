@@ -1,133 +1,14 @@
 <?php
 session_start();
 
-// Clear any existing remember me cookies to prevent auto-login
+// Clear any existing remember me cookies
 if (isset($_COOKIE['remember_token'])) {
     setcookie('remember_token', '', time() - 3600, '/', '', isset($_SERVER['HTTPS']), true);
-    unset($_COOKIE['remember_token']); // Also unset from current request
+    unset($_COOKIE['remember_token']);
 }
 
-// Include database configuration
-include("../auth/config/database.php");
-
-$error_message = '';
-$success_message = '';
-
-// Fetch active departments from database for the dropdown
-$departments_list = [];
-try {
-    $dept_query = $pdo->query("SELECT dept_id, dept_name, dept_code FROM departments WHERE is_active = 1 ORDER BY dept_name ASC");
-    $departments_list = $dept_query->fetchAll(PDO::FETCH_ASSOC);
-} catch (PDOException $e) {
-    // If departments table doesn't exist or error, use fallback
-    $departments_list = [
-        ['dept_name' => 'IT', 'dept_code' => 'IT'],
-        ['dept_name' => 'Human Resources', 'dept_code' => 'HR'],
-        ['dept_name' => 'Finance', 'dept_code' => 'FIN'],
-        ['dept_name' => 'Operations', 'dept_code' => 'OPS'],
-        ['dept_name' => 'Sales', 'dept_code' => 'SALES'],
-        ['dept_name' => 'Marketing', 'dept_code' => 'MKT'],
-        ['dept_name' => 'Engineering', 'dept_code' => 'ENG'],
-        ['dept_name' => 'Support', 'dept_code' => 'SUP']
-    ];
-}
-
-// Handle form submission
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    try {
-        // Get form data and sanitize
-        $first_name = trim($_POST['firstName']);
-        $last_name = trim($_POST['lastName']);
-        $email = trim($_POST['email']);
-        $username = trim($_POST['username']);
-        $password = $_POST['password'];
-        $phone = !empty($_POST['phone']) ? trim($_POST['phone']) : null;
-        $department = !empty($_POST['department']) ? $_POST['department'] : null;
-        $role = $_POST['role'];
-        $employee_id = !empty($_POST['employeeId']) ? trim($_POST['employeeId']) : null;
-        
-        // Server-side validation
-        $errors = [];
-        
-        if (empty($first_name)) $errors[] = "First name is required";
-        if (empty($last_name)) $errors[] = "Last name is required";
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = "Valid email is required";
-        if (strlen($username) < 3) $errors[] = "Username must be at least 3 characters";
-        if (strlen($password) < 8) $errors[] = "Password must be at least 8 characters";
-        if (empty($department)) $errors[] = "Department is required";
-        if (empty($role)) $errors[] = "Role is required";
-        
-        // Validate role against allowed values
-        $allowed_roles = ['admin', 'manager', 'employee'];
-        if (!in_array($role, $allowed_roles)) {
-            $errors[] = "Invalid role selected";
-        }
-        
-        // Validate department exists in database
-        if (!empty($department)) {
-            $dept_check = $pdo->prepare("SELECT dept_id FROM departments WHERE dept_name = ? AND is_active = 1");
-            $dept_check->execute([$department]);
-            if ($dept_check->rowCount() === 0) {
-                $errors[] = "Invalid department selected";
-            }
-        }
-        
-        // Check if username, email, or employee_id already exists
-        if (empty($errors)) {
-            $check_stmt = $pdo->prepare("SELECT user_id FROM users WHERE username = ? OR email = ? OR (employee_id IS NOT NULL AND employee_id = ?)");
-            $check_stmt->execute([$username, $email, $employee_id]);
-            if ($check_stmt->rowCount() > 0) {
-                $errors[] = "Username, email, or employee ID already exists";
-            }
-        }
-
-        // If no errors, insert into database
-        if (empty($errors)) {
-            // Hash the password
-            $password_hash = password_hash($password, PASSWORD_DEFAULT);
-
-            // Prepare insert statement
-            $stmt = $pdo->prepare("
-                INSERT INTO users (
-                    first_name, last_name, email, username, password_hash, 
-                    phone, department, role, employee_id, is_active, is_verified, 
-                    created_at, updated_at
-                ) VALUES (
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, NOW(), NOW()
-                )
-            ");
-
-            // Execute the statement
-            if ($stmt->execute([
-                $first_name,
-                $last_name,
-                $email,
-                $username,
-                $password_hash,
-                $phone,
-                $department,
-                $role,
-                $employee_id
-            ])) {
-                // Set session flag to prevent auto-login
-                $_SESSION['just_registered'] = true;
-
-                // Redirect to login page with success message
-                header("Location: login.php?message=registered&from=signup");
-                exit();
-            } else {
-                $errors[] = "Failed to create account. Please try again.";
-            }
-        }
-        
-        if (!empty($errors)) {
-            $error_message = implode("<br>", $errors);
-        }
-        
-    } catch (PDOException $e) {
-        $error_message = "Database error: " . $e->getMessage();
-    }
-}
+// IMPORTANT: Self-registration is disabled
+// Only administrators can create user accounts through adminCreateUser.php
 ?>
 
 <!DOCTYPE html>
@@ -135,236 +16,240 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>E-Asset Management System - Sign Up</title>
+    <title>E-Asset Management System - Registration Disabled</title>
     <link rel="stylesheet" href="../style/signup.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 600px;
+            width: 100%;
+            padding: 60px 40px;
+            text-align: center;
+        }
+        
+        .icon {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 30px;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 60px;
+        }
+        
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 32px;
+        }
+        
+        .subtitle {
+            color: #6c757d;
+            font-size: 18px;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+        
+        .info-box {
+            background: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            padding: 25px;
+            border-radius: 8px;
+            margin: 30px 0;
+            text-align: left;
+        }
+        
+        .info-box h3 {
+            color: #1976D2;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        
+        .info-box ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .info-box li {
+            padding: 10px 0;
+            color: #495057;
+            display: flex;
+            align-items: start;
+            font-size: 15px;
+            line-height: 1.6;
+        }
+        
+        .info-box li:before {
+            content: "✓";
+            color: #28a745;
+            font-weight: bold;
+            margin-right: 12px;
+            font-size: 18px;
+        }
+        
+        .contact-box {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 30px 0;
+            text-align: left;
+        }
+        
+        .contact-box h3 {
+            color: #856404;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        
+        .contact-box p {
+            color: #856404;
+            margin: 0;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        .contact-box a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        
+        .contact-box a:hover {
+            text-decoration: underline;
+        }
+        
+        .btn-primary {
+            display: inline-block;
+            padding: 14px 40px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            margin-top: 20px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .divider {
+            margin: 30px 0;
+            text-align: center;
+            position: relative;
+        }
+        
+        .divider:before {
+            content: "";
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: #dee2e6;
+        }
+        
+        .divider span {
+            background: white;
+            padding: 0 20px;
+            color: #6c757d;
+            position: relative;
+            font-size: 14px;
+        }
+        
+        .login-link {
+            margin-top: 20px;
+            color: #6c757d;
+            font-size: 15px;
+        }
+        
+        .login-link a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        
+        .login-link a:hover {
+            text-decoration: underline;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 40px 20px;
+            }
+            
+            h1 {
+                font-size: 26px;
+            }
+            
+            .subtitle {
+                font-size: 16px;
+            }
+        }
+    </style>
 </head>
 <body>
     <div class="container">
-        <div class="logo-section">
-            <div class="logo">
-                <svg viewBox="0 0 24 24">
-                    <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/>
-                </svg>
-            </div>
-            <h1>Create Account</h1>
-            <p class="subtitle">Join our E-Asset Management System</p>
+        <div class="icon">🔒</div>
+        
+        <h1>Self-Registration Disabled</h1>
+        <p class="subtitle">
+            For security and administrative control, user accounts can only be created by system administrators.
+        </p>
+        
+        <div class="info-box">
+            <h3>📋 How to Get Access</h3>
+            <ul>
+                <li>Contact your IT administrator or HR department</li>
+                <li>Request a user account for the E-Asset Management System</li>
+                <li>You will receive an email with your login credentials</li>
+                <li>Set your password using the secure link provided in the email</li>
+            </ul>
         </div>
-
-        <?php if (!empty($success_message)): ?>
-        <div class="success-message" id="successMessage" style="display: block;">
-            <?php echo htmlspecialchars($success_message); ?>
+        
+        <div class="contact-box">
+            <h3>⚠️ Need Help?</h3>
+            <p>
+                If you're a new employee and haven't received your account details, please contact:<br>
+                <strong>IT Support:</strong> <a href="mailto:support@company.com">support@company.com</a><br>
+                <strong>HR Department:</strong> <a href="mailto:hr@company.com">hr@company.com</a>
+            </p>
         </div>
-        <?php endif; ?>
-
-        <?php if (!empty($error_message)): ?>
-        <div class="error-message-box" style="display: block; background-color: #fee; color: #c33; padding: 10px; border-radius: 5px; margin-bottom: 20px;">
-            <?php echo $error_message; ?>
-        </div>
-        <?php endif; ?>
-
-        <form id="signupForm" method="POST" action="">
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="firstName">First Name *</label>
-                    <input type="text" id="firstName" name="firstName" placeholder="John" 
-                           value="<?php echo htmlspecialchars($_POST['firstName'] ?? ''); ?>" required>
-                    <span class="error-message">Please enter your first name</span>
-                </div>
-                <div class="form-group">
-                    <label for="lastName">Last Name *</label>
-                    <input type="text" id="lastName" name="lastName" placeholder="Doe" 
-                           value="<?php echo htmlspecialchars($_POST['lastName'] ?? ''); ?>" required>
-                    <span class="error-message">Please enter your last name</span>
-                </div>
-            </div>
-
-            <div class="form-group">
-                <label for="email">Email Address *</label>
-                <input type="email" id="email" name="email" placeholder="john.doe@company.com" 
-                       value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>" required>
-                <span class="error-message">Please enter a valid email address</span>
-            </div>
-
-            <div class="form-group">
-                <label for="username">Username *</label>
-                <input type="text" id="username" name="username" placeholder="johndoe" 
-                       value="<?php echo htmlspecialchars($_POST['username'] ?? ''); ?>" required>
-                <span class="error-message">Username must be at least 3 characters</span>
-            </div>
-
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="password">Password *</label>
-                    <div class="password-container">
-                        <input type="password" id="password" name="password" placeholder="••••••••" required>
-                        <span class="password-toggle" onclick="togglePassword('password')">👁</span>
-                    </div>
-                    <span class="error-message">Password must be at least 8 characters</span>
-                </div>
-                <div class="form-group">
-                    <label for="confirmPassword">Confirm Password *</label>
-                    <div class="password-container">
-                        <input type="password" id="confirmPassword" name="confirmPassword" placeholder="••••••••" required>
-                        <span class="password-toggle" onclick="togglePassword('confirmPassword')">👁</span>
-                    </div>
-                    <span class="error-message">Passwords do not match</span>
-                </div>
-            </div>
-
-            <div class="form-group">
-                <label for="phone">Phone Number</label>
-                <input type="tel" id="phone" name="phone" placeholder="+(60)123456789" 
-                       value="<?php echo htmlspecialchars($_POST['phone'] ?? ''); ?>">
-                <span class="error-message">Please enter a valid phone number</span>
-            </div>
-
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="department">Department *</label>
-                    <select id="department" name="department" required>
-                        <option value="">Select Department</option>
-                        <?php foreach ($departments_list as $dept): ?>
-                            <option value="<?php echo htmlspecialchars($dept['dept_name']); ?>" 
-                                    <?php echo (($_POST['department'] ?? '') === $dept['dept_name']) ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($dept['dept_name']); ?>
-                                <?php if (isset($dept['dept_code'])): ?>
-                                    (<?php echo htmlspecialchars($dept['dept_code']); ?>)
-                                <?php endif; ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                    <span class="error-message">Please select a department</span>
-                </div>
-                <div class="form-group">
-                    <label for="role">Role *</label>
-                    <select id="role" name="role" required>
-                        <option value="">Select Role</option>
-                        <option value="admin" <?php echo (($_POST['role'] ?? '') === 'admin') ? 'selected' : ''; ?>>Administrator</option>
-                        <option value="manager" <?php echo (($_POST['role'] ?? '') === 'manager') ? 'selected' : ''; ?>>Manager</option>
-                        <option value="employee" <?php echo (($_POST['role'] ?? '') === 'employee') ? 'selected' : ''; ?>>Employee</option>
-                    </select>
-                    <span class="error-message">Please select a role</span>
-                </div>
-            </div>
-
-            <div class="form-group">
-                <label for="employeeId">Employee ID</label>
-                <input type="text" id="employeeId" name="employeeId" placeholder="EMP-12345" 
-                       value="<?php echo htmlspecialchars($_POST['employeeId'] ?? ''); ?>">
-            </div>
-
-            <div class="checkbox-group">
-                <input type="checkbox" id="terms" name="terms" required>
-                <label for="terms">I agree to the <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a></label>
-            </div>
-
-            <button type="submit" class="btn-primary">Create Account</button>
-        </form>
-
+        
         <div class="divider">
-            <span>OR</span>
+            <span>Already have an account?</span>
         </div>
-
+        
+        <a href="login.php" class="btn-primary">Go to Login Page</a>
+        
         <div class="login-link">
-            Already have an account? <a href="login.php">Sign In</a>
+            Forgot your password? <a href="forgot_password.php">Reset it here</a>
         </div>
     </div>
-
-    <script>
-        function togglePassword(fieldId) {
-            const field = document.getElementById(fieldId);
-            const toggle = field.nextElementSibling;
-            const type = field.getAttribute('type') === 'password' ? 'text' : 'password';
-            field.setAttribute('type', type);
-            toggle.textContent = type === 'password' ? '👁' : '🙈';
-        }
-
-        // Client-side validation (additional to server-side)
-        document.getElementById('signupForm').addEventListener('submit', function(e) {
-            // Reset error messages
-            document.querySelectorAll('.error-message').forEach(msg => {
-                msg.style.display = 'none';
-            });
-            
-            let isValid = true;
-            
-            // Validate first name
-            const firstName = document.getElementById('firstName');
-            if (firstName.value.trim().length < 1) {
-                firstName.nextElementSibling.style.display = 'block';
-                isValid = false;
-            }
-            
-            // Validate last name
-            const lastName = document.getElementById('lastName');
-            if (lastName.value.trim().length < 1) {
-                lastName.nextElementSibling.style.display = 'block';
-                isValid = false;
-            }
-            
-            // Validate email
-            const email = document.getElementById('email');
-            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (!emailRegex.test(email.value)) {
-                email.nextElementSibling.style.display = 'block';
-                isValid = false;
-            }
-            
-            // Validate username
-            const username = document.getElementById('username');
-            if (username.value.trim().length < 3) {
-                username.nextElementSibling.style.display = 'block';
-                isValid = false;
-            }
-            
-            // Validate password
-            const password = document.getElementById('password');
-            if (password.value.length < 8) {
-                password.parentElement.nextElementSibling.style.display = 'block';
-                isValid = false;
-            }
-            
-            // Validate password match
-            const confirmPassword = document.getElementById('confirmPassword');
-            if (password.value !== confirmPassword.value) {
-                confirmPassword.parentElement.nextElementSibling.style.display = 'block';
-                isValid = false;
-            }
-            
-            // Validate department
-            const department = document.getElementById('department');
-            if (!department.value) {
-                department.nextElementSibling.style.display = 'block';
-                isValid = false;
-            }
-            
-            // Validate role
-            const role = document.getElementById('role');
-            if (!role.value) {
-                role.nextElementSibling.style.display = 'block';
-                isValid = false;
-            }
-            
-            // Validate terms
-            const terms = document.getElementById('terms');
-            if (!terms.checked) {
-                alert('Please accept the Terms of Service and Privacy Policy');
-                isValid = false;
-            }
-            
-            if (!isValid) {
-                e.preventDefault();
-            }
-        });
-
-        // Auto-hide success message after 5 seconds and redirect
-        <?php if (!empty($success_message)): ?>
-        setTimeout(() => {
-            document.getElementById('successMessage').style.display = 'none';
-            // Redirect to login page or dashboard
-            window.location.href = 'login.php?from=signup';
-        }, 3000);
-        <?php endif; ?>
-    </script>
 </body>
 </html>
