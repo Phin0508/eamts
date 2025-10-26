@@ -55,7 +55,7 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
                 </a>
             </li>
             <li class="nav-item">
-                <a href="userAsset.php" class="nav-link">
+                <a href="managerAsset.php" class="nav-link">
                     <i class="nav-icon">💼</i>
                     <span class="nav-text">My Assets</span>
                 </a>
@@ -80,9 +80,10 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
                 </a>
             </li>
             <li class="nav-item">
-                <a href="department_requests.php" class="nav-link">
-                    <i class="nav-icon">📝</i>
-                    <span class="nav-text">Department Requests</span>
+                <a href="../users/managerChat.php" class="nav-link" <?php if (basename($_SERVER['PHP_SELF']) == 'userChat.php') echo 'class="active"'; ?>>
+                    <i class="nav-icon">💬</i>
+                    <span class="nav-text">Messages</span>
+                    <span id="unreadBadge" class="badge-notification" style="display: none;"></span>
                 </a>
             </li>
             <li class="nav-item">

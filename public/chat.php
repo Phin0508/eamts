@@ -40,22 +40,46 @@ try {
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: #f5f7fa;
+            overflow: hidden;
+        }
+
+        .chat-wrapper {
+            position: fixed;
+            top: 60px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: white;
+            transition: left 0.3s ease;
+            z-index: 1;
+        }
+
+        /* Adjust for when sidebar is expanded */
+        body:not(.sidebar-collapsed) .chat-wrapper {
+            left: 250px;
+        }
+
+        /* Adjust for when sidebar is collapsed */
+        body.sidebar-collapsed .chat-wrapper {
+            left: 70px;
         }
 
         .chat-container {
             display: flex;
-            height: calc(100vh - 60px);
-            margin-left: 250px;
-            background: white;
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
         }
 
         /* Sidebar - Users List */
         .chat-sidebar {
             width: 320px;
+            min-width: 320px;
             border-right: 1px solid #e2e8f0;
             display: flex;
             flex-direction: column;
             background: #fafbfc;
+            height: 100%;
         }
 
         .chat-header {
@@ -117,6 +141,7 @@ try {
         .user-avatar {
             position: relative;
             margin-right: 0.875rem;
+            flex-shrink: 0;
         }
 
         .avatar {
@@ -176,6 +201,7 @@ try {
             padding: 0.25rem 0.5rem;
             border-radius: 10px;
             font-weight: 600;
+            flex-shrink: 0;
         }
 
         /* Chat Area */
@@ -183,6 +209,8 @@ try {
             flex: 1;
             display: flex;
             flex-direction: column;
+            min-width: 0;
+            height: 100%;
         }
 
         .chat-main-header {
@@ -192,11 +220,13 @@ try {
             align-items: center;
             justify-content: space-between;
             background: white;
+            min-height: 73px;
         }
 
         .chat-main-header-left {
             display: flex;
             align-items: center;
+            min-width: 0;
         }
 
         .chat-main-header h3 {
@@ -214,6 +244,7 @@ try {
         .chat-actions {
             display: flex;
             gap: 0.5rem;
+            flex-shrink: 0;
         }
 
         .chat-btn {
@@ -267,6 +298,7 @@ try {
 
         .message-avatar {
             margin: 0 0.75rem;
+            flex-shrink: 0;
         }
 
         .message-avatar .avatar {
@@ -357,6 +389,7 @@ try {
         .message-input-wrapper {
             flex: 1;
             position: relative;
+            min-width: 0;
         }
 
         .message-input {
@@ -406,6 +439,7 @@ try {
             cursor: pointer;
             font-weight: 600;
             transition: background 0.2s;
+            flex-shrink: 0;
         }
 
         .send-button:hover {
@@ -426,6 +460,7 @@ try {
             height: 100%;
             color: #94a3b8;
             text-align: center;
+            padding: 2rem;
         }
 
         .empty-state i {
@@ -444,30 +479,65 @@ try {
         }
 
         /* Responsive */
-        @media (max-width: 768px) {
-            .chat-container {
-                margin-left: 0;
+        @media (max-width: 1024px) {
+            .chat-wrapper {
+                left: 0;
             }
+            
+            body.sidebar-collapsed .chat-wrapper {
+                left: 0;
+            }
+        }
 
+        @media (max-width: 768px) {
             .chat-sidebar {
-                width: 100%;
-                display: none;
+                position: absolute;
+                left: 0;
+                top: 0;
+                bottom: 0;
+                z-index: 10;
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
             }
 
             .chat-sidebar.mobile-active {
-                display: flex;
+                transform: translateX(0);
             }
 
             .chat-main {
-                display: none;
+                width: 100%;
             }
 
-            .chat-main.mobile-active {
-                display: flex;
+            #backBtn {
+                display: block !important;
+                margin-right: 0.5rem;
+            }
+
+            .message-content {
+                max-width: 75%;
+            }
+
+            .chat-main-header h3 {
+                font-size: 1rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .chat-sidebar {
+                width: 100%;
+                min-width: 100%;
+            }
+
+            .chat-header {
+                padding: 1rem;
             }
 
             .message-content {
                 max-width: 85%;
+            }
+
+            .message-input-area {
+                padding: 0.75rem 1rem;
             }
         }
 
@@ -492,76 +562,78 @@ try {
 <body>
     <?php include("../auth/inc/sidebar.php"); ?>
 
-    <div class="chat-container">
-        <!-- Sidebar - Users List -->
-        <div class="chat-sidebar" id="chatSidebar">
-            <div class="chat-header">
-                <h2>Messages</h2>
-                <div class="search-box">
-                    <i class="fas fa-search"></i>
-                    <input type="text" id="searchUsers" placeholder="Search users...">
-                </div>
-            </div>
-            <div class="users-list" id="usersList">
-                <!-- Users will be loaded here via JavaScript -->
-            </div>
-        </div>
-
-        <!-- Chat Main Area -->
-        <div class="chat-main" id="chatMain">
-            <div class="empty-state" id="emptyState">
-                <i class="fas fa-comments"></i>
-                <h3>Select a conversation</h3>
-                <p>Choose a user from the sidebar to start chatting</p>
-            </div>
-
-            <div id="chatArea" style="display: none; flex-direction: column; flex: 1;">
-                <div class="chat-main-header">
-                    <div class="chat-main-header-left">
-                        <button class="btn-icon" id="backBtn" style="display: none;">
-                            <i class="fas fa-arrow-left"></i>
-                        </button>
-                        <div class="user-avatar">
-                            <div class="avatar" id="headerAvatar"></div>
-                            <span class="status-indicator" id="headerStatus"></span>
-                        </div>
-                        <div>
-                            <h3 id="headerName"></h3>
-                            <div class="chat-status" id="headerStatusText"></div>
-                        </div>
-                    </div>
-                    <div class="chat-actions">
-                        <button class="chat-btn btn-icon" title="More options">
-                            <i class="fas fa-ellipsis-v"></i>
-                        </button>
+    <div class="chat-wrapper">
+        <div class="chat-container">
+            <!-- Sidebar - Users List -->
+            <div class="chat-sidebar" id="chatSidebar">
+                <div class="chat-header">
+                    <h2>Messages</h2>
+                    <div class="search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="searchUsers" placeholder="Search users...">
                     </div>
                 </div>
+                <div class="users-list" id="usersList">
+                    <!-- Users will be loaded here via JavaScript -->
+                </div>
+            </div>
 
-                <div class="messages-area" id="messagesArea">
-                    <!-- Messages will be loaded here -->
+            <!-- Chat Main Area -->
+            <div class="chat-main" id="chatMain">
+                <div class="empty-state" id="emptyState">
+                    <i class="fas fa-comments"></i>
+                    <h3>Select a conversation</h3>
+                    <p>Choose a user from the sidebar to start chatting</p>
                 </div>
 
-                <div class="message-input-area">
-                    <div class="message-input-container">
-                        <div class="message-input-wrapper">
-                            <textarea 
-                                class="message-input" 
-                                id="messageInput" 
-                                placeholder="Type a message..."
-                                rows="1"
-                            ></textarea>
-                            <div class="input-actions">
-                                <button class="input-btn" title="Attach file">
-                                    <i class="fas fa-paperclip"></i>
-                                </button>
-                                <button class="input-btn" title="Emoji">
-                                    <i class="fas fa-smile"></i>
-                                </button>
+                <div id="chatArea" style="display: none; flex-direction: column; flex: 1; height: 100%;">
+                    <div class="chat-main-header">
+                        <div class="chat-main-header-left">
+                            <button class="btn-icon" id="backBtn" style="display: none;">
+                                <i class="fas fa-arrow-left"></i>
+                            </button>
+                            <div class="user-avatar">
+                                <div class="avatar" id="headerAvatar"></div>
+                                <span class="status-indicator" id="headerStatus"></span>
+                            </div>
+                            <div>
+                                <h3 id="headerName"></h3>
+                                <div class="chat-status" id="headerStatusText"></div>
                             </div>
                         </div>
-                        <button class="send-button" id="sendBtn">
-                            <i class="fas fa-paper-plane"></i>
-                        </button>
+                        <div class="chat-actions">
+                            <button class="chat-btn btn-icon" title="More options">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="messages-area" id="messagesArea">
+                        <!-- Messages will be loaded here -->
+                    </div>
+
+                    <div class="message-input-area">
+                        <div class="message-input-container">
+                            <div class="message-input-wrapper">
+                                <textarea 
+                                    class="message-input" 
+                                    id="messageInput" 
+                                    placeholder="Type a message..."
+                                    rows="1"
+                                ></textarea>
+                                <div class="input-actions">
+                                    <button class="input-btn" title="Attach file">
+                                        <i class="fas fa-paperclip"></i>
+                                    </button>
+                                    <button class="input-btn" title="Emoji">
+                                        <i class="fas fa-smile"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <button class="send-button" id="sendBtn">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -581,7 +653,31 @@ try {
             loadUsers();
             startStatusPolling();
             setupEventListeners();
+            checkSidebarState();
         });
+
+        function checkSidebarState() {
+            // Check if sidebar has collapsed class
+            const sidebar = document.querySelector('.sidebar');
+            if (sidebar && sidebar.classList.contains('collapsed')) {
+                document.body.classList.add('sidebar-collapsed');
+            }
+            
+            // Listen for sidebar toggle
+            const toggleBtn = document.querySelector('.toggle-btn');
+            if (toggleBtn) {
+                toggleBtn.addEventListener('click', function() {
+                    setTimeout(() => {
+                        const sidebar = document.querySelector('.sidebar');
+                        if (sidebar && sidebar.classList.contains('collapsed')) {
+                            document.body.classList.add('sidebar-collapsed');
+                        } else {
+                            document.body.classList.remove('sidebar-collapsed');
+                        }
+                    }, 100);
+                });
+            }
+        }
 
         function setupEventListeners() {
             // Send message
@@ -611,7 +707,6 @@ try {
             // Back button for mobile
             document.getElementById('backBtn').addEventListener('click', function() {
                 document.getElementById('chatSidebar').classList.add('mobile-active');
-                document.getElementById('chatMain').classList.remove('mobile-active');
             });
 
             // Update status before leaving
@@ -663,8 +758,6 @@ try {
             // Mobile view
             if (window.innerWidth <= 768) {
                 document.getElementById('chatSidebar').classList.remove('mobile-active');
-                document.getElementById('chatMain').classList.add('mobile-active');
-                document.getElementById('backBtn').style.display = 'block';
             }
             
             // Get or create conversation

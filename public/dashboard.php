@@ -790,7 +790,7 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
                     borderWidth: 2,
                     borderColor: '#fff'
                 }]
-            },
+            },  
             options: {
                 responsive: true,
                 maintainAspectRatio: false,

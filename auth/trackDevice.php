@@ -151,7 +151,26 @@ try {
         error_log("Cleanup error: " . $e->getMessage());
     }
     
-    // Check if active session exists
+    // CRITICAL FIX: Deactivate ALL other sessions for this user EXCEPT the current device
+    // This prevents duplicate active sessions
+    try {
+        $deactivate_others = $pdo->prepare("
+            UPDATE user_sessions 
+            SET is_active = 0 
+            WHERE user_id = ? 
+            AND device_serial != ? 
+            AND is_active = 1
+        ");
+        $deactivate_others->execute([$user_id, $device_serial]);
+        $deactivated = $deactivate_others->rowCount();
+        if ($deactivated > 0) {
+            error_log("Deactivated $deactivated old sessions for user $user_id");
+        }
+    } catch (PDOException $e) {
+        error_log("Deactivation error: " . $e->getMessage());
+    }
+    
+    // Check if active session exists for THIS device
     $check = $pdo->prepare("
         SELECT id FROM user_sessions 
         WHERE user_id = ? AND device_serial = ? AND is_active = 1
@@ -188,7 +207,7 @@ try {
         ]);
         
     } else {
-        // Create new session
+        // Create new session (only one active per device)
         $insert = $pdo->prepare("
             INSERT INTO user_sessions 
             (user_id, ip_address, device_serial, user_agent, login_time, last_activity, is_active) 

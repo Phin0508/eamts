@@ -117,7 +117,6 @@ try {
     ");
     $stmt->execute([$department]);
     $employee_asset_distribution = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
 } catch (PDOException $e) {
     error_log("Manager dashboard stats error: " . $e->getMessage());
 }
@@ -185,7 +184,7 @@ $ticket_status_values = json_encode(array_column($dept_ticket_status_data, 'coun
 $ticket_priority_labels = json_encode(array_column($dept_ticket_priority_data, 'priority'));
 $ticket_priority_values = json_encode(array_column($dept_ticket_priority_data, 'count'));
 
-$employee_names = json_encode(array_map(function($emp) {
+$employee_names = json_encode(array_map(function ($emp) {
     return $emp['first_name'] . ' ' . substr($emp['last_name'], 0, 1) . '.';
 }, $employee_asset_distribution));
 $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset_count'));
@@ -193,6 +192,7 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -201,7 +201,7 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
     <link rel="stylesheet" href="../style/dashboard.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
-    
+
     <style>
         .charts-section {
             display: grid;
@@ -358,10 +358,25 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
             text-transform: uppercase;
         }
 
-        .priority-low { background: #d1fae5; color: #065f46; }
-        .priority-medium { background: #fed7aa; color: #92400e; }
-        .priority-high { background: #fecaca; color: #991b1b; }
-        .priority-urgent { background: #fee2e2; color: #7f1d1d; }
+        .priority-low {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .priority-medium {
+            background: #fed7aa;
+            color: #92400e;
+        }
+
+        .priority-high {
+            background: #fecaca;
+            color: #991b1b;
+        }
+
+        .priority-urgent {
+            background: #fee2e2;
+            color: #7f1d1d;
+        }
 
         .status-badge {
             padding: 0.25rem 0.75rem;
@@ -371,17 +386,56 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
             text-transform: capitalize;
         }
 
-        .status-open { background: #dbeafe; color: #1e40af; }
-        .status-in-progress, .status-in_progress { background: #fef3c7; color: #92400e; }
-        .status-pending { background: #fef9c3; color: #854d0e; }
-        .status-resolved { background: #d1fae5; color: #065f46; }
-        .status-closed { background: #e5e7eb; color: #374151; }
+        .status-open {
+            background: #dbeafe;
+            color: #1e40af;
+        }
 
-        .status-available { background: #d1fae5; color: #065f46; }
-        .status-in-use { background: #dbeafe; color: #1e40af; }
-        .status-maintenance { background: #fed7aa; color: #92400e; }
-        .status-retired { background: #e5e7eb; color: #374151; }
-        .status-damaged { background: #fecaca; color: #991b1b; }
+        .status-in-progress,
+        .status-in_progress {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .status-pending {
+            background: #fef9c3;
+            color: #854d0e;
+        }
+
+        .status-resolved {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status-closed {
+            background: #e5e7eb;
+            color: #374151;
+        }
+
+        .status-available {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status-in-use {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .status-maintenance {
+            background: #fed7aa;
+            color: #92400e;
+        }
+
+        .status-retired {
+            background: #e5e7eb;
+            color: #374151;
+        }
+
+        .status-damaged {
+            background: #fecaca;
+            color: #991b1b;
+        }
 
         .asset-list {
             list-style: none;
@@ -508,6 +562,7 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
         }
     </style>
 </head>
+
 <body>
     <?php include("../auth/inc/Msidebar.php"); ?>
 
@@ -525,7 +580,7 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
                     <div class="stat-label">Active Employees</div>
                     <div class="stat-number-small">Total: <?php echo $stats['department_employees']; ?></div>
                 </div>
-                
+
                 <div class="stat-card" onclick="window.location.href='../public/asset.php'">
                     <span class="stat-icon">📦</span>
                     <div class="stat-number"><?php echo $stats['department_assets']; ?></div>
@@ -552,42 +607,42 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
             <div class="charts-section">
                 <!-- Department Asset Status Chart -->
                 <?php if (count($dept_asset_status_data) > 0): ?>
-                <div class="chart-card">
-                    <h3>📊 Department Asset Status</h3>
-                    <div class="chart-container">
-                        <canvas id="deptAssetStatusChart"></canvas>
+                    <div class="chart-card">
+                        <h3>📊 Department Asset Status</h3>
+                        <div class="chart-container">
+                            <canvas id="deptAssetStatusChart"></canvas>
+                        </div>
                     </div>
-                </div>
                 <?php endif; ?>
 
                 <!-- Employee Asset Distribution -->
                 <?php if (count($employee_asset_distribution) > 0): ?>
-                <div class="chart-card">
-                    <h3>👥 Assets per Employee</h3>
-                    <div class="chart-container">
-                        <canvas id="employeeAssetChart"></canvas>
+                    <div class="chart-card">
+                        <h3>👥 Assets per Employee</h3>
+                        <div class="chart-container">
+                            <canvas id="employeeAssetChart"></canvas>
+                        </div>
                     </div>
-                </div>
                 <?php endif; ?>
 
                 <!-- Department Ticket Status Chart -->
                 <?php if (count($dept_ticket_status_data) > 0): ?>
-                <div class="chart-card">
-                    <h3>🎫 Department Ticket Status</h3>
-                    <div class="chart-container">
-                        <canvas id="deptTicketStatusChart"></canvas>
+                    <div class="chart-card">
+                        <h3>🎫 Department Ticket Status</h3>
+                        <div class="chart-container">
+                            <canvas id="deptTicketStatusChart"></canvas>
+                        </div>
                     </div>
-                </div>
                 <?php endif; ?>
 
                 <!-- Department Ticket Priority Chart -->
                 <?php if (count($dept_ticket_priority_data) > 0): ?>
-                <div class="chart-card">
-                    <h3>⚠️ Tickets by Priority</h3>
-                    <div class="chart-container">
-                        <canvas id="deptTicketPriorityChart"></canvas>
+                    <div class="chart-card">
+                        <h3>⚠️ Tickets by Priority</h3>
+                        <div class="chart-container">
+                            <canvas id="deptTicketPriorityChart"></canvas>
+                        </div>
                     </div>
-                </div>
                 <?php endif; ?>
             </div>
 
@@ -611,40 +666,40 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
                             </thead>
                             <tbody>
                                 <?php foreach ($department_employees as $employee): ?>
-                                <tr>
-                                    <td>
-                                        <div class="employee-name">
-                                            <?php echo htmlspecialchars($employee['first_name'] . ' ' . $employee['last_name']); ?>
-                                        </div>
-                                        <div class="employee-email">
-                                            <?php echo htmlspecialchars($employee['email']); ?>
-                                        </div>
-                                    </td>
-                                    <td><?php echo htmlspecialchars($employee['username']); ?></td>
-                                    <td>
-                                        <span class="badge badge-<?php echo $employee['is_active'] ? 'active' : 'inactive'; ?>">
-                                            <?php echo $employee['is_active'] ? 'Active' : 'Inactive'; ?>
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <span class="badge badge-<?php echo $employee['is_verified'] ? 'verified' : 'unverified'; ?>">
-                                            <?php echo $employee['is_verified'] ? 'Verified' : 'Pending'; ?>
-                                        </span>
-                                    </td>
-                                    <td><?php echo $employee['asset_count']; ?></td>
-                                    <td><?php echo $employee['ticket_count']; ?></td>
-                                    <td><?php echo date('M d, Y', strtotime($employee['created_at'])); ?></td>
-                                    <td>
-                                        <div class="action-buttons">
-                                            <a href="../public/asset.php?user=<?php echo $employee['user_id']; ?>" class="btn-sm btn-view" title="View Assets">
-                                                <i class="fas fa-box"></i>
-                                            </a>
-                                            <a href="../public/ticket.php?user=<?php echo $employee['user_id']; ?>" class="btn-sm btn-view" title="View Tickets">
-                                                <i class="fas fa-ticket-alt"></i>
-                                            </a>
-                                        </div>
-                                    </td>
-                                </tr>
+                                    <tr>
+                                        <td>
+                                            <div class="employee-name">
+                                                <?php echo htmlspecialchars($employee['first_name'] . ' ' . $employee['last_name']); ?>
+                                            </div>
+                                            <div class="employee-email">
+                                                <?php echo htmlspecialchars($employee['email']); ?>
+                                            </div>
+                                        </td>
+                                        <td><?php echo htmlspecialchars($employee['username']); ?></td>
+                                        <td>
+                                            <span class="badge badge-<?php echo $employee['is_active'] ? 'active' : 'inactive'; ?>">
+                                                <?php echo $employee['is_active'] ? 'Active' : 'Inactive'; ?>
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span class="badge badge-<?php echo $employee['is_verified'] ? 'verified' : 'unverified'; ?>">
+                                                <?php echo $employee['is_verified'] ? 'Verified' : 'Pending'; ?>
+                                            </span>
+                                        </td>
+                                        <td><?php echo $employee['asset_count']; ?></td>
+                                        <td><?php echo $employee['ticket_count']; ?></td>
+                                        <td><?php echo date('M d, Y', strtotime($employee['created_at'])); ?></td>
+                                        <td>
+                                            <div class="action-buttons">
+                                                <a href="../public/asset.php?user=<?php echo $employee['user_id']; ?>" class="btn-sm btn-view" title="View Assets">
+                                                    <i class="fas fa-box"></i>
+                                                </a>
+                                                <a href="../public/ticket.php?user=<?php echo $employee['user_id']; ?>" class="btn-sm btn-view" title="View Tickets">
+                                                    <i class="fas fa-ticket-alt"></i>
+                                                </a>
+                                            </div>
+                                        </td>
+                                    </tr>
                                 <?php endforeach; ?>
                             </tbody>
                         </table>
@@ -669,7 +724,7 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
                     <?php if (count($recent_tickets) > 0): ?>
                         <ul class="ticket-list">
                             <?php foreach ($recent_tickets as $ticket): ?>
-                                <li class="ticket-item" onclick="window.location.href='../public/ticketDetails.php?id=<?php echo $ticket['id']; ?>'">
+                                <li class="ticket-item" onclick="window.location.href='../public/ticketDetails.php?id=<?php echo $ticket['ticket_id']; ?>'">
                                     <div class="ticket-info">
                                         <h4><?php echo htmlspecialchars($ticket['ticket_number']); ?></h4>
                                         <p>
@@ -712,7 +767,7 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
                                         <p>
                                             <?php echo htmlspecialchars($asset['asset_code']); ?> • <?php echo htmlspecialchars($asset['category']); ?>
                                             <?php if ($asset['assigned_to']): ?>
-                                            <br><small>Assigned to: <?php echo htmlspecialchars($asset['first_name'] . ' ' . $asset['last_name']); ?></small>
+                                                <br><small>Assigned to: <?php echo htmlspecialchars($asset['first_name'] . ' ' . $asset['last_name']); ?></small>
                                             <?php endif; ?>
                                         </p>
                                     </div>
@@ -781,149 +836,150 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
         };
 
         <?php if (count($dept_asset_status_data) > 0): ?>
-        // Department Asset Status Chart
-        const deptAssetStatusCtx = document.getElementById('deptAssetStatusChart').getContext('2d');
-        const deptAssetStatusLabels = <?php echo $asset_status_labels; ?>;
-        const deptAssetStatusData = <?php echo $asset_status_values; ?>;
-        
-        new Chart(deptAssetStatusCtx, {
-            type: 'doughnut',
-            data: {
-                labels: deptAssetStatusLabels,
-                datasets: [{
-                    data: deptAssetStatusData,
-                    backgroundColor: deptAssetStatusLabels.map(label => statusColors[label] || '#6b7280'),
-                    borderWidth: 2,
-                    borderColor: '#fff'
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: {
-                            padding: 15,
-                            font: {
-                                size: 12
+            // Department Asset Status Chart
+            const deptAssetStatusCtx = document.getElementById('deptAssetStatusChart').getContext('2d');
+            const deptAssetStatusLabels = <?php echo $asset_status_labels; ?>;
+            const deptAssetStatusData = <?php echo $asset_status_values; ?>;
+
+            new Chart(deptAssetStatusCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: deptAssetStatusLabels,
+                    datasets: [{
+                        data: deptAssetStatusData,
+                        backgroundColor: deptAssetStatusLabels.map(label => statusColors[label] || '#6b7280'),
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 15,
+                                font: {
+                                    size: 12
+                                }
                             }
                         }
                     }
                 }
-            }
-        });
+            });
         <?php endif; ?>
 
         <?php if (count($employee_asset_distribution) > 0): ?>
-        // Employee Asset Distribution Chart
-        const employeeAssetCtx = document.getElementById('employeeAssetChart').getContext('2d');
-        const employeeNames = <?php echo $employee_names; ?>;
-        const employeeAssets = <?php echo $employee_assets; ?>;
-        
-        new Chart(employeeAssetCtx, {
-            type: 'bar',
-            data: {
-                labels: employeeNames,
-                datasets: [{
-                    label: 'Number of Assets',
-                    data: employeeAssets,
-                    backgroundColor: 'rgba(102, 126, 234, 0.8)',
-                    borderColor: 'rgba(102, 126, 234, 1)',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            stepSize: 1
+            // Employee Asset Distribution Chart
+            const employeeAssetCtx = document.getElementById('employeeAssetChart').getContext('2d');
+            const employeeNames = <?php echo $employee_names; ?>;
+            const employeeAssets = <?php echo $employee_assets; ?>;
+
+            new Chart(employeeAssetCtx, {
+                type: 'bar',
+                data: {
+                    labels: employeeNames,
+                    datasets: [{
+                        label: 'Number of Assets',
+                        data: employeeAssets,
+                        backgroundColor: 'rgba(102, 126, 234, 0.8)',
+                        borderColor: 'rgba(102, 126, 234, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
                         }
                     }
-                },
-                plugins: {
-                    legend: {
-                        display: false
-                    }
                 }
-            }
-        });
+            });
         <?php endif; ?>
 
         <?php if (count($dept_ticket_status_data) > 0): ?>
-        // Department Ticket Status Chart
-        const deptTicketStatusCtx = document.getElementById('deptTicketStatusChart').getContext('2d');
-        const deptTicketStatusLabels = <?php echo $ticket_status_labels; ?>;
-        const deptTicketStatusData = <?php echo $ticket_status_values; ?>;
-        
-        new Chart(deptTicketStatusCtx, {
-            type: 'doughnut',
-            data: {
-                labels: deptTicketStatusLabels.map(label => label.replace('_', ' ').toUpperCase()),
-                datasets: [{
-                    data: deptTicketStatusData,
-                    backgroundColor: deptTicketStatusLabels.map(label => ticketStatusColors[label] || '#6b7280'),
-                    borderWidth: 2,
-                    borderColor: '#fff'
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: {
-                            padding: 15,
-                            font: {
-                                size: 12
+            // Department Ticket Status Chart
+            const deptTicketStatusCtx = document.getElementById('deptTicketStatusChart').getContext('2d');
+            const deptTicketStatusLabels = <?php echo $ticket_status_labels; ?>;
+            const deptTicketStatusData = <?php echo $ticket_status_values; ?>;
+
+            new Chart(deptTicketStatusCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: deptTicketStatusLabels.map(label => label.replace('_', ' ').toUpperCase()),
+                    datasets: [{
+                        data: deptTicketStatusData,
+                        backgroundColor: deptTicketStatusLabels.map(label => ticketStatusColors[label] || '#6b7280'),
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 15,
+                                font: {
+                                    size: 12
+                                }
                             }
                         }
                     }
                 }
-            }
-        });
+            });
         <?php endif; ?>
 
         <?php if (count($dept_ticket_priority_data) > 0): ?>
-        // Department Ticket Priority Chart
-        const deptTicketPriorityCtx = document.getElementById('deptTicketPriorityChart').getContext('2d');
-        const deptTicketPriorityLabels = <?php echo $ticket_priority_labels; ?>;
-        const deptTicketPriorityData = <?php echo $ticket_priority_values; ?>;
-        
-        new Chart(deptTicketPriorityCtx, {
-            type: 'bar',
-            data: {
-                labels: deptTicketPriorityLabels.map(label => label.toUpperCase()),
-                datasets: [{
-                    label: 'Number of Tickets',
-                    data: deptTicketPriorityData,
-                    backgroundColor: deptTicketPriorityLabels.map(label => priorityColors[label] || '#6b7280'),
-                    borderWidth: 0
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            stepSize: 1
+            // Department Ticket Priority Chart
+            const deptTicketPriorityCtx = document.getElementById('deptTicketPriorityChart').getContext('2d');
+            const deptTicketPriorityLabels = <?php echo $ticket_priority_labels; ?>;
+            const deptTicketPriorityData = <?php echo $ticket_priority_values; ?>;
+
+            new Chart(deptTicketPriorityCtx, {
+                type: 'bar',
+                data: {
+                    labels: deptTicketPriorityLabels.map(label => label.toUpperCase()),
+                    datasets: [{
+                        label: 'Number of Tickets',
+                        data: deptTicketPriorityData,
+                        backgroundColor: deptTicketPriorityLabels.map(label => priorityColors[label] || '#6b7280'),
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
                         }
                     }
-                },
-                plugins: {
-                    legend: {
-                        display: false
-                    }
                 }
-            }
-        });
+            });
         <?php endif; ?>
     </script>
 </body>
+
 </html>

@@ -496,7 +496,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <p>Submit a request for assistance or report an issue</p>
                 </div>
                 <div class="header-right">
-                    <a href="userTickets.php" class="btn btn-outline">
+                    <a href="userTicket.php" class="btn btn-outline">
                         <i class="fas fa-arrow-left"></i> Back to My Tickets
                     </a>
                 </div>

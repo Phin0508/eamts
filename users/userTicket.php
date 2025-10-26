@@ -13,7 +13,7 @@ $user_id = $_SESSION['user_id'];
 // SECURITY: Only allow employees to access this page
 // Managers and admins should use the main tickets.php
 if ($_SESSION['role'] !== 'employee') {
-    header("Location: ../tickets/tickets.php");
+    header("Location: ../public/ticket.php");
     exit();
 }
 

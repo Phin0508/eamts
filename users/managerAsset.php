@@ -2,8 +2,8 @@
 // Start session
 session_start();
 
-// Check if user is logged in and has appropriate role
-if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['admin', 'manager', 'employee'])) {
+// Check if user is logged in and is a manager
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'manager') {
     header("Location: login.php");
     exit();
 }
@@ -16,7 +16,6 @@ $user_name = $_SESSION['first_name'] . ' ' . $_SESSION['last_name'];
 $username = $_SESSION['username'];
 $department = $_SESSION['department'];
 $user_id = $_SESSION['user_id'];
-$user_role = $_SESSION['role'];
 
 // Handle logout
 if (isset($_GET['action']) && $_GET['action'] === 'logout') {
@@ -37,26 +36,10 @@ $error_message = '';
 $filter_status = $_GET['status'] ?? 'all';
 $filter_category = $_GET['category'] ?? 'all';
 $search = $_GET['search'] ?? '';
-$assigned_user = $_GET['user'] ?? 'all';
 
-// Build the query based on user role
-if ($user_role === 'admin') {
-    // Admin can see all departments or filter by specific department
-    $dept_filter = $_GET['department'] ?? 'all';
-    
-    if ($dept_filter === 'all') {
-        $where_clauses = [];
-        $params = [];
-    } else {
-        $where_clauses = ["a.department = ?"];
-        $params = [$dept_filter];
-    }
-} else {
-    // Manager and employee can only see their own department
-    $where_clauses = ["a.department = ?"];
-    $params = [$department];
-    $dept_filter = $department;
-}
+// Build query - ONLY for assets assigned to THIS manager
+$where_clauses = ["a.assigned_to = ?"];
+$params = [$user_id];
 
 if ($filter_status !== 'all') {
     $where_clauses[] = "a.status = ?";
@@ -66,15 +49,6 @@ if ($filter_status !== 'all') {
 if ($filter_category !== 'all') {
     $where_clauses[] = "a.category = ?";
     $params[] = $filter_category;
-}
-
-if ($assigned_user !== 'all') {
-    if ($assigned_user === 'unassigned') {
-        $where_clauses[] = "a.assigned_to IS NULL";
-    } else {
-        $where_clauses[] = "a.assigned_to = ?";
-        $params[] = $assigned_user;
-    }
 }
 
 if (!empty($search)) {
@@ -89,19 +63,15 @@ if (!empty($search)) {
 
 $where_sql = !empty($where_clauses) ? "WHERE " . implode(" AND ", $where_clauses) : "";
 
-// Fetch department assets
+// Fetch manager's personal assets
 $assets = [];
 $total_value = 0;
 try {
     $query = "SELECT a.*, 
-              CONCAT(u.first_name, ' ', u.last_name) as assigned_to_name,
-              u.email as assigned_to_email,
-              u.employee_id as assigned_user_emp_id,
               CONCAT(creator.first_name, ' ', creator.last_name) as created_by_name,
               (SELECT COUNT(*) FROM asset_maintenance am WHERE am.asset_id = a.id) as maintenance_count,
               (SELECT MAX(am.maintenance_date) FROM asset_maintenance am WHERE am.asset_id = a.id) as last_maintenance_date
               FROM assets a 
-              LEFT JOIN users u ON a.assigned_to = u.user_id
               LEFT JOIN users creator ON a.created_by = creator.user_id
               $where_sql
               ORDER BY a.created_at DESC";
@@ -120,88 +90,41 @@ try {
     $error_message = "Error fetching assets: " . $e->getMessage();
 }
 
-// Get statistics
+// Get statistics for manager's personal assets
 $stats = [
     'total' => 0,
     'available' => 0,
     'in_use' => 0,
     'maintenance' => 0,
     'retired' => 0,
-    'damaged' => 0,
-    'unassigned' => 0
+    'damaged' => 0
 ];
 
 try {
-    if ($user_role === 'admin' && $dept_filter === 'all') {
-        $stats_query = "SELECT 
-                        COUNT(*) as total,
-                        SUM(CASE WHEN status = 'Available' THEN 1 ELSE 0 END) as available,
-                        SUM(CASE WHEN status = 'In Use' THEN 1 ELSE 0 END) as in_use,
-                        SUM(CASE WHEN status = 'Maintenance' THEN 1 ELSE 0 END) as maintenance,
-                        SUM(CASE WHEN status = 'Retired' THEN 1 ELSE 0 END) as retired,
-                        SUM(CASE WHEN status = 'Damaged' THEN 1 ELSE 0 END) as damaged,
-                        SUM(CASE WHEN assigned_to IS NULL THEN 1 ELSE 0 END) as unassigned
-                        FROM assets";
-        $stats = $pdo->query($stats_query)->fetch(PDO::FETCH_ASSOC);
-    } else {
-        $stats_query = "SELECT 
-                        COUNT(*) as total,
-                        SUM(CASE WHEN status = 'Available' THEN 1 ELSE 0 END) as available,
-                        SUM(CASE WHEN status = 'In Use' THEN 1 ELSE 0 END) as in_use,
-                        SUM(CASE WHEN status = 'Maintenance' THEN 1 ELSE 0 END) as maintenance,
-                        SUM(CASE WHEN status = 'Retired' THEN 1 ELSE 0 END) as retired,
-                        SUM(CASE WHEN status = 'Damaged' THEN 1 ELSE 0 END) as damaged,
-                        SUM(CASE WHEN assigned_to IS NULL THEN 1 ELSE 0 END) as unassigned
-                        FROM assets WHERE department = ?";
-        $stmt = $pdo->prepare($stats_query);
-        $stmt->execute([$dept_filter]);
-        $stats = $stmt->fetch(PDO::FETCH_ASSOC);
-    }
+    $stats_query = "SELECT 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status = 'Available' THEN 1 ELSE 0 END) as available,
+                    SUM(CASE WHEN status = 'In Use' THEN 1 ELSE 0 END) as in_use,
+                    SUM(CASE WHEN status = 'Maintenance' THEN 1 ELSE 0 END) as maintenance,
+                    SUM(CASE WHEN status = 'Retired' THEN 1 ELSE 0 END) as retired,
+                    SUM(CASE WHEN status = 'Damaged' THEN 1 ELSE 0 END) as damaged
+                    FROM assets WHERE assigned_to = ?";
+    $stmt = $pdo->prepare($stats_query);
+    $stmt->execute([$user_id]);
+    $stats = $stmt->fetch(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     error_log("Stats error: " . $e->getMessage());
-}
-
-// Get department employees for filter
-$dept_employees = [];
-try {
-    if ($user_role === 'admin' && $dept_filter !== 'all') {
-        $emp_query = "SELECT user_id, first_name, last_name, email 
-                      FROM users 
-                      WHERE department = ? AND is_active = 1 
-                      ORDER BY first_name, last_name";
-        $stmt = $pdo->prepare($emp_query);
-        $stmt->execute([$dept_filter]);
-        $dept_employees = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } elseif ($user_role !== 'admin') {
-        $emp_query = "SELECT user_id, first_name, last_name, email 
-                      FROM users 
-                      WHERE department = ? AND is_active = 1 
-                      ORDER BY first_name, last_name";
-        $stmt = $pdo->prepare($emp_query);
-        $stmt->execute([$department]);
-        $dept_employees = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    }
-} catch (PDOException $e) {
-    error_log("Employees error: " . $e->getMessage());
 }
 
 // Get categories for filter
 $categories = [];
 try {
-    $cat_query = "SELECT DISTINCT category FROM assets WHERE category IS NOT NULL ORDER BY category";
-    $categories = $pdo->query($cat_query)->fetchAll(PDO::FETCH_COLUMN);
+    $cat_query = "SELECT DISTINCT category FROM assets WHERE assigned_to = ? AND category IS NOT NULL ORDER BY category";
+    $stmt = $pdo->prepare($cat_query);
+    $stmt->execute([$user_id]);
+    $categories = $stmt->fetchAll(PDO::FETCH_COLUMN);
 } catch (PDOException $e) {
     error_log("Categories error: " . $e->getMessage());
-}
-
-// Get all departments for admin dropdown
-$departments_list = [];
-if ($user_role === 'admin') {
-    try {
-        $departments_list = $pdo->query("SELECT dept_name FROM departments WHERE is_active = 1 ORDER BY dept_name ASC")->fetchAll(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
-        error_log("Departments error: " . $e->getMessage());
-    }
 }
 ?>
 
@@ -210,7 +133,7 @@ if ($user_role === 'admin') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Department Assets - E-Asset Management System</title>
+    <title>My Assets - E-Asset Management System</title>
     <link rel="stylesheet" href="../auth/inc/navigation.css">
     <link rel="stylesheet" href="../style/asset.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -222,27 +145,19 @@ if ($user_role === 'admin') {
             padding: 2rem;
             border-radius: 12px;
             margin-bottom: 2rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 1rem;
         }
 
         .page-header h1 {
             margin: 0 0 0.5rem 0;
             font-size: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
 
         .page-header p {
             margin: 0;
             opacity: 0.95;
-        }
-
-        .header-actions {
-            display: flex;
-            gap: 1rem;
-            flex-wrap: wrap;
         }
 
         .stats-grid {
@@ -359,15 +274,6 @@ if ($user_role === 'admin') {
             background: #1d4ed8;
         }
 
-        .btn-secondary {
-            background: #6b7280;
-            color: white;
-        }
-
-        .btn-secondary:hover {
-            background: #4b5563;
-        }
-
         .btn-outline {
             background: white;
             color: #374151;
@@ -464,42 +370,6 @@ if ($user_role === 'admin') {
             color: #1f2937;
         }
 
-        .asset-assigned {
-            background: #f3f4f6;
-            padding: 0.75rem;
-            border-radius: 8px;
-            margin-bottom: 1rem;
-        }
-
-        .asset-assigned .assigned-label {
-            font-size: 0.75rem;
-            color: #6b7280;
-            text-transform: uppercase;
-            font-weight: 600;
-            margin-bottom: 0.25rem;
-        }
-
-        .asset-assigned .assigned-name {
-            font-weight: 600;
-            color: #1f2937;
-        }
-
-        .asset-assigned .assigned-email {
-            font-size: 0.8rem;
-            color: #6b7280;
-        }
-
-        .unassigned-badge {
-            background: #fef3c7;
-            color: #92400e;
-            padding: 0.5rem;
-            border-radius: 8px;
-            text-align: center;
-            font-size: 0.85rem;
-            font-weight: 600;
-            margin-bottom: 1rem;
-        }
-
         .asset-actions {
             display: flex;
             gap: 0.5rem;
@@ -529,15 +399,6 @@ if ($user_role === 'admin') {
 
         .btn-view:hover {
             background: #bfdbfe;
-        }
-
-        .btn-edit {
-            background: #fef3c7;
-            color: #92400e;
-        }
-
-        .btn-edit:hover {
-            background: #fde68a;
         }
 
         .no-assets {
@@ -601,6 +462,22 @@ if ($user_role === 'admin') {
             color: #4b5563;
         }
 
+        .info-banner {
+            background: #eff6ff;
+            border-left: 4px solid #2563eb;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .info-banner i {
+            color: #2563eb;
+            font-size: 1.25rem;
+        }
+
         @media (max-width: 768px) {
             .stats-grid {
                 grid-template-columns: repeat(2, 1fr);
@@ -608,11 +485,6 @@ if ($user_role === 'admin') {
 
             .assets-grid {
                 grid-template-columns: 1fr;
-            }
-
-            .page-header {
-                flex-direction: column;
-                align-items: flex-start;
             }
 
             .filters-form {
@@ -636,7 +508,6 @@ if ($user_role === 'admin') {
             }
             
             .filters-section,
-            .header-actions,
             .asset-actions,
             nav,
             .btn {
@@ -655,10 +526,6 @@ if ($user_role === 'admin') {
                 margin-bottom: 20px;
                 border: 1px solid #ddd;
             }
-
-            .stats-grid {
-                display: none;
-            }
         }
     </style>
 </head>
@@ -669,24 +536,8 @@ if ($user_role === 'admin') {
         <div class="dashboard-content">
             <div class="page-header">
                 <div>
-                    <h1>📦 Department Assets</h1>
-                    <p>
-                        <?php if ($user_role === 'admin' && $dept_filter === 'all'): ?>
-                            All Departments - Complete Asset Overview
-                        <?php else: ?>
-                            Manage assets for <?php echo htmlspecialchars($dept_filter); ?> Department
-                        <?php endif; ?>
-                    </p>
-                </div>
-                <div class="header-actions">
-                    <?php if ($user_role === 'manager'): ?>
-                    <a href="assetHistory.php?department=<?php echo urlencode($department); ?>" class="btn btn-secondary">
-                        <i class="fas fa-history"></i> View History
-                    </a>
-                    <a href="assetReg.php" class="btn btn-primary">
-                        <i class="fas fa-plus"></i> Register New Asset
-                    </a>
-                    <?php endif; ?>
+                    <h1><i class="fas fa-user-circle"></i> My Assets</h1>
+                    <p>Assets assigned to <?php echo htmlspecialchars($user_name); ?> (<?php echo htmlspecialchars($department); ?> Department)</p>
                 </div>
             </div>
 
@@ -704,58 +555,48 @@ if ($user_role === 'admin') {
                 </div>
             <?php endif; ?>
 
+            <div class="info-banner">
+                <i class="fas fa-info-circle"></i>
+                <div>
+                    <strong>Personal Assets View:</strong> This page displays assets that are currently assigned to you. 
+                    For department-wide asset management, please visit the Department Assets page.
+                </div>
+            </div>
+
             <!-- Statistics Cards -->
             <div class="stats-grid">
-                <div class="stat-card" onclick="window.location.href='?status=all<?php echo $user_role === 'admin' ? '&department=' . urlencode($dept_filter) : ''; ?>'">
-                    <div class="stat-icon">📊</div>
+                <div class="stat-card" onclick="window.location.href='?status=all'">
+                    <div class="stat-icon">📦</div>
                     <div class="stat-number"><?php echo $stats['total']; ?></div>
-                    <div class="stat-label">Total Assets</div>
+                    <div class="stat-label">My Total Assets</div>
                     <div class="stat-value">$<?php echo number_format($total_value, 2); ?></div>
                 </div>
 
-                <div class="stat-card" onclick="window.location.href='?status=Available<?php echo $user_role === 'admin' ? '&department=' . urlencode($dept_filter) : ''; ?>'">
+                <div class="stat-card" onclick="window.location.href='?status=Available'">
                     <div class="stat-icon">✅</div>
                     <div class="stat-number"><?php echo $stats['available']; ?></div>
                     <div class="stat-label">Available</div>
                 </div>
 
-                <div class="stat-card" onclick="window.location.href='?status=In Use<?php echo $user_role === 'admin' ? '&department=' . urlencode($dept_filter) : ''; ?>'">
+                <div class="stat-card" onclick="window.location.href='?status=In Use'">
                     <div class="stat-icon">💼</div>
                     <div class="stat-number"><?php echo $stats['in_use']; ?></div>
                     <div class="stat-label">In Use</div>
                 </div>
 
-                <div class="stat-card" onclick="window.location.href='?status=Maintenance<?php echo $user_role === 'admin' ? '&department=' . urlencode($dept_filter) : ''; ?>'">
+                <div class="stat-card" onclick="window.location.href='?status=Maintenance'">
                     <div class="stat-icon">🔧</div>
                     <div class="stat-number"><?php echo $stats['maintenance']; ?></div>
                     <div class="stat-label">Maintenance</div>
-                </div>
-
-                <div class="stat-card" onclick="window.location.href='?user=unassigned<?php echo $user_role === 'admin' ? '&department=' . urlencode($dept_filter) : ''; ?>'">
-                    <div class="stat-icon">📋</div>
-                    <div class="stat-number"><?php echo $stats['unassigned']; ?></div>
-                    <div class="stat-label">Unassigned</div>
                 </div>
             </div>
 
             <!-- Filters -->
             <div class="filters-section">
                 <form method="GET" action="" class="filters-form">
-                    <?php if ($user_role === 'admin'): ?>
-                    <select name="department" onchange="this.form.submit()">
-                        <option value="all" <?php echo $dept_filter === 'all' ? 'selected' : ''; ?>>All Departments</option>
-                        <?php foreach ($departments_list as $dept): ?>
-                            <option value="<?php echo htmlspecialchars($dept['dept_name']); ?>" 
-                                    <?php echo $dept_filter === $dept['dept_name'] ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($dept['dept_name']); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                    <?php endif; ?>
-
                     <div class="search-box">
                         <i class="fas fa-search"></i>
-                        <input type="text" name="search" placeholder="Search assets..." value="<?php echo htmlspecialchars($search); ?>">
+                        <input type="text" name="search" placeholder="Search my assets..." value="<?php echo htmlspecialchars($search); ?>">
                     </div>
 
                     <select name="status" onchange="this.form.submit()">
@@ -775,18 +616,6 @@ if ($user_role === 'admin') {
                             </option>
                         <?php endforeach; ?>
                     </select>
-
-                    <?php if (count($dept_employees) > 0): ?>
-                    <select name="user" onchange="this.form.submit()">
-                        <option value="all" <?php echo $assigned_user === 'all' ? 'selected' : ''; ?>>All Users</option>
-                        <option value="unassigned" <?php echo $assigned_user === 'unassigned' ? 'selected' : ''; ?>>Unassigned</option>
-                        <?php foreach ($dept_employees as $employee): ?>
-                            <option value="<?php echo $employee['user_id']; ?>" <?php echo $assigned_user == $employee['user_id'] ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($employee['first_name'] . ' ' . $employee['last_name']); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                    <?php endif; ?>
 
                     <button type="submit" class="btn btn-primary">
                         <i class="fas fa-filter"></i> Filter
@@ -853,27 +682,14 @@ if ($user_role === 'admin') {
                                         <span><?php echo htmlspecialchars($asset['location']); ?></span>
                                     </div>
                                 <?php endif; ?>
-                            </div>
 
-                            <?php if ($asset['assigned_to']): ?>
-                                <div class="asset-assigned">
-                                    <div class="assigned-label">Assigned To</div>
-                                    <div class="assigned-name">
-                                        <i class="fas fa-user"></i>
-                                        <?php echo htmlspecialchars($asset['assigned_to_name']); ?>
+                                <?php if ($asset['department']): ?>
+                                    <div class="asset-detail">
+                                        <i class="fas fa-building"></i>
+                                        <span><strong>Department:</strong> <?php echo htmlspecialchars($asset['department']); ?></span>
                                     </div>
-                                    <?php if ($asset['assigned_to_email']): ?>
-                                        <div class="assigned-email"><?php echo htmlspecialchars($asset['assigned_to_email']); ?></div>
-                                    <?php endif; ?>
-                                    <?php if ($asset['assigned_user_emp_id']): ?>
-                                        <div class="assigned-email">ID: <?php echo htmlspecialchars($asset['assigned_user_emp_id']); ?></div>
-                                    <?php endif; ?>
-                                </div>
-                            <?php else: ?>
-                                <div class="unassigned-badge">
-                                    <i class="fas fa-info-circle"></i> Not Assigned
-                                </div>
-                            <?php endif; ?>
+                                <?php endif; ?>
+                            </div>
 
                             <?php if ($asset['maintenance_count'] > 0 || $asset['last_maintenance_date']): ?>
                                 <div class="maintenance-info">
@@ -894,25 +710,22 @@ if ($user_role === 'admin') {
 
                             <div class="asset-actions">
                                 <a href="assetDetails.php?id=<?php echo $asset['id']; ?>" class="btn-sm btn-view">
-                                    <i class="fas fa-eye"></i> View
+                                    <i class="fas fa-eye"></i> View Details
                                 </a>
-                                <?php if ($user_role === 'manager' || $user_role === 'admin'): ?>
-                                <a href="assetEdit.php?id=<?php echo $asset['id']; ?>" class="btn-sm btn-edit">
-                                    <i class="fas fa-edit"></i> Edit
-                                </a>
-                                <?php endif; ?>
                             </div>
                         </div>
                     <?php endforeach; ?>
                 </div>
             <?php else: ?>
                 <div class="no-assets">
-                    <i class="fas fa-box-open"></i>
-                    <h3>No Assets Found</h3>
-                    <p>No assets match your current filters. Try adjusting your search criteria.</p>
-                    <a href="managerAsset.php" class="btn btn-primary" style="margin-top: 1rem;">
-                        <i class="fas fa-redo"></i> Reset Filters
-                    </a>
+                    <i class="fas fa-inbox"></i>
+                    <h3>No Assets Assigned</h3>
+                    <p>You currently don't have any assets assigned to you<?php echo !empty($search) || $filter_status !== 'all' || $filter_category !== 'all' ? ' that match your filters' : ''; ?>.</p>
+                    <?php if (!empty($search) || $filter_status !== 'all' || $filter_category !== 'all'): ?>
+                        <a href="managerAsset.php" class="btn btn-primary" style="margin-top: 1rem;">
+                            <i class="fas fa-redo"></i> Reset Filters
+                        </a>
+                    <?php endif; ?>
                 </div>
             <?php endif; ?>
         </div>
@@ -927,15 +740,6 @@ if ($user_role === 'admin') {
                 setTimeout(() => alert.remove(), 500);
             });
         }, 5000);
-
-        // Confirm before navigating to edit
-        document.querySelectorAll('.btn-edit').forEach(btn => {
-            btn.addEventListener('click', function(e) {
-                if (!confirm('Do you want to edit this asset?')) {
-                    e.preventDefault();
-                }
-            });
-        });
 
         // Add keyboard shortcut for search (Ctrl+K or Cmd+K)
         document.addEventListener('keydown', function(e) {
@@ -991,55 +795,6 @@ if ($user_role === 'admin') {
             }
         });
 
-        // Add tooltips for truncated text
-        document.querySelectorAll('.asset-detail span').forEach(span => {
-            if (span.scrollWidth > span.clientWidth) {
-                span.title = span.textContent;
-            }
-        });
-
-        // Print functionality
-        function printAssets() {
-            window.print();
-        }
-
-        // Export to CSV
-        function exportToCSV() {
-            const assets = <?php echo json_encode($assets); ?>;
-            
-            if (assets.length === 0) {
-                alert('No assets to export');
-                return;
-            }
-
-            let csv = 'Asset Code,Asset Name,Category,Status,Brand,Model,Serial Number,Location,Assigned To,Purchase Cost,Purchase Date\n';
-            
-            assets.forEach(asset => {
-                csv += `"${asset.asset_code}","${asset.asset_name}","${asset.category}","${asset.status}",`;
-                csv += `"${asset.brand || ''}","${asset.model || ''}","${asset.serial_number || ''}",`;
-                csv += `"${asset.location || ''}","${asset.assigned_to_name || 'Unassigned'}",`;
-                csv += `"${asset.purchase_cost || '0'}","${asset.purchase_date || ''}"\n`;
-            });
-
-            const blob = new Blob([csv], { type: 'text/csv' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'department_assets_' + new Date().toISOString().split('T')[0] + '.csv';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-        }
-
-        // Keyboard shortcuts
-        document.addEventListener('keydown', function(e) {
-            if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
-                e.preventDefault();
-                printAssets();
-            }
-        });
-
         // Smooth scroll to top when clicking stat cards
         document.querySelectorAll('.stat-card').forEach(card => {
             card.addEventListener('click', function() {
@@ -1069,14 +824,21 @@ if ($user_role === 'admin') {
             observer.observe(card);
         });
 
+        // Print functionality
+        document.addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+                e.preventDefault();
+                window.print();
+            }
+        });
+
         // Quick stats summary in console
-        console.log('%cDepartment Assets Summary:', 'font-weight: bold; font-size: 16px; color: #667eea;');
+        console.log('%cMy Assets Summary:', 'font-weight: bold; font-size: 16px; color: #667eea;');
         console.log('Total Assets: <?php echo $stats['total']; ?>');
         console.log('Total Value: $<?php echo number_format($total_value, 2); ?>');
         console.log('Available: <?php echo $stats['available']; ?>');
         console.log('In Use: <?php echo $stats['in_use']; ?>');
         console.log('Maintenance: <?php echo $stats['maintenance']; ?>');
-        console.log('Unassigned: <?php echo $stats['unassigned']; ?>');
     </script>
 </body>
 </html>
