@@ -104,35 +104,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_asset'])) {
     }
 }
 
-// Handle asset deletion
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_asset'])) {
-    $asset_id = $_POST['delete_asset_id'];
-
-    try {
-        // Get asset info for logging
-        $asset_stmt = $pdo->prepare("SELECT asset_name, asset_code FROM assets WHERE id = ?");
-        $asset_stmt->execute([$asset_id]);
-        $asset_info = $asset_stmt->fetch(PDO::FETCH_ASSOC);
-
-        if ($asset_info) {
-            // Log deletion in history before deleting
-            $log_stmt = $pdo->prepare("INSERT INTO assets_history (asset_id, action_type, performed_by, created_at) VALUES (?, 'deleted', ?, NOW())");
-            $log_stmt->execute([$asset_id, $_SESSION['user_id']]);
-
-            // Delete the asset
-            $delete_stmt = $pdo->prepare("DELETE FROM assets WHERE id = ?");
-            if ($delete_stmt->execute([$asset_id])) {
-                $success_message = "Asset '{$asset_info['asset_name']}' ({$asset_info['asset_code']}) deleted successfully!";
-            } else {
-                $error_message = "Error deleting asset.";
-            }
-        } else {
-            $error_message = "Asset not found.";
-        }
-    } catch (PDOException $e) {
-        $error_message = "Database error: " . $e->getMessage();
-    }
-}
 
 // Fetch all assets for the table with assigned user information
 $assets = [];
@@ -183,11 +154,10 @@ $maintenance_assets = 0;
 
 foreach ($assets as $asset) {
     $status = strtolower(trim($asset['status']));
-    $status = str_replace([' ', '-', '_'], '', $status);
 
     if ($status === 'available') {
         $available_assets++;
-    } elseif ($status === 'inuse') {
+    } elseif ($status === 'in_use') {
         $in_use_assets++;
     } elseif ($status === 'maintenance') {
         $maintenance_assets++;
@@ -1084,12 +1054,6 @@ foreach ($assets as $asset) {
                                     <a href="assetHistory.php?id=<?php echo $asset['id']; ?>" class="btn btn-secondary btn-small">
                                         <i class="fas fa-history"></i> History
                                     </a>
-                                    <button class="btn btn-danger btn-small delete-btn"
-                                        data-asset-id="<?php echo $asset['id']; ?>"
-                                        data-asset-name="<?php echo htmlspecialchars($asset['asset_name']); ?>"
-                                        data-asset-code="<?php echo htmlspecialchars($asset['asset_code']); ?>">
-                                        <i class="fas fa-trash"></i> Delete
-                                    </button>
                                 </div>
                             </td>
                         </tr>
