@@ -20,100 +20,6 @@ $department = $_SESSION['department'];
 $user_id = $_SESSION['user_id'];
 $login_time = isset($_SESSION['login_time']) ? date('Y-m-d H:i:s', $_SESSION['login_time']) : 'Unknown';
 
-// ============================================
-// DEBUG CODE - REMOVE THIS IN PRODUCTION
-// ============================================
-$show_debug = false; // Set to true only when debugging
-// $show_debug = isset($_GET['debug']) && $_GET['debug'] === 'true';
-
-if ($show_debug) {
-    echo "<pre style='background: #f0f0f0; padding: 20px; margin: 20px; border: 2px solid #333; font-size: 12px;'>";
-    echo "<h3 style='color: #e74c3c;'>🔍 DEBUG INFORMATION - TICKET ISSUES</h3>";
-    echo "<p style='color: #555;'>URL: Add ?debug=true to see this | Current Role: <strong>{$role}</strong> | User ID: <strong>{$user_id}</strong></p>";
-    echo "<hr>";
-
-    // Check tickets table structure
-    echo "\n<strong style='color: #2980b9;'>1. ALL TICKETS IN DATABASE:</strong>\n";
-    try {
-        $debug_stmt = $pdo->query("SELECT ticket_id, ticket_number, approval_status, status, requester_id, created_at FROM tickets ORDER BY created_at DESC");
-        $all_tickets = $debug_stmt->fetchAll(PDO::FETCH_ASSOC);
-        echo "📊 Total tickets in database: <strong>" . count($all_tickets) . "</strong>\n\n";
-        
-        if (count($all_tickets) > 0) {
-            foreach ($all_tickets as $t) {
-                echo "Ticket #{$t['ticket_number']}: ";
-                echo "approval_status=<strong style='color: #e74c3c;'>'{$t['approval_status']}'</strong>, ";
-                echo "status='{$t['status']}', ";
-                echo "requester_id={$t['requester_id']}, ";
-                echo "created=" . date('M d, Y H:i', strtotime($t['created_at'])) . "\n";
-            }
-        } else {
-            echo "⚠️ No tickets found in database!\n";
-        }
-    } catch (PDOException $e) {
-        echo "❌ Error: " . $e->getMessage() . "\n";
-    }
-
-    // Check approval status values
-    echo "\n<strong style='color: #2980b9;'>2. APPROVAL STATUS BREAKDOWN:</strong>\n";
-    try {
-        $status_stmt = $pdo->query("SELECT approval_status, COUNT(*) as count FROM tickets GROUP BY approval_status");
-        $statuses = $status_stmt->fetchAll(PDO::FETCH_ASSOC);
-        echo "Different approval_status values found:\n";
-        foreach ($statuses as $s) {
-            $approval = $s['approval_status'] === null ? 'NULL' : "'{$s['approval_status']}'";
-            echo "  • {$approval}: <strong>{$s['count']}</strong> tickets\n";
-        }
-    } catch (PDOException $e) {
-        echo "❌ Error: " . $e->getMessage() . "\n";
-    }
-
-    // Check what admin query returns
-    if ($role === 'admin') {
-        echo "\n<strong style='color: #2980b9;'>3. ADMIN TICKET QUERY TEST:</strong>\n";
-        try {
-            // Test current query
-            $test_stmt = $pdo->query("SELECT COUNT(*) FROM tickets WHERE approval_status = 'approved'");
-            $approved_count = $test_stmt->fetchColumn();
-            echo "Tickets WHERE approval_status='approved': <strong>{$approved_count}</strong>\n";
-            
-            // Test alternative query
-            $test_stmt2 = $pdo->query("SELECT COUNT(*) FROM tickets WHERE (approval_status = 'approved' OR approval_status IS NULL)");
-            $alt_count = $test_stmt2->fetchColumn();
-            echo "Tickets WHERE approval_status='approved' OR NULL: <strong>{$alt_count}</strong>\n";
-            
-            // Test show all
-            $test_stmt3 = $pdo->query("SELECT COUNT(*) FROM tickets");
-            $all_count = $test_stmt3->fetchColumn();
-            echo "All tickets (no filter): <strong>{$all_count}</strong>\n";
-        } catch (PDOException $e) {
-            echo "❌ Error: " . $e->getMessage() . "\n";
-        }
-    }
-
-    // Check tickets table structure
-    echo "\n<strong style='color: #2980b9;'>4. TICKETS TABLE STRUCTURE:</strong>\n";
-    try {
-        $struct_stmt = $pdo->query("DESCRIBE tickets");
-        $columns = $struct_stmt->fetchAll(PDO::FETCH_ASSOC);
-        echo "Columns in tickets table:\n";
-        foreach ($columns as $col) {
-            if (stripos($col['Field'], 'approval') !== false || stripos($col['Field'], 'status') !== false) {
-                echo "  • {$col['Field']}: {$col['Type']} (Null: {$col['Null']}, Default: {$col['Default']})\n";
-            }
-        }
-    } catch (PDOException $e) {
-        echo "❌ Error: " . $e->getMessage() . "\n";
-    }
-
-    echo "\n<hr>";
-    echo "<p style='color: #27ae60;'><strong>✅ Debug complete!</strong> Remove ?debug=true from URL to hide this.</p>";
-    echo "</pre>";
-}
-// ============================================
-// END DEBUG CODE
-// ============================================
-
 // Handle logout
 if (isset($_GET['action']) && $_GET['action'] === 'logout') {
     session_unset();
@@ -191,19 +97,10 @@ try {
     $stmt->execute([$user_id]);
     $stats['reports'] = $stmt->fetchColumn();
 } catch (PDOException $e) {
-    // Keep default values on error
     error_log("Dashboard stats error: " . $e->getMessage());
-    if ($show_debug) {
-        echo "<div style='background: #f8d7da; padding: 20px; margin: 20px; border: 2px solid #dc3545;'>";
-        echo "<strong>❌ ASSET STATISTICS ERROR:</strong><br>";
-        echo $e->getMessage();
-        echo "</div>";
-    }
 }
 
-// ============================================
-// TICKET STATISTICS (SEPARATE TRY-CATCH BLOCK)
-// ============================================
+// TICKET STATISTICS
 try {
     // Build ticket query based on role
     $ticket_base_where = "";
@@ -222,106 +119,38 @@ try {
     }
 
     // Get total tickets
-    try {
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets t $ticket_base_where");
-        $stmt->execute($ticket_params);
-        $stats['total_tickets'] = $stmt->fetchColumn();
-    } catch (PDOException $e) {
-        error_log("Total tickets error: " . $e->getMessage());
-    }
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets t $ticket_base_where");
+    $stmt->execute($ticket_params);
+    $stats['total_tickets'] = $stmt->fetchColumn();
 
     // Get open tickets
     $where_and = $ticket_base_where ? "AND" : "WHERE";
-    try {
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets t $ticket_base_where $where_and t.status = 'open'");
-        $stmt->execute($ticket_params);
-        $stats['open_tickets'] = $stmt->fetchColumn();
-    } catch (PDOException $e) {
-        error_log("Open tickets error: " . $e->getMessage());
-    }
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets t $ticket_base_where $where_and t.status = 'open'");
+    $stmt->execute($ticket_params);
+    $stats['open_tickets'] = $stmt->fetchColumn();
 
     // Get resolved tickets
-    try {
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets t $ticket_base_where $where_and t.status = 'resolved'");
-        $stmt->execute($ticket_params);
-        $stats['resolved_tickets'] = $stmt->fetchColumn();
-    } catch (PDOException $e) {
-        error_log("Resolved tickets error: " . $e->getMessage());
-    }
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets t $ticket_base_where $where_and t.status = 'resolved'");
+    $stmt->execute($ticket_params);
+    $stats['resolved_tickets'] = $stmt->fetchColumn();
 
     // Get urgent tickets
-    try {
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets t $ticket_base_where $where_and t.priority = 'urgent'");
-        $stmt->execute($ticket_params);
-        $stats['urgent_tickets'] = $stmt->fetchColumn();
-    } catch (PDOException $e) {
-        error_log("Urgent tickets error: " . $e->getMessage());
-    }
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets t $ticket_base_where $where_and t.priority = 'urgent'");
+    $stmt->execute($ticket_params);
+    $stats['urgent_tickets'] = $stmt->fetchColumn();
 
     // Get ticket status distribution
-    try {
-        $stmt = $pdo->prepare("SELECT t.status, COUNT(*) as count FROM tickets t $ticket_base_where GROUP BY t.status");
-        $stmt->execute($ticket_params);
-        $ticket_status_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
-        error_log("Ticket status data error: " . $e->getMessage());
-    }
+    $stmt = $pdo->prepare("SELECT t.status, COUNT(*) as count FROM tickets t $ticket_base_where GROUP BY t.status");
+    $stmt->execute($ticket_params);
+    $ticket_status_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     // Get ticket priority distribution
-    try {
-        $stmt = $pdo->prepare("SELECT t.priority, COUNT(*) as count FROM tickets t $ticket_base_where GROUP BY t.priority");
-        $stmt->execute($ticket_params);
-        $ticket_priority_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
-        error_log("Ticket priority data error: " . $e->getMessage());
-    }
+    $stmt = $pdo->prepare("SELECT t.priority, COUNT(*) as count FROM tickets t $ticket_base_where GROUP BY t.priority");
+    $stmt->execute($ticket_params);
+    $ticket_priority_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
-    // Keep default values on error
     error_log("Ticket statistics error: " . $e->getMessage());
-    if ($show_debug) {
-        echo "<div style='background: #f8d7da; padding: 20px; margin: 20px; border: 2px solid #dc3545;'>";
-        echo "<strong>❌ TICKET STATISTICS ERROR:</strong><br>";
-        echo $e->getMessage();
-        echo "</div>";
-    }
 }
-// ============================================
-// END TICKET STATISTICS
-// ============================================
-
-// ============================================
-// CHART DATA DEBUG (After statistics are calculated)
-// ============================================
-if ($show_debug) {
-    echo "<pre style='background: #e8f5e9; padding: 20px; margin: 20px; border: 2px solid #4caf50;'>";
-    echo "<h3 style='color: #2e7d32;'>📊 CHART DATA DEBUG (After Stats Calculation)</h3>";
-    echo "\n<strong>Stats Array:</strong>\n";
-    print_r($stats);
-    echo "\n<strong>Ticket Status Data (for charts):</strong>\n";
-    print_r($ticket_status_data);
-    echo "\n<strong>Ticket Priority Data (for charts):</strong>\n";
-    print_r($ticket_priority_data);
-    
-    if (!empty($ticket_status_data)) {
-        echo "\n<strong>JSON for JavaScript (Status):</strong>\n";
-        echo "ticket_status_labels = " . json_encode(array_column($ticket_status_data, 'status')) . "\n";
-        echo "ticket_status_values = " . json_encode(array_column($ticket_status_data, 'count')) . "\n";
-    } else {
-        echo "\n<strong style='color: #d32f2f;'>⚠️ ticket_status_data is EMPTY!</strong>\n";
-    }
-    
-    if (!empty($ticket_priority_data)) {
-        echo "\n<strong>JSON for JavaScript (Priority):</strong>\n";
-        echo "ticket_priority_labels = " . json_encode(array_column($ticket_priority_data, 'priority')) . "\n";
-        echo "ticket_priority_values = " . json_encode(array_column($ticket_priority_data, 'count')) . "\n";
-    } else {
-        echo "\n<strong style='color: #d32f2f;'>⚠️ ticket_priority_data is EMPTY!</strong>\n";
-    }
-    echo "</pre>";
-}
-// ============================================
-// END CHART DATA DEBUG
-// ============================================
 
 // Fetch user's recent assets
 $recent_assets = [];
@@ -372,39 +201,147 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
 
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>E-Asset Management System - Dashboard</title>
-    <link rel="stylesheet" href="../auth/inc/navigation.css">
-    <link rel="stylesheet" href="../style/dashboard.css">
+    <title>Dashboard - E-Asset</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
     <script src="../js/deviceTracker.js" defer></script>
-
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8f9fc;
+            color: #2d3748;
+            min-height: 100vh;
+        }
+
+        /* Main Container */
+        .main-content {
+            margin-left: 260px;
+            transition: margin-left 0.3s ease;
+            min-height: 100vh;
+            padding: 30px;
+        }
+
+        .main-content.sidebar-collapsed {
+            margin-left: 80px;
+        }
+
+        /* Welcome Section */
+        .welcome-section {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 16px;
+            padding: 40px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+            color: white;
+        }
+
+        .welcome-section h1 {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .welcome-message {
+            font-size: 16px;
+            opacity: 0.95;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 24px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 16px;
+            padding: 28px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            transition: all 0.3s;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            transform: scaleX(0);
+            transition: transform 0.3s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+        }
+
+        .stat-card:hover::before {
+            transform: scaleX(1);
+        }
+
+        .stat-icon {
+            font-size: 36px;
+            margin-bottom: 16px;
+            display: block;
+        }
+
+        .stat-number {
+            font-size: 36px;
+            font-weight: 700;
+            color: #1a202c;
+            margin-bottom: 8px;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: #718096;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Charts Section */
         .charts-section {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
-            gap: 2rem;
-            margin: 2rem 0;
+            gap: 24px;
+            margin-bottom: 30px;
         }
 
         .chart-card {
             background: white;
-            padding: 1.5rem;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            padding: 32px;
+            border-radius: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
         }
 
         .chart-card h3 {
-            margin: 0 0 1.5rem 0;
-            color: #2c3e50;
-            font-size: 1.2rem;
-            font-weight: 600;
+            margin: 0 0 24px 0;
+            color: #1a202c;
+            font-size: 20px;
+            font-weight: 700;
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: 10px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid #e2e8f0;
         }
 
         .chart-container {
@@ -416,271 +353,582 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
             max-height: 300px;
         }
 
-        @media (max-width: 768px) {
+        /* Dashboard Grid */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 24px;
+            margin-bottom: 30px;
+        }
+
+        /* Card Styles */
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+
+        .card h2 {
+            font-size: 22px;
+            font-weight: 700;
+            color: #1a202c;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* Details Grid */
+        .details-grid {
+            display: grid;
+            gap: 20px;
+        }
+
+        .detail-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 16px;
+            background: #f7fafc;
+            border-radius: 10px;
+            transition: background 0.2s;
+        }
+
+        .detail-item:hover {
+            background: #edf2f7;
+        }
+
+        .detail-item .label {
+            font-weight: 600;
+            color: #4a5568;
+        }
+
+        .detail-item .value {
+            color: #1a202c;
+            font-weight: 500;
+        }
+
+        /* Asset List */
+        .asset-list {
+            list-style: none;
+            margin-bottom: 20px;
+        }
+
+        .asset-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px;
+            border-bottom: 1px solid #e2e8f0;
+            transition: background 0.2s;
+        }
+
+        .asset-item:hover {
+            background: #fafbfc;
+        }
+
+        .asset-item:last-child {
+            border-bottom: none;
+        }
+
+        .asset-info h4 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1a202c;
+            margin-bottom: 4px;
+        }
+
+        .asset-info p {
+            font-size: 13px;
+            color: #718096;
+        }
+
+        /* Status Badges */
+        .status-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .status-available {
+            background: linear-gradient(135deg, #d4f4dd 0%, #c3e6cb 100%);
+            color: #155724;
+        }
+
+        .status-in-use {
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+            color: #1e40af;
+        }
+
+        .status-maintenance {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            color: #92400e;
+        }
+
+        .status-retired {
+            background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);
+            color: #374151;
+        }
+
+        /* Activity List */
+        .activity-list {
+            list-style: none;
+        }
+
+        .activity-item {
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            gap: 16px;
+            padding: 16px;
+            border-bottom: 1px solid #e2e8f0;
+            transition: background 0.2s;
+            align-items: center;
+        }
+
+        .activity-item:hover {
+            background: #fafbfc;
+        }
+
+        .activity-item:last-child {
+            border-bottom: none;
+        }
+
+        .activity-type {
+            font-weight: 600;
+            color: #7c3aed;
+            text-transform: capitalize;
+            font-size: 14px;
+        }
+
+        .activity-details {
+            color: #4a5568;
+            font-size: 14px;
+        }
+
+        .activity-time {
+            color: #a0aec0;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+
+        /* Quick Actions */
+        .quick-actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            padding-top: 20px;
+            border-top: 2px solid #e2e8f0;
+        }
+
+        .action-btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(124, 58, 237, 0.4);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: #718096;
+            border: 2px solid #e2e8f0;
+        }
+
+        .btn-secondary:hover {
+            background: #f7fafc;
+            border-color: #cbd5e0;
+        }
+
+        /* No Data State */
+        .no-data {
+            text-align: center;
+            padding: 60px 20px;
+            color: #718096;
+        }
+
+        .no-data i {
+            font-size: 48px;
+            color: #cbd5e0;
+            margin-bottom: 16px;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1024px) {
+            .main-content {
+                margin-left: 80px;
+            }
+
             .charts-section {
                 grid-template-columns: 1fr;
             }
+
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                margin-left: 0;
+                padding: 20px;
+            }
+
+            .welcome-section {
+                padding: 30px 24px;
+            }
+
+            .welcome-section h1 {
+                font-size: 24px;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .charts-section {
+                grid-template-columns: 1fr;
+            }
+
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .activity-item {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+
+            .quick-actions {
+                flex-direction: column;
+            }
+
+            .action-btn {
+                width: 100%;
+                justify-content: center;
+            }
         }
     </style>
-    
+    <link rel="stylesheet" href="../auth/inc/navigation.css">
 </head>
-
 <body>
-
     <?php include("../auth/inc/sidebar.php"); ?>
 
-    <main class="main-content">
-        <div class="dashboard-content">
-            <div class="welcome-section">
-                <h1>Welcome back, <?php echo htmlspecialchars($_SESSION['first_name']); ?>!</h1>
-                <p class="welcome-message">You have successfully logged into the E-Asset Management System.</p>
+    <div class="main-content" id="mainContent">
+        <div class="welcome-section">
+            <h1>👋 Welcome back, <?php echo htmlspecialchars($_SESSION['first_name']); ?>!</h1>
+            <p class="welcome-message">Here's what's happening with your assets and tickets today.</p>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card" onclick="window.location.href='../public/asset.php'">
+                <span class="stat-icon">📦</span>
+                <div class="stat-number"><?php echo $stats['my_assets']; ?></div>
+                <div class="stat-label">My Assets</div>
             </div>
 
-            <div class="stats-grid">
-                <div class="stat-card" onclick="window.location.href='../public/asset.php'">
-                    <span class="stat-icon">📦</span>
-                    <div class="stat-number"><?php echo $stats['my_assets']; ?></div>
-                    <div class="stat-label">My Assets</div>
-                </div>
-
-                <?php if ($role === 'admin'): ?>
-                    <div class="stat-card" onclick="window.location.href='../public/userV.php'">
-                        <span class="stat-icon">👥</span>
-                        <div class="stat-number"><?php echo $stats['pending_requests']; ?></div>
-                        <div class="stat-label">Pending Verifications</div>
-                    </div>
-                <?php else: ?>
-                    <div class="stat-card" onclick="window.location.href='../public/tickets.php'">
-                        <span class="stat-icon">🎫</span>
-                        <div class="stat-number"><?php echo $stats['total_tickets']; ?></div>
-                        <div class="stat-label">Total Tickets</div>
-                    </div>
-                <?php endif; ?>
-
-                <div class="stat-card">
-                    <span class="stat-icon">🔧</span>
-                    <div class="stat-number"><?php echo $stats['maintenance_due']; ?></div>
-                    <div class="stat-label">Maintenance Status</div>
-                </div>
-
-                <?php if ($role === 'admin' || $role === 'manager'): ?>
-                    <div class="stat-card" onclick="window.location.href='../public/asset.php'">
-                        <span class="stat-icon">📊</span>
-                        <div class="stat-number"><?php echo $stats['total_assets']; ?></div>
-                        <div class="stat-label">Total Assets</div>
-                    </div>
-                <?php else: ?>
-                    <div class="stat-card" onclick="window.location.href='../public/tickets.php'">
-                        <span class="stat-icon">⚡</span>
-                        <div class="stat-number"><?php echo $stats['urgent_tickets']; ?></div>
-                        <div class="stat-label">Urgent Tickets</div>
-                    </div>
-                <?php endif; ?>
-            </div>
-
-            <!-- REST OF YOUR DASHBOARD HTML CONTINUES HERE... -->
-            <!-- (I'm keeping the rest of the file the same as your original) -->
-
-            <!-- Charts Section -->
-            <?php if ($role === 'admin' || $role === 'manager'): ?>
-                <div class="charts-section">
-                    <!-- Asset Status Chart -->
-                    <div class="chart-card">
-                        <h3>📊 Asset Status Distribution</h3>
-                        <div class="chart-container">
-                            <canvas id="assetStatusChart"></canvas>
-                        </div>
-                    </div>
-
-                    <!-- Asset Category Chart -->
-                    <div class="chart-card">
-                        <h3>📈 Assets by Category</h3>
-                        <div class="chart-container">
-                            <canvas id="assetCategoryChart"></canvas>
-                        </div>
-                    </div>
-
-                    <!-- Ticket Status Chart -->
-                    <div class="chart-card">
-                        <h3>🎫 Ticket Status Overview</h3>
-                        <div class="chart-container">
-                            <canvas id="ticketStatusChart"></canvas>
-                        </div>
-                    </div>
-
-                    <!-- Ticket Priority Chart -->
-                    <div class="chart-card">
-                        <h3>⚠️ Tickets by Priority</h3>
-                        <div class="chart-container">
-                            <canvas id="ticketPriorityChart"></canvas>
-                        </div>
-                    </div>
+            <?php if ($role === 'admin'): ?>
+                <div class="stat-card" onclick="window.location.href='../public/userV.php'">
+                    <span class="stat-icon">👥</span>
+                    <div class="stat-number"><?php echo $stats['pending_requests']; ?></div>
+                    <div class="stat-label">Pending Verifications</div>
                 </div>
             <?php else: ?>
-                <div class="charts-section">
-                    <!-- Ticket Status Chart for Employees -->
-                    <div class="chart-card">
-                        <h3>🎫 My Ticket Status</h3>
-                        <div class="chart-container">
-                            <canvas id="ticketStatusChart"></canvas>
-                        </div>
-                    </div>
-
-                    <!-- Ticket Priority Chart for Employees -->
-                    <div class="chart-card">
-                        <h3>⚠️ My Tickets by Priority</h3>
-                        <div class="chart-container">
-                            <canvas id="ticketPriorityChart"></canvas>
-                        </div>
-                    </div>
+                <div class="stat-card" onclick="window.location.href='../public/tickets.php'">
+                    <span class="stat-icon">🎫</span>
+                    <div class="stat-number"><?php echo $stats['total_tickets']; ?></div>
+                    <div class="stat-label">Total Tickets</div>
                 </div>
             <?php endif; ?>
 
-            <div class="dashboard-grid">
-                <div class="card">
-                    <h2>👤 Your Account Information</h2>
-                    <div class="details-grid">
-                        <div class="detail-item">
-                            <span class="label">Full Name:</span>
-                            <span class="value"><?php echo htmlspecialchars($user_name); ?></span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="label">Username:</span>
-                            <span class="value"><?php echo htmlspecialchars($username); ?></span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="label">Email:</span>
-                            <span class="value"><?php echo htmlspecialchars($email); ?></span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="label">Department:</span>
-                            <span class="value"><?php echo htmlspecialchars($department); ?></span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="label">Role:</span>
-                            <span class="value"><?php echo htmlspecialchars(ucfirst($role)); ?></span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="label">Login Time:</span>
-                            <span class="value"><?php echo htmlspecialchars($login_time); ?></span>
-                        </div>
+            <div class="stat-card" onclick="window.location.href='../public/assetDetails.php'">
+                <span class="stat-icon">🔧</span>
+                <div class="stat-number"><?php echo $stats['maintenance_due']; ?></div>
+                <div class="stat-label">Maintenance Status</div>
+            </div>
+
+            <?php if ($role === 'admin' || $role === 'manager'): ?>
+                <div class="stat-card" onclick="window.location.href='../public/asset.php'">
+                    <span class="stat-icon">📊</span>
+                    <div class="stat-number"><?php echo $stats['total_assets']; ?></div>
+                    <div class="stat-label">Total Assets</div>
+                </div>
+            <?php else: ?>
+                <div class="stat-card" onclick="window.location.href='../public/tickets.php'">
+                    <span class="stat-icon">⚡</span>
+                    <div class="stat-number"><?php echo $stats['urgent_tickets']; ?></div>
+                    <div class="stat-label">Urgent Tickets</div>
+                </div>
+            <?php endif; ?>
+        </div>
+
+        <!-- Charts Section -->
+        <?php if ($role === 'admin' || $role === 'manager'): ?>
+            <div class="charts-section">
+                <!-- Asset Status Chart -->
+                <div class="chart-card">
+                    <h3><i class="fas fa-chart-pie"></i> Asset Status Distribution</h3>
+                    <div class="chart-container">
+                        <canvas id="assetStatusChart"></canvas>
                     </div>
                 </div>
 
-                <div class="card">
-                    <h2>📦 My Recent Assets</h2>
-                    <?php if (count($recent_assets) > 0): ?>
-                        <ul class="asset-list">
-                            <?php foreach ($recent_assets as $asset): ?>
-                                <li class="asset-item">
-                                    <div class="asset-info">
-                                        <h4><?php echo htmlspecialchars($asset['asset_name']); ?></h4>
-                                        <p><?php echo htmlspecialchars($asset['asset_code']); ?> • <?php echo htmlspecialchars($asset['category']); ?></p>
+                <!-- Asset Category Chart -->
+                <div class="chart-card">
+                    <h3><i class="fas fa-chart-bar"></i> Assets by Category</h3>
+                    <div class="chart-container">
+                        <canvas id="assetCategoryChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Ticket Status Chart -->
+                <div class="chart-card">
+                    <h3><i class="fas fa-ticket-alt"></i> Ticket Status Overview</h3>
+                    <div class="chart-container">
+                        <canvas id="ticketStatusChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Ticket Priority Chart -->
+                <div class="chart-card">
+                    <h3><i class="fas fa-exclamation-triangle"></i> Tickets by Priority</h3>
+                    <div class="chart-container">
+                        <canvas id="ticketPriorityChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        <?php else: ?>
+            <div class="charts-section">
+                <!-- Ticket Status Chart for Employees -->
+                <div class="chart-card">
+                    <h3><i class="fas fa-ticket-alt"></i> My Ticket Status</h3>
+                    <div class="chart-container">
+                        <canvas id="ticketStatusChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Ticket Priority Chart for Employees -->
+                <div class="chart-card">
+                    <h3><i class="fas fa-exclamation-triangle"></i> My Tickets by Priority</h3>
+                    <div class="chart-container">
+                        <canvas id="ticketPriorityChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <div class="dashboard-grid">
+            <div class="card">
+                <h2><i class="fas fa-user-circle"></i> Your Account Information</h2>
+                <div class="details-grid">
+                    <div class="detail-item">
+                        <span class="label">Full Name:</span>
+                        <span class="value"><?php echo htmlspecialchars($user_name); ?></span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="label">Username:</span>
+                        <span class="value"><?php echo htmlspecialchars($username); ?></span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="label">Email:</span>
+                        <span class="value"><?php echo htmlspecialchars($email); ?></span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="label">Department:</span>
+                        <span class="value"><?php echo htmlspecialchars($department); ?></span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="label">Role:</span>
+                        <span class="value"><?php echo htmlspecialchars(ucfirst($role)); ?></span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="label">Login Time:</span>
+                        <span class="value"><?php echo htmlspecialchars($login_time); ?></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2><i class="fas fa-boxes"></i> My Recent Assets</h2>
+                <?php if (count($recent_assets) > 0): ?>
+                    <ul class="asset-list">
+                        <?php foreach ($recent_assets as $asset): ?>
+                            <li class="asset-item">
+                                <div class="asset-info">
+                                    <h4><?php echo htmlspecialchars($asset['asset_name']); ?></h4>
+                                    <p><?php echo htmlspecialchars($asset['asset_code']); ?> • <?php echo htmlspecialchars($asset['category']); ?></p>
+                                </div>
+                                <span class="status-badge status-<?php echo strtolower(str_replace(' ', '-', $asset['status'])); ?>">
+                                    <?php echo htmlspecialchars($asset['status']); ?>
+                                </span>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                    <div class="quick-actions">
+                        <a href="../public/asset.php" class="action-btn btn-primary">
+                            <i class="fas fa-arrow-right"></i> View All Assets
+                        </a>
+                    </div>
+                <?php else: ?>
+                    <div class="no-data">
+                        <i class="fas fa-box-open"></i>
+                        <p>No assets assigned to you yet.</p>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <?php if (count($recent_activity) > 0): ?>
+            <div class="card">
+                <h2><i class="fas fa-history"></i> Recent Activity</h2>
+                <ul class="activity-list">
+                    <?php foreach ($recent_activity as $activity): ?>
+                        <li class="activity-item">
+                            <div class="activity-type"><?php echo ucfirst(htmlspecialchars($activity['action_type'])); ?></div>
+                            <div class="activity-details">
+                                <?php echo htmlspecialchars($activity['asset_name']); ?>
+                                (<?php echo htmlspecialchars($activity['asset_code']); ?>)
+                            </div>
+                            <div class="activity-time"><?php echo date('M j, Y H:i', strtotime($activity['created_at'])); ?></div>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($role === 'admin' || $role === 'manager'): ?>
+            <div class="card">
+                <h2><i class="fas fa-bolt"></i> Quick Actions</h2>
+                <div class="quick-actions" style="border-top: none; padding-top: 0;">
+                    <a href="../public/asset.php" class="action-btn btn-primary">
+                        <i class="fas fa-boxes"></i> Manage Assets
+                    </a>
+                    <?php if ($role === 'admin'): ?>
+                        <a href="../public/userV.php" class="action-btn btn-primary">
+                            <i class="fas fa-user-check"></i> Verify Users
+                        </a>
+                        <a href="../public/ticket.php" class="action-btn btn-primary">
+                            <i class="fas fa-ticket-alt"></i> View Approved Tickets
+                        </a>
+                    <?php else: ?>
+                        <a href="../public/tickets.php" class="action-btn btn-primary">
+                            <i class="fas fa-ticket-alt"></i> View Tickets
+                        </a>
+                    <?php endif; ?>
+                    <a href="../public/assetHistory.php" class="action-btn btn-secondary">
+                        <i class="fas fa-history"></i> View Asset History
+                    </a>
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($role === 'admin'): ?>
+            <div class="card">
+                <h2><i class="fas fa-circle" style="color: #10b981;"></i> Currently Online Users</h2>
+                <?php
+                try {
+                    $stmt = $pdo->query("
+                        SELECT 
+                            u.first_name, u.last_name, u.department,
+                            us.ip_address, us.device_serial, us.last_activity
+                        FROM user_sessions us
+                        JOIN users u ON us.user_id = u.user_id
+                        WHERE us.is_active = 1 
+                        AND us.last_activity >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+                        ORDER BY us.last_activity DESC
+                        LIMIT 5
+                    ");
+                    $online_users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                    if (count($online_users) > 0):
+                ?>
+                        <ul class="activity-list">
+                            <?php foreach ($online_users as $user): ?>
+                                <li class="activity-item">
+                                    <div class="activity-type">
+                                        <i class="fas fa-circle" style="color: #10b981; font-size: 8px;"></i>
+                                        <?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?>
                                     </div>
-                                    <span class="status-badge status-<?php echo strtolower(str_replace(' ', '-', $asset['status'])); ?>">
-                                        <?php echo htmlspecialchars($asset['status']); ?>
-                                    </span>
+                                    <div class="activity-details">
+                                        IP: <?php echo htmlspecialchars($user['ip_address']); ?> |
+                                        Device: <?php echo htmlspecialchars(substr($user['device_serial'], 0, 12)); ?>...
+                                    </div>
+                                    <div class="activity-time">
+                                        <?php echo date('H:i', strtotime($user['last_activity'])); ?>
+                                    </div>
                                 </li>
                             <?php endforeach; ?>
                         </ul>
                         <div class="quick-actions">
-                            <a href="../public/asset.php" class="action-btn btn-primary">View All Assets</a>
+                            <a href="../public/Uastatus.php" class="action-btn btn-primary">
+                                <i class="fas fa-users"></i> View All Active Users
+                            </a>
                         </div>
                     <?php else: ?>
                         <div class="no-data">
-                            <p>No assets assigned to you yet.</p>
+                            <i class="fas fa-user-slash"></i>
+                            <p>No users currently online</p>
                         </div>
                     <?php endif; ?>
-                </div>
+                <?php } catch (PDOException $e) {
+                    error_log("Online users error: " . $e->getMessage());
+                } ?>
             </div>
-
-            <?php if (count($recent_activity) > 0): ?>
-                <div class="card">
-                    <h2>📊 Recent Activity</h2>
-                    <ul class="activity-list">
-                        <?php foreach ($recent_activity as $activity): ?>
-                            <li class="activity-item">
-                                <div class="activity-type"><?php echo ucfirst(htmlspecialchars($activity['action_type'])); ?></div>
-                                <div class="activity-details">
-                                    <?php echo htmlspecialchars($activity['asset_name']); ?>
-                                    (<?php echo htmlspecialchars($activity['asset_code']); ?>)
-                                </div>
-                                <div class="activity-time"><?php echo date('M j, Y H:i', strtotime($activity['created_at'])); ?></div>
-                            </li>
-                        <?php endforeach; ?>
-                    </ul>
-                </div>
-            <?php endif; ?>
-
-            <?php if ($role === 'admin' || $role === 'manager'): ?>
-                <div class="card">
-                    <h2>⚡ Quick Actions</h2>
-                    <div class="quick-actions">
-                        <a href="../public/asset.php" class="action-btn btn-primary">Manage Assets</a>
-                        <?php if ($role === 'admin'): ?>
-                            <a href="../public/userV.php" class="action-btn btn-primary">Verify Users</a>
-                            <a href="../public/tickets.php" class="action-btn btn-primary">View Approved Tickets</a>
-                        <?php else: ?>
-                            <a href="../public/tickets.php" class="action-btn btn-primary">View Tickets</a>
-                        <?php endif; ?>
-                        <a href="../public/assetHistory.php" class="action-btn btn-secondary">View History</a>
-                    </div>
-                </div>
-            <?php endif; ?>
-
-            <?php if ($role === 'admin'): ?>
-                <div class="card">
-                    <h2>🟢 Currently Online Users</h2>
-                    <?php
-                    try {
-                        $stmt = $pdo->query("
-                            SELECT 
-                                u.first_name, u.last_name, u.department,
-                                us.ip_address, us.device_serial, us.last_activity
-                            FROM user_sessions us
-                            JOIN users u ON us.user_id = u.user_id
-                            WHERE us.is_active = 1 
-                            AND us.last_activity >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
-                            ORDER BY us.last_activity DESC
-                            LIMIT 5
-                        ");
-                        $online_users = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-                        if (count($online_users) > 0):
-                    ?>
-                            <ul class="activity-list">
-                                <?php foreach ($online_users as $user): ?>
-                                    <li class="activity-item">
-                                        <div class="activity-type">
-                                            🟢 <?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?>
-                                        </div>
-                                        <div class="activity-details">
-                                            IP: <?php echo htmlspecialchars($user['ip_address']); ?> |
-                                            Device: <?php echo htmlspecialchars(substr($user['device_serial'], 0, 12)); ?>...
-                                        </div>
-                                        <div class="activity-time">
-                                            <?php echo date('H:i', strtotime($user['last_activity'])); ?>
-                                        </div>
-                                    </li>
-                                <?php endforeach; ?>
-                            </ul>
-                            <div class="quick-actions">
-                                <a href="../public/Uastatus.php" class="action-btn btn-primary">View All Active Users</a>
-                            </div>
-                        <?php else: ?>
-                            <div class="no-data">
-                                <p>No users currently online</p>
-                            </div>
-                        <?php endif; ?>
-                    <?php } catch (PDOException $e) {
-                        error_log("Online users error: " . $e->getMessage());
-                    } ?>
-                </div>
-            <?php endif; ?>
-        </div>
-    </main>
+        <?php endif; ?>
+    </div>
 
     <script>
+        // Handle sidebar toggle
+        function updateMainContent() {
+            const mainContent = document.getElementById('mainContent');
+            const sidebar = document.querySelector('.sidebar');
+            
+            if (sidebar && sidebar.classList.contains('collapsed')) {
+                mainContent.classList.add('sidebar-collapsed');
+            } else {
+                mainContent.classList.remove('sidebar-collapsed');
+            }
+        }
+
+        // Check on load
+        document.addEventListener('DOMContentLoaded', updateMainContent);
+
+        // Listen for sidebar changes
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('.toggle-sidebar')) {
+                setTimeout(updateMainContent, 50);
+            }
+        });
+
+        // Observe sidebar changes
+        const observer = new MutationObserver(updateMainContent);
+        const sidebar = document.querySelector('.sidebar');
+        if (sidebar) {
+            observer.observe(sidebar, { attributes: true, attributeFilter: ['class'] });
+        }
+
         // Color palettes
         const statusColors = {
             'Available': '#10b981',
@@ -705,21 +953,147 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
             'urgent': '#dc2626'
         };
 
+        // Chart.js default settings
+        Chart.defaults.font.family = "'Inter', sans-serif";
+        Chart.defaults.color = '#718096';
+
         <?php if ($role === 'admin' || $role === 'manager'): ?>
             // Asset Status Pie Chart
-            const assetStatusCtx = document.getElementById('assetStatusChart').getContext('2d');
-            const assetStatusLabels = <?php echo $asset_status_labels; ?>;
-            const assetStatusData = <?php echo $asset_status_values; ?>;
+            const assetStatusCtx = document.getElementById('assetStatusChart');
+            if (assetStatusCtx) {
+                const assetStatusLabels = <?php echo $asset_status_labels; ?>;
+                const assetStatusData = <?php echo $asset_status_values; ?>;
 
-            new Chart(assetStatusCtx, {
+                new Chart(assetStatusCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: assetStatusLabels,
+                        datasets: [{
+                            data: assetStatusData,
+                            backgroundColor: assetStatusLabels.map(label => statusColors[label] || '#6b7280'),
+                            borderWidth: 3,
+                            borderColor: '#fff',
+                            hoverOffset: 8
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    padding: 20,
+                                    font: {
+                                        size: 13,
+                                        weight: 500
+                                    },
+                                    usePointStyle: true,
+                                    pointStyle: 'circle'
+                                }
+                            },
+                            tooltip: {
+                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                padding: 12,
+                                titleFont: {
+                                    size: 14,
+                                    weight: 600
+                                },
+                                bodyFont: {
+                                    size: 13
+                                },
+                                cornerRadius: 8
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Asset Category Bar Chart
+            const assetCategoryCtx = document.getElementById('assetCategoryChart');
+            if (assetCategoryCtx) {
+                const assetCategoryLabels = <?php echo $asset_category_labels; ?>;
+                const assetCategoryData = <?php echo $asset_category_values; ?>;
+
+                new Chart(assetCategoryCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: assetCategoryLabels,
+                        datasets: [{
+                            label: 'Number of Assets',
+                            data: assetCategoryData,
+                            backgroundColor: 'rgba(124, 58, 237, 0.8)',
+                            borderColor: 'rgba(124, 58, 237, 1)',
+                            borderWidth: 0,
+                            borderRadius: 8,
+                            hoverBackgroundColor: 'rgba(109, 40, 217, 0.9)'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    stepSize: 1,
+                                    font: {
+                                        size: 12
+                                    }
+                                },
+                                grid: {
+                                    color: 'rgba(0, 0, 0, 0.05)'
+                                }
+                            },
+                            x: {
+                                ticks: {
+                                    font: {
+                                        size: 12
+                                    }
+                                },
+                                grid: {
+                                    display: false
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            tooltip: {
+                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                padding: 12,
+                                titleFont: {
+                                    size: 14,
+                                    weight: 600
+                                },
+                                bodyFont: {
+                                    size: 13
+                                },
+                                cornerRadius: 8
+                            }
+                        }
+                    }
+                });
+            }
+        <?php endif; ?>
+
+        // Ticket Status Pie Chart
+        const ticketStatusCtx = document.getElementById('ticketStatusChart');
+        if (ticketStatusCtx) {
+            const ticketStatusLabels = <?php echo $ticket_status_labels; ?>;
+            const ticketStatusData = <?php echo $ticket_status_values; ?>;
+
+            new Chart(ticketStatusCtx, {
                 type: 'doughnut',
                 data: {
-                    labels: assetStatusLabels,
+                    labels: ticketStatusLabels.map(label => label.replace('_', ' ').toUpperCase()),
                     datasets: [{
-                        data: assetStatusData,
-                        backgroundColor: assetStatusLabels.map(label => statusColors[label] || '#6b7280'),
-                        borderWidth: 2,
-                        borderColor: '#fff'
+                        data: ticketStatusData,
+                        backgroundColor: ticketStatusLabels.map(label => ticketStatusColors[label] || '#6b7280'),
+                        borderWidth: 3,
+                        borderColor: '#fff',
+                        hoverOffset: 8
                     }]
                 },
                 options: {
@@ -729,31 +1103,48 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
                         legend: {
                             position: 'bottom',
                             labels: {
-                                padding: 15,
+                                padding: 20,
                                 font: {
-                                    size: 12
-                                }
+                                    size: 13,
+                                    weight: 500
+                                },
+                                usePointStyle: true,
+                                pointStyle: 'circle'
                             }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            padding: 12,
+                            titleFont: {
+                                size: 14,
+                                weight: 600
+                            },
+                            bodyFont: {
+                                size: 13
+                            },
+                            cornerRadius: 8
                         }
                     }
                 }
             });
+        }
 
-            // Asset Category Bar Chart
-            const assetCategoryCtx = document.getElementById('assetCategoryChart').getContext('2d');
-            const assetCategoryLabels = <?php echo $asset_category_labels; ?>;
-            const assetCategoryData = <?php echo $asset_category_values; ?>;
+        // Ticket Priority Bar Chart
+        const ticketPriorityCtx = document.getElementById('ticketPriorityChart');
+        if (ticketPriorityCtx) {
+            const ticketPriorityLabels = <?php echo $ticket_priority_labels; ?>;
+            const ticketPriorityData = <?php echo $ticket_priority_values; ?>;
 
-            new Chart(assetCategoryCtx, {
+            new Chart(ticketPriorityCtx, {
                 type: 'bar',
                 data: {
-                    labels: assetCategoryLabels,
+                    labels: ticketPriorityLabels.map(label => label.toUpperCase()),
                     datasets: [{
-                        label: 'Number of Assets',
-                        data: assetCategoryData,
-                        backgroundColor: 'rgba(102, 126, 234, 0.8)',
-                        borderColor: 'rgba(102, 126, 234, 1)',
-                        borderWidth: 1
+                        label: 'Number of Tickets',
+                        data: ticketPriorityData,
+                        backgroundColor: ticketPriorityLabels.map(label => priorityColors[label] || '#6b7280'),
+                        borderWidth: 0,
+                        borderRadius: 8
                     }]
                 },
                 options: {
@@ -763,87 +1154,46 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
                         y: {
                             beginAtZero: true,
                             ticks: {
-                                stepSize: 1
+                                stepSize: 1,
+                                font: {
+                                    size: 12
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.05)'
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                font: {
+                                    size: 12
+                                }
+                            },
+                            grid: {
+                                display: false
                             }
                         }
                     },
                     plugins: {
                         legend: {
                             display: false
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            padding: 12,
+                            titleFont: {
+                                size: 14,
+                                weight: 600
+                            },
+                            bodyFont: {
+                                size: 13
+                            },
+                            cornerRadius: 8
                         }
                     }
                 }
             });
-        <?php endif; ?>
-
-        // Ticket Status Pie Chart
-        const ticketStatusCtx = document.getElementById('ticketStatusChart').getContext('2d');
-        const ticketStatusLabels = <?php echo $ticket_status_labels; ?>;
-        const ticketStatusData = <?php echo $ticket_status_values; ?>;
-
-        new Chart(ticketStatusCtx, {
-            type: 'doughnut',
-            data: {
-                labels: ticketStatusLabels.map(label => label.replace('_', ' ').toUpperCase()),
-                datasets: [{
-                    data: ticketStatusData,
-                    backgroundColor: ticketStatusLabels.map(label => ticketStatusColors[label] || '#6b7280'),
-                    borderWidth: 2,
-                    borderColor: '#fff'
-                }]
-            },  
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: {
-                            padding: 15,
-                            font: {
-                                size: 12
-                            }
-                        }
-                    }
-                }
-            }
-        });
-
-        // Ticket Priority Bar Chart
-        const ticketPriorityCtx = document.getElementById('ticketPriorityChart').getContext('2d');
-        const ticketPriorityLabels = <?php echo $ticket_priority_labels; ?>;
-        const ticketPriorityData = <?php echo $ticket_priority_values; ?>;
-
-        new Chart(ticketPriorityCtx, {
-            type: 'bar',
-            data: {
-                labels: ticketPriorityLabels.map(label => label.toUpperCase()),
-                datasets: [{
-                    label: 'Number of Tickets',
-                    data: ticketPriorityData,
-                    backgroundColor: ticketPriorityLabels.map(label => priorityColors[label] || '#6b7280'),
-                    borderWidth: 0
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            stepSize: 1
-                        }
-                    }
-                },
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                }
-            }
-        });
+        }
     </script>
 </body>
-
 </html>

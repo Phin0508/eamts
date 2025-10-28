@@ -136,7 +136,7 @@ try {
               CONCAT(assigned_user.first_name, ' ', assigned_user.last_name) as assigned_user_name
               FROM assets a 
               LEFT JOIN users u ON a.created_by = u.user_id 
-              LEFT JOIN users assigned_user ON a.assigned_to = assigned_user.user_id
+              LEFT JOIN users assigned_user ON a.assigned_to = assigned_user.user_id                                                        
               WHERE a.id = ?";
     $stmt = $pdo->prepare($query);
     $stmt->execute([$asset_id]);
@@ -750,11 +750,16 @@ $status_labels = [
                     <div class="info-item">
                         <div class="info-label">Status</div>
                         <div class="info-value">
-                            <span class="status-badge status-<?php echo strtolower(str_replace('_', '-', $asset['status'])); ?>">
-                                <?php echo htmlspecialchars($status_labels[$asset['status']] ?? $asset['status']); ?>
+                            <?php
+                            // Convert status to CSS-friendly format with hyphens
+                            $status_value = strtolower(str_replace(' ', '-', $asset['status'] ?? 'available'));
+                            ?>
+                            <span class="status-badge status-<?php echo $status_value; ?>">
+                                <?php echo htmlspecialchars($asset['status']); ?>
                             </span>
                         </div>
                     </div>
+
                     <div class="info-item">
                         <div class="info-label">Assigned To</div>
                         <div class="info-value">

@@ -372,7 +372,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
         
         <div class="back-link">
-            <a href="login.php">← Back to Login</a>
+            <a href="../public/login.php">← Back to Login</a>
         </div>
     </div>
 </body>

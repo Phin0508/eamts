@@ -41,7 +41,7 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
             <p class="user-department"><?php echo htmlspecialchars($department); ?></p>
         </div>
         <div class="user-status">
-            <span class="status-indicator online"></span>
+            <span class="status-indicator"></span>
             <span class="status-text">Online</span>
         </div>
     </div>
@@ -80,12 +80,12 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
                 </a>
             </li>
             <li class="nav-item">
-                <a href="../public/chat.php" class="nav-link" <?php if (basename($_SERVER['PHP_SELF']) == 'chat.php') echo 'class="active"'; ?> >
+                <a href="../public/chat.php" class="nav-link">
                     <i class="nav-icon"></i>
                     <span class="nav-text">Chat</span>
+                    <span class="badge-notification" id="unreadBadge" style="display: none;">0</span>
                 </a>
             </li>
-            <li>
 
             <?php if ($role === 'admin' || $role === 'manager'): ?>
                 <li class="nav-divider"></li>
@@ -119,12 +119,6 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
                     <span class="nav-text">My Profile</span>
                 </a>
             </li>
-            <li class="nav-item">
-                <a href="../settings/index.php" class="nav-link">
-                    <i class="nav-icon"></i>
-                    <span class="nav-text">Settings</span>
-                </a>
-            </li>
         </ul>
     </nav>
 
@@ -150,7 +144,7 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
     <!-- Logout Button -->
     <div class="sidebar-footer">
         <a href="../auth/api/logout.php" class="logout-btn" onclick="return confirm('Are you sure you want to logout?')">
-            <i class="logout-icon">🚪</i>
+            <i class="logout-icon"></i>
             <span class="logout-text">Logout</span>
         </a>
     </div>
@@ -160,7 +154,7 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
 <script>
-    // FIXED: Proper sidebar toggle functionality
+    // Proper sidebar toggle functionality
     function initializeSidebar() {
         const sidebar = document.getElementById('sidebar');
         const sidebarToggle = document.getElementById('sidebarToggle');
@@ -220,7 +214,7 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
         handleResize();
     }
 
-    // FIXED: Highlight active page based on current URL (no preventDefault)
+    // Highlight active page based on current URL
     function highlightActivePage() {
         const currentPath = window.location.pathname;
 

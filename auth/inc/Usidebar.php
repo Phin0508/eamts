@@ -39,7 +39,7 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
             <p class="user-department"><?php echo htmlspecialchars($department); ?></p>
         </div>
         <div class="user-status">
-            <span class="status-indicator online"></span>
+            <span class="status-indicator"></span>
             <span class="status-text">Online</span>
         </div>
     </div>
@@ -50,31 +50,31 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
             <!-- EMPLOYEE MENU ITEMS -->
             <li class="nav-item">
                 <a href="userDashboard.php" class="nav-link">
-                    <i class="nav-icon">📊</i>
+                    <i class="nav-icon"></i>
                     <span class="nav-text">Dashboard</span>
                 </a>
             </li>
             <li class="nav-item">
                 <a href="userAsset.php" class="nav-link">
-                    <i class="nav-icon">💼</i>
+                    <i class="nav-icon"></i>
                     <span class="nav-text">My Assets</span>
                 </a>
             </li>
             <li class="nav-item">
                 <a href="userTicket.php" class="nav-link">
-                    <i class="nav-icon">🎫</i>
+                    <i class="nav-icon"></i>
                     <span class="nav-text">My Tickets</span>
                 </a>
             </li>
             <li class="nav-item">
                 <a href="userCreateticket.php" class="nav-link">
-                    <i class="nav-icon">➕</i>
+                    <i class="nav-icon"></i>
                     <span class="nav-text">Create Ticket</span>
                 </a>
             </li>
             <li class="nav-item">
-                <a href="../users/userChat.php" class="nav-link" <?php if (basename($_SERVER['PHP_SELF']) == 'userChat.php') echo 'class="active"'; ?>>
-                    <i class="nav-icon">💬</i>
+                <a href="../users/userChat.php" class="nav-link">
+                    <i class="nav-icon"></i>
                     <span class="nav-text">Messages</span>
                     <span id="unreadBadge" class="badge-notification" style="display: none;"></span>
                 </a>
@@ -84,13 +84,13 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
             <li class="nav-divider"></li>
             <li class="nav-item">
                 <a href="userProfile.php" class="nav-link">
-                    <i class="nav-icon">👤</i>
+                    <i class="nav-icon"></i>
                     <span class="nav-text">My Profile</span>
                 </a>
             </li>
             <li class="nav-item">
                 <a href="../settings/index.php" class="nav-link">
-                    <i class="nav-icon">⚙️</i>
+                    <i class="nav-icon"></i>
                     <span class="nav-text">Settings</span>
                 </a>
             </li>
@@ -123,7 +123,7 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
     <!-- Logout Button -->
     <div class="sidebar-footer">
         <a href="../auth/api/logout.php" class="logout-btn" onclick="return confirm('Are you sure you want to logout?')">
-            <i class="logout-icon">🚪</i>
+            <i class="logout-icon"></i>
             <span class="logout-text">Logout</span>
         </a>
     </div>

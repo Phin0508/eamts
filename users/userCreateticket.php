@@ -123,20 +123,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         if (in_array($file_ext, $allowed_extensions) && $file_size <= 5242880) { // 5MB limit
                             $new_file_name = $ticket_id . '_' . time() . '_' . uniqid() . '.' . $file_ext;
                             $file_path = $upload_dir . $new_file_name;
-                            
-                            if (move_uploaded_file($file_tmp, $file_path)) {
-                                $attach_query = "INSERT INTO ticket_attachments (ticket_id, uploaded_by, file_name, file_path, file_type, file_size, uploaded_at) VALUES (?, ?, ?, ?, ?, ?, NOW())";
-                                $attach_stmt = $pdo->prepare($attach_query);
-                                $attach_stmt->execute([$ticket_id, $user_id, $file_name, $file_path, $file_type, $file_size]);
-                                $uploaded_files++;
-                            }
+
+                                                                    if (move_uploaded_file($file_tmp, $file_path)) {
+                                                                        // Store ONLY the filename, not the full server path
+                                                                        $attach_query = "INSERT INTO ticket_attachments (ticket_id, uploaded_by, file_name, file_path, file_type, file_size, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())";
+                                                                        $attach_stmt = $pdo->prepare($attach_query);
+                                                                        $attach_stmt->execute([
+                                                                            $ticket_id,
+                                                                            $user_id,
+                                                                            $file_name,        // Original filename (e.g., "screenshot.png")
+                                                                            $new_file_name,    // Renamed filename only (e.g., "7_1234567890_abc123.png")
+                                                                            $file_type,
+                                                                            $file_size
+                                                                        ]);
+                                                                        $uploaded_files++;
+                                                                    }
                         }
                     }
                 }
             }
             
             $_SESSION['ticket_created'] = true;
-            header("Location: ../tickets/ticketDetails.php?id=$ticket_id");
+            header("Location: ../users/userTicket.php?id=$ticket_id");
             exit();
         } else {
             $error_message = implode("<br>", $errors);

@@ -94,8 +94,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_asset'])) {
                     // Log assignment change if it changed
                     if ($current_asset['assigned_to'] != $assigned_to) {
                         $action = $assigned_to ? ($current_asset['assigned_to'] ? 'reassigned' : 'assigned') : 'unassigned';
-                        $log_stmt = $pdo->prepare("INSERT INTO asset_history (asset_id, action_type, previous_user_id, new_user_id, performed_by, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
-                        $log_stmt->execute([$asset_id, $action, $current_asset['assigned_to'], $assigned_to, $_SESSION['user_id']]);
+                        
+                        // Check if assets_history table exists, if not use asset_history
+                        try {
+                            $log_stmt = $pdo->prepare("INSERT INTO assets_history (asset_id, action_type, assigned_from, assigned_to, performed_by, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
+                            $log_stmt->execute([$asset_id, $action, $current_asset['assigned_to'], $assigned_to, $_SESSION['user_id']]);
+                        } catch (PDOException $e) {
+                            // Try alternative table name
+                            $log_stmt = $pdo->prepare("INSERT INTO asset_history (asset_id, action_type, previous_user_id, new_user_id, performed_by, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
+                            $log_stmt->execute([$asset_id, $action, $current_asset['assigned_to'], $assigned_to, $_SESSION['user_id']]);
+                        }
                     }
                     
                     $success_message = "Asset updated successfully!";
@@ -156,7 +164,7 @@ try {
     $departments = ['IT', 'HR', 'Finance', 'Operations', 'Marketing'];
 }
 
-// Get asset history
+// Get asset history - try both table names
 $history = [];
 try {
     $history_query = "SELECT ah.*, 
@@ -165,10 +173,10 @@ try {
                       CONCAT(prev_user.first_name, ' ', prev_user.last_name) as prev_user_name,
                       new_user.username as new_username,
                       CONCAT(new_user.first_name, ' ', new_user.last_name) as new_user_name
-                      FROM asset_history ah
+                      FROM assets_history ah
                       LEFT JOIN users performer ON ah.performed_by = performer.user_id
-                      LEFT JOIN users prev_user ON ah.previous_user_id = prev_user.user_id
-                      LEFT JOIN users new_user ON ah.new_user_id = new_user.user_id
+                      LEFT JOIN users prev_user ON ah.assigned_from = prev_user.user_id
+                      LEFT JOIN users new_user ON ah.assigned_to = new_user.user_id
                       WHERE ah.asset_id = ?
                       ORDER BY ah.created_at DESC
                       LIMIT 10";
@@ -176,8 +184,31 @@ try {
     $history_stmt->execute([$asset_id]);
     $history = $history_stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
-    // Handle error silently
+    // Try alternative table name
+    try {
+        $history_query = "SELECT ah.*, 
+                          performer.username as performer_name,
+                          prev_user.username as prev_username,
+                          CONCAT(prev_user.first_name, ' ', prev_user.last_name) as prev_user_name,
+                          new_user.username as new_username,
+                          CONCAT(new_user.first_name, ' ', new_user.last_name) as new_user_name
+                          FROM asset_history ah
+                          LEFT JOIN users performer ON ah.performed_by = performer.user_id
+                          LEFT JOIN users prev_user ON ah.previous_user_id = prev_user.user_id
+                          LEFT JOIN users new_user ON ah.new_user_id = new_user.user_id
+                          WHERE ah.asset_id = ?
+                          ORDER BY ah.created_at DESC
+                          LIMIT 10";
+        $history_stmt = $pdo->prepare($history_query);
+        $history_stmt->execute([$asset_id]);
+        $history = $history_stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        // Handle error silently
+    }
 }
+
+// Normalize status value for consistency
+$status_value = strtolower(str_replace(' ', '_', $asset['status']));
 ?>
 
 <!DOCTYPE html>
@@ -500,10 +531,10 @@ try {
                             <div class="form-group">
                                 <label for="status">Status</label>
                                 <select id="status" name="status">
-                                    <option value="Available" <?php echo $asset['status'] === 'Available' ? 'selected' : ''; ?>>Available</option>
-                                    <option value="In Use" <?php echo $asset['status'] === 'In Use' ? 'selected' : ''; ?>>In Use</option>
-                                    <option value="Maintenance" <?php echo $asset['status'] === 'Maintenance' ? 'selected' : ''; ?>>Maintenance</option>
-                                    <option value="Retired" <?php echo $asset['status'] === 'Retired' ? 'selected' : ''; ?>>Retired</option>
+                                    <option value="available" <?php echo $status_value === 'available' ? 'selected' : ''; ?>>Available</option>
+                                    <option value="in_use" <?php echo $status_value === 'in_use' ? 'selected' : ''; ?>>In Use</option>
+                                    <option value="maintenance" <?php echo $status_value === 'maintenance' ? 'selected' : ''; ?>>Maintenance</option>
+                                    <option value="retired" <?php echo $status_value === 'retired' ? 'selected' : ''; ?>>Retired</option>
                                 </select>
                             </div>
 
@@ -528,8 +559,8 @@ try {
                         <div class="info-item">
                             <div class="info-label">Current Status</div>
                             <div class="info-value">
-                                <span class="status-badge status-<?php echo strtolower(str_replace(' ', '-', $asset['status'])); ?>">
-                                    <?php echo htmlspecialchars($asset['status']); ?>
+                                <span class="status-badge status-<?php echo $status_value; ?>">
+                                    <?php echo htmlspecialchars(ucwords(str_replace('_', ' ', $status_value))); ?>
                                 </span>
                             </div>
                         </div>
@@ -610,14 +641,14 @@ try {
         
         assignedToSelect.addEventListener('change', function() {
             if (this.value) {
-                // If assigning to someone and current status is Available
-                if (statusSelect.value === 'Available') {
-                    statusSelect.value = 'In Use';
+                // If assigning to someone and current status is available
+                if (statusSelect.value === 'available') {
+                    statusSelect.value = 'in_use';
                 }
             } else {
-                // If unassigning and current status is In Use
-                if (statusSelect.value === 'In Use') {
-                    statusSelect.value = 'Available';
+                // If unassigning and current status is in_use
+                if (statusSelect.value === 'in_use') {
+                    statusSelect.value = 'available';
                 }
             }
         });

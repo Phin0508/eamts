@@ -73,12 +73,28 @@ if (!empty($filter_date_to)) {
 }
 
 if (!empty($search)) {
-    $where_clauses[] = "(t.ticket_number LIKE ? OR t.subject LIKE ? OR t.description LIKE ? OR CONCAT(requester.first_name, ' ', requester.last_name) LIKE ?)";
-    $search_param = "%$search%";
-    $params[] = $search_param;
-    $params[] = $search_param;
-    $params[] = $search_param;
-    $params[] = $search_param;
+    // Check if search is numeric (could be user_id)
+    if (is_numeric($search)) {
+        $where_clauses[] = "(t.ticket_number LIKE ? OR t.subject LIKE ? OR t.description LIKE ? OR t.requester_id = ? OR requester.user_id = ? OR CONCAT(COALESCE(requester.first_name, ''), ' ', COALESCE(requester.last_name, '')) LIKE ? OR a.asset_code LIKE ?)";
+        $search_param = "%$search%";
+        $params[] = $search_param;
+        $params[] = $search_param;
+        $params[] = $search_param;
+        $params[] = intval($search);
+        $params[] = intval($search);
+        $params[] = $search_param;
+        $params[] = $search_param; // for asset_code
+    } else {
+        $where_clauses[] = "(t.ticket_number LIKE ? OR t.subject LIKE ? OR t.description LIKE ? OR CONCAT(COALESCE(requester.first_name, ''), ' ', COALESCE(requester.last_name, '')) LIKE ? OR requester.email LIKE ? OR a.asset_code LIKE ? OR a.asset_name LIKE ?)";
+        $search_param = "%$search%";
+        $params[] = $search_param;
+        $params[] = $search_param;
+        $params[] = $search_param;
+        $params[] = $search_param;
+        $params[] = $search_param;
+        $params[] = $search_param; // for asset_code
+        $params[] = $search_param; // for asset_name
+    }
 }
 
 $where_sql = !empty($where_clauses) ? "WHERE " . implode(" AND ", $where_clauses) : "";
@@ -87,7 +103,8 @@ $where_sql = !empty($where_clauses) ? "WHERE " . implode(" AND ", $where_clauses
 $count_query = "
     SELECT COUNT(*) as total
     FROM tickets t
-    JOIN users requester ON t.requester_id = requester.user_id
+    LEFT JOIN users requester ON t.requester_id = requester.user_id
+    LEFT JOIN assets a ON t.asset_id = a.id
     $where_sql
 ";
 $count_stmt = $pdo->prepare($count_query);
@@ -132,19 +149,21 @@ $tickets = $stmt->fetchAll(PDO::FETCH_ASSOC);
 $stats_query = "
     SELECT 
         COUNT(*) as total,
-        SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) as open,
-        SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
-        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
-        SUM(CASE WHEN status = 'resolved' THEN 1 ELSE 0 END) as resolved,
-        SUM(CASE WHEN status = 'closed' THEN 1 ELSE 0 END) as closed,
-        SUM(CASE WHEN priority = 'urgent' THEN 1 ELSE 0 END) as urgent,
-        SUM(CASE WHEN approval_status = 'pending' THEN 1 ELSE 0 END) as pending_approval,
-        SUM(CASE WHEN approval_status = 'rejected' THEN 1 ELSE 0 END) as rejected,
+        SUM(CASE WHEN t.status = 'open' THEN 1 ELSE 0 END) as open,
+        SUM(CASE WHEN t.status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
+        SUM(CASE WHEN t.status = 'pending' THEN 1 ELSE 0 END) as pending,
+        SUM(CASE WHEN t.status = 'resolved' THEN 1 ELSE 0 END) as resolved,
+        SUM(CASE WHEN t.status = 'closed' THEN 1 ELSE 0 END) as closed,
+        SUM(CASE WHEN t.priority = 'urgent' THEN 1 ELSE 0 END) as urgent,
+        SUM(CASE WHEN t.approval_status = 'pending' THEN 1 ELSE 0 END) as pending_approval,
+        SUM(CASE WHEN t.approval_status = 'rejected' THEN 1 ELSE 0 END) as rejected,
         AVG(CASE 
-            WHEN status IN ('resolved', 'closed') AND resolved_at IS NOT NULL 
-            THEN TIMESTAMPDIFF(HOUR, created_at, resolved_at) 
+            WHEN t.status IN ('resolved', 'closed') AND t.resolved_at IS NOT NULL 
+            THEN TIMESTAMPDIFF(HOUR, t.created_at, t.resolved_at) 
         END) as avg_resolution_time
     FROM tickets t
+    LEFT JOIN users requester ON t.requester_id = requester.user_id
+    LEFT JOIN assets a ON t.asset_id = a.id
 ";
 
 $stats_where = $where_sql;

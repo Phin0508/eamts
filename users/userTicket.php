@@ -206,7 +206,7 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                     <button type="submit" class="btn btn-secondary">
                         <i class="fas fa-filter"></i> Filter
                     </button>
-                    <a href="userTickets.php" class="btn btn-outline">
+                    <a href="userTicket.php" class="btn btn-outline">
                         <i class="fas fa-redo"></i> Reset
                     </a>
                 </form>
@@ -282,14 +282,9 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                                 </td>
                                 <td>
                                     <div class="action-buttons">
-                                        <a href="../tickets/ticketDetails.php?id=<?php echo $ticket['ticket_id']; ?>" class="btn-icon" title="View Details">
+                                        <a href="../users/userTicketDetails.php?id=<?php echo $ticket['ticket_id']; ?>" class="btn-icon" title="View Details">
                                             <i class="fas fa-eye"></i>
                                         </a>
-                                        <?php if ($ticket['status'] !== 'closed' && $ticket['status'] !== 'resolved'): ?>
-                                        <a href="../tickets/ticketEdit.php?id=<?php echo $ticket['ticket_id']; ?>" class="btn-icon" title="Edit">
-                                            <i class="fas fa-edit"></i>
-                                        </a>
-                                        <?php endif; ?>
                                     </div>
                                 </td>
                             </tr>

@@ -133,6 +133,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>E-Asset Management System - User Settings</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         * {
             margin: 0;
@@ -141,74 +143,144 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8f9fc;
             min-height: 100vh;
-            padding: 20px;
+            color: #2d3748;
         }
 
-        .container {
-            max-width: 900px;
-            margin: 0 auto;
+        /* Main Layout */
+        .main-container {
+            margin-left: 260px;
+            padding: 30px;
+            transition: margin-left 0.3s ease;
+            min-height: 100vh;
+        }
+
+        .main-container.sidebar-collapsed {
+            margin-left: 80px;
+        }
+
+        /* Page Header */
+        .page-header {
             background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+
+        .page-header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1a202c;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .page-header h1 i {
+            color: #7c3aed;
+        }
+
+        .page-header p {
+            color: #718096;
+            font-size: 15px;
+        }
+
+        /* Messages */
+        .success-message {
+            background: linear-gradient(135deg, #d4f4dd 0%, #c3e6cb 100%);
+            color: #155724;
+            padding: 16px 20px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            border-left: 4px solid #28a745;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            animation: slideDown 0.3s ease;
+        }
+
+        .error-message-box {
+            background: linear-gradient(135deg, #ffe6e6 0%, #ffd4d4 100%);
+            color: #721c24;
+            padding: 16px 20px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            border-left: 4px solid #dc3545;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Card Container */
+        .settings-card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
             overflow: hidden;
         }
 
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 30px;
-            color: white;
-            text-align: center;
-        }
-
-        .header h1 {
-            font-size: 28px;
-            margin-bottom: 5px;
-        }
-
-        .header p {
-            opacity: 0.9;
-            font-size: 14px;
-        }
-
-        .content {
-            padding: 40px;
-        }
-
+        /* Tabs */
         .tabs {
             display: flex;
-            border-bottom: 2px solid #e0e0e0;
-            margin-bottom: 30px;
-            gap: 10px;
+            border-bottom: 2px solid #e2e8f0;
+            background: #fafbfc;
+            padding: 0 30px;
+            gap: 8px;
         }
 
         .tab {
-            padding: 12px 24px;
+            padding: 18px 28px;
             background: none;
             border: none;
-            color: #666;
+            color: #718096;
             cursor: pointer;
-            font-size: 16px;
-            font-weight: 500;
+            font-size: 15px;
+            font-weight: 600;
             transition: all 0.3s;
             border-bottom: 3px solid transparent;
             margin-bottom: -2px;
-        }
-
-        .tab.active {
-            color: #667eea;
-            border-bottom-color: #667eea;
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .tab:hover {
-            color: #667eea;
+            color: #7c3aed;
+            background: rgba(124, 58, 237, 0.05);
         }
 
+        .tab.active {
+            color: #7c3aed;
+            border-bottom-color: #7c3aed;
+            background: white;
+        }
+
+        .tab i {
+            font-size: 16px;
+        }
+
+        /* Tab Content */
         .tab-content {
             display: none;
-            animation: fadeIn 0.3s;
+            padding: 40px;
+            animation: fadeIn 0.4s ease;
         }
 
         .tab-content.active {
@@ -216,253 +288,319 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
+        /* Form Styles */
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 24px;
         }
 
         .form-row {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 20px;
+            gap: 24px;
         }
 
         label {
             display: block;
-            margin-bottom: 8px;
-            color: #333;
-            font-weight: 500;
+            margin-bottom: 10px;
+            color: #2d3748;
+            font-weight: 600;
             font-size: 14px;
+            letter-spacing: 0.2px;
         }
 
         input, select {
             width: 100%;
-            padding: 12px 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
+            padding: 13px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
             font-size: 14px;
             transition: all 0.3s;
             background: white;
+            font-family: inherit;
         }
 
         input:focus, select:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            border-color: #7c3aed;
+            box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.1);
         }
 
         input:disabled {
-            background-color: #f5f5f5;
+            background: #f7fafc;
             cursor: not-allowed;
-            color: #999;
+            color: #a0aec0;
         }
 
+        small {
+            display: block;
+            margin-top: 6px;
+            color: #718096;
+            font-size: 13px;
+        }
+
+        /* Password Container */
         .password-container {
             position: relative;
         }
 
         .password-toggle {
             position: absolute;
-            right: 15px;
+            right: 16px;
             top: 50%;
             transform: translateY(-50%);
             cursor: pointer;
             user-select: none;
-            font-size: 20px;
+            font-size: 18px;
+            color: #a0aec0;
+            transition: color 0.2s;
         }
 
+        .password-toggle:hover {
+            color: #7c3aed;
+        }
+
+        /* Buttons */
         .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
             color: white;
             border: none;
-            padding: 14px 30px;
-            border-radius: 8px;
-            font-size: 16px;
+            padding: 14px 32px;
+            border-radius: 10px;
+            font-size: 15px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s;
             width: 100%;
-            margin-top: 10px;
+            margin-top: 12px;
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
         }
 
         .btn-primary:hover {
             transform: translateY(-2px);
-            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+            box-shadow: 0 6px 20px rgba(124, 58, 237, 0.4);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
         }
 
         .btn-secondary {
             background: white;
-            color: #667eea;
-            border: 2px solid #667eea;
-            padding: 14px 30px;
-            border-radius: 8px;
-            font-size: 16px;
+            color: #7c3aed;
+            border: 2px solid #7c3aed;
+            padding: 14px 32px;
+            border-radius: 10px;
+            font-size: 15px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s;
-            margin-top: 10px;
-        }
-
-        .btn-secondary:hover {
-            background: #f8f9ff;
-        }
-
-        .success-message {
-            background-color: #d4edda;
-            color: #155724;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            border: 1px solid #c3e6cb;
-        }
-
-        .error-message-box {
-            background-color: #f8d7da;
-            color: #721c24;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            border: 1px solid #f5c6cb;
-        }
-
-        .info-card {
-            background: #f8f9ff;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            border-left: 4px solid #667eea;
-        }
-
-        .info-card h3 {
-            color: #667eea;
-            margin-bottom: 10px;
-            font-size: 16px;
-        }
-
-        .info-card p {
-            color: #666;
-            font-size: 14px;
-            line-height: 1.6;
-        }
-
-        .account-info {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-
-        .info-item {
-            padding: 15px;
-            background: #f8f9fa;
-            border-radius: 8px;
-        }
-
-        .info-item label {
-            font-size: 12px;
-            color: #666;
-            margin-bottom: 5px;
-        }
-
-        .info-item .value {
-            font-size: 16px;
-            color: #333;
-            font-weight: 500;
-        }
-
-        .badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-        }
-
-        .badge.active {
-            background: #d4edda;
-            color: #155724;
-        }
-
-        .badge.inactive {
-            background: #f8d7da;
-            color: #721c24;
-        }
-
-        .back-button {
-            position: absolute;
-            top: 30px;
-            left: 30px;
-            background: rgba(255, 255, 255, 0.2);
-            color: white;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            padding: 10px 20px;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            text-decoration: none;
+            margin-top: 12px;
             display: inline-flex;
             align-items: center;
             gap: 8px;
         }
 
-        .back-button:hover {
-            background: rgba(255, 255, 255, 0.3);
-            transform: translateX(-3px);
+        .btn-secondary:hover {
+            background: #f7f4fe;
+            transform: translateY(-2px);
+        }
+
+        /* Info Card */
+        .info-card {
+            background: linear-gradient(135deg, #f7f4fe 0%, #ede9fe 100%);
+            padding: 24px;
+            border-radius: 12px;
+            margin-bottom: 28px;
+            border-left: 4px solid #7c3aed;
+        }
+
+        .info-card h3 {
+            color: #6d28d9;
+            margin-bottom: 12px;
+            font-size: 16px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .info-card p {
+            color: #4c1d95;
+            font-size: 14px;
+            line-height: 1.7;
+        }
+
+        /* Account Info Grid */
+        .account-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .info-item {
+            padding: 20px;
+            background: linear-gradient(135deg, #fafbfc 0%, #f7fafc 100%);
+            border-radius: 12px;
+            border: 2px solid #e2e8f0;
+            transition: all 0.3s;
+        }
+
+        .info-item:hover {
+            border-color: #cbd5e0;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+
+        .info-item label {
+            font-size: 12px;
+            color: #718096;
+            margin-bottom: 8px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .info-item .value {
+            font-size: 16px;
+            color: #1a202c;
+            font-weight: 600;
+        }
+
+        /* Badge */
+        .badge {
+            display: inline-block;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .badge.active {
+            background: linear-gradient(135deg, #d4f4dd 0%, #c3e6cb 100%);
+            color: #155724;
+        }
+
+        .badge.inactive {
+            background: linear-gradient(135deg, #ffe6e6 0%, #ffd4d4 100%);
+            color: #721c24;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1024px) {
+            .main-container {
+                margin-left: 80px;
+            }
+
+            .main-container.sidebar-collapsed {
+                margin-left: 80px;
+            }
         }
 
         @media (max-width: 768px) {
-            .form-row, .account-info {
-                grid-template-columns: 1fr;
+            .main-container {
+                margin-left: 0;
+                padding: 20px;
             }
 
-            .content {
+            .main-container.sidebar-collapsed {
+                margin-left: 0;
+            }
+
+            .page-header {
                 padding: 20px;
+            }
+
+            .page-header h1 {
+                font-size: 24px;
             }
 
             .tabs {
                 overflow-x: auto;
+                padding: 0 15px;
+                -webkit-overflow-scrolling: touch;
             }
 
-            .back-button {
-                position: static;
-                margin-bottom: 20px;
-                width: 100%;
-                justify-content: center;
+            .tab {
+                padding: 16px 20px;
+                font-size: 14px;
+                white-space: nowrap;
+            }
+
+            .tab-content {
+                padding: 24px 20px;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .account-info {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .page-header h1 {
+                font-size: 20px;
+            }
+
+            .page-header p {
+                font-size: 14px;
             }
         }
     </style>
+    <link rel="stylesheet" href="../auth/inc/navigation.css">
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <a href="../public/dashboard.php" class="back-button">← Back to Homepage</a>
-            <h1>Account Settings</h1>
-            <p>Manage your profile and account preferences</p>
+    <?php include("../auth/inc/sidebar.php"); ?>
+
+    <div class="main-container" id="mainContainer">
+        <!-- Page Header -->
+        <div class="page-header">
+            <h1><i class="fas fa-user-cog"></i> Account Settings</h1>
+            <p>Manage your profile information, security settings, and account preferences</p>
         </div>
 
-        <div class="content">
-            <?php if (!empty($success_message)): ?>
-            <div class="success-message" id="successMessage">
-                <?php echo htmlspecialchars($success_message); ?>
-            </div>
-            <?php endif; ?>
+        <!-- Messages -->
+        <?php if (!empty($success_message)): ?>
+        <div class="success-message" id="successMessage">
+            <i class="fas fa-check-circle"></i>
+            <span><?php echo htmlspecialchars($success_message); ?></span>
+        </div>
+        <?php endif; ?>
 
-            <?php if (!empty($error_message)): ?>
-            <div class="error-message-box">
-                <?php echo $error_message; ?>
-            </div>
-            <?php endif; ?>
+        <?php if (!empty($error_message)): ?>
+        <div class="error-message-box">
+            <i class="fas fa-exclamation-circle"></i>
+            <span><?php echo $error_message; ?></span>
+        </div>
+        <?php endif; ?>
 
+        <!-- Settings Card -->
+        <div class="settings-card">
             <div class="tabs">
-                <button class="tab active" onclick="switchTab('profile')">Profile</button>
-                <button class="tab" onclick="switchTab('security')">Security</button>
-                <button class="tab" onclick="switchTab('account')">Account Info</button>
+                <button class="tab active" onclick="switchTab('profile')">
+                    <i class="fas fa-user"></i> Profile
+                </button>
+                <button class="tab" onclick="switchTab('security')">
+                    <i class="fas fa-lock"></i> Security
+                </button>
+                <button class="tab" onclick="switchTab('account')">
+                    <i class="fas fa-info-circle"></i> Account Info
+                </button>
             </div>
 
             <!-- Profile Tab -->
@@ -493,7 +631,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         <label for="username">Username</label>
                         <input type="text" id="username" name="username" 
                                value="<?php echo htmlspecialchars($user['username']); ?>" disabled>
-                        <small style="color: #666; font-size: 12px;">Username cannot be changed</small>
+                        <small>Username cannot be changed</small>
                     </div>
 
                     <div class="form-group">
@@ -524,14 +662,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         </div>
                     </div>
 
-                    <button type="submit" class="btn-primary">Save Changes</button>
+                    <button type="submit" class="btn-primary">
+                        <i class="fas fa-save"></i> Save Changes
+                    </button>
                 </form>
             </div>
 
             <!-- Security Tab -->
             <div id="security" class="tab-content">
                 <div class="info-card">
-                    <h3>🔒 Password Security</h3>
+                    <h3><i class="fas fa-shield-alt"></i> Password Security</h3>
                     <p>Choose a strong password to keep your account secure. We recommend using at least 8 characters with a mix of letters, numbers, and symbols.</p>
                 </div>
 
@@ -542,7 +682,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         <label for="currentPassword">Current Password *</label>
                         <div class="password-container">
                             <input type="password" id="currentPassword" name="currentPassword" required>
-                            <span class="password-toggle" onclick="togglePassword('currentPassword')">👁</span>
+                            <span class="password-toggle" onclick="togglePassword('currentPassword')">
+                                <i class="fas fa-eye"></i>
+                            </span>
                         </div>
                     </div>
 
@@ -550,20 +692,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         <label for="newPassword">New Password *</label>
                         <div class="password-container">
                             <input type="password" id="newPassword" name="newPassword" required>
-                            <span class="password-toggle" onclick="togglePassword('newPassword')">👁</span>
+                            <span class="password-toggle" onclick="togglePassword('newPassword')">
+                                <i class="fas fa-eye"></i>
+                            </span>
                         </div>
-                        <small style="color: #666; font-size: 12px;">Password must be at least 8 characters</small>
+                        <small>Password must be at least 8 characters</small>
                     </div>
 
                     <div class="form-group">
                         <label for="confirmPassword">Confirm New Password *</label>
                         <div class="password-container">
                             <input type="password" id="confirmPassword" name="confirmPassword" required>
-                            <span class="password-toggle" onclick="togglePassword('confirmPassword')">👁</span>
+                            <span class="password-toggle" onclick="togglePassword('confirmPassword')">
+                                <i class="fas fa-eye"></i>
+                            </span>
                         </div>
                     </div>
 
-                    <button type="submit" class="btn-primary">Change Password</button>
+                    <button type="submit" class="btn-primary">
+                        <i class="fas fa-key"></i> Change Password
+                    </button>
                 </form>
             </div>
 
@@ -607,18 +755,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 </div>
 
                 <div class="info-card">
-                    <h3>ℹ️ Account Information</h3>
+                    <h3><i class="fas fa-info-circle"></i> Account Information</h3>
                     <p>Your account was created on <?php echo date('F j, Y', strtotime($user['created_at'])); ?>. You are currently registered as a <?php echo htmlspecialchars($user['role']); ?> in the <?php echo htmlspecialchars($user['department']); ?> department.</p>
                 </div>
 
-                <button onclick="window.location.href='../public/dashboard.php'" class="btn-secondary" style="width: auto;">
-                    ← Back to Dashboard
+                <button onclick="window.location.href='../public/dashboard.php'" class="btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Dashboard
                 </button>
             </div>
         </div>
     </div>
 
     <script>
+        // Handle sidebar toggle
+        function updateMainContainer() {
+            const mainContainer = document.getElementById('mainContainer');
+            const sidebar = document.querySelector('.sidebar');
+            
+            if (sidebar && sidebar.classList.contains('collapsed')) {
+                mainContainer.classList.add('sidebar-collapsed');
+            } else {
+                mainContainer.classList.remove('sidebar-collapsed');
+            }
+        }
+
+        // Check on load
+        document.addEventListener('DOMContentLoaded', updateMainContainer);
+
+        // Listen for sidebar toggle (if your sidebar has a toggle button)
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('.toggle-sidebar')) {
+                setTimeout(updateMainContainer, 50);
+            }
+        });
+
+        // Observe sidebar changes
+        const observer = new MutationObserver(updateMainContainer);
+        const sidebar = document.querySelector('.sidebar');
+        if (sidebar) {
+            observer.observe(sidebar, { attributes: true, attributeFilter: ['class'] });
+        }
+
         function switchTab(tabName) {
             // Hide all tab contents
             document.querySelectorAll('.tab-content').forEach(content => {
@@ -634,15 +811,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             document.getElementById(tabName).classList.add('active');
             
             // Add active class to clicked tab
-            event.target.classList.add('active');
+            event.target.closest('.tab').classList.add('active');
         }
 
         function togglePassword(fieldId) {
             const field = document.getElementById(fieldId);
-            const toggle = field.nextElementSibling;
+            const toggle = field.parentElement.querySelector('.password-toggle i');
             const type = field.getAttribute('type') === 'password' ? 'text' : 'password';
             field.setAttribute('type', type);
-            toggle.textContent = type === 'password' ? '👁' : '🙈';
+            toggle.className = type === 'password' ? 'fas fa-eye' : 'fas fa-eye-slash';
         }
 
         // Auto-hide success message after 5 seconds
@@ -658,22 +835,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         <?php endif; ?>
 
         // Form validation for password change
-        document.querySelector('#security form').addEventListener('submit', function(e) {
-            const newPassword = document.getElementById('newPassword').value;
-            const confirmPassword = document.getElementById('confirmPassword').value;
-            
-            if (newPassword.length < 8) {
-                e.preventDefault();
-                alert('New password must be at least 8 characters long');
-                return;
-            }
-            
-            if (newPassword !== confirmPassword) {
-                e.preventDefault();
-                alert('New passwords do not match');
-                return;
-            }
-        });
+        const securityForm = document.querySelector('#security form');
+        if (securityForm) {
+            securityForm.addEventListener('submit', function(e) {
+                const newPassword = document.getElementById('newPassword').value;
+                const confirmPassword = document.getElementById('confirmPassword').value;
+                
+                if (newPassword.length < 8) {
+                    e.preventDefault();
+                    alert('New password must be at least 8 characters long');
+                    return;
+                }
+                
+                if (newPassword !== confirmPassword) {
+                    e.preventDefault();
+                    alert('New passwords do not match');
+                    return;
+                }
+            });
+        }
     </script>
 </body>
 </html>

@@ -39,7 +39,7 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
             <p class="user-department"><?php echo htmlspecialchars($department); ?></p>
         </div>
         <div class="user-status">
-            <span class="status-indicator online"></span>
+            <span class="status-indicator"></span>
             <span class="status-text">Online</span>
         </div>
     </div>
@@ -50,13 +50,13 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
             <!-- MANAGER DASHBOARD & PERSONAL -->
             <li class="nav-item">
                 <a href="managerDashboard.php" class="nav-link">
-                    <i class="nav-icon">📊</i>
+                    <i class="nav-icon"></i>
                     <span class="nav-text">Dashboard</span>
                 </a>
             </li>
             <li class="nav-item">
                 <a href="managerAsset.php" class="nav-link">
-                    <i class="nav-icon">💼</i>
+                    <i class="nav-icon"></i>
                     <span class="nav-text">My Assets</span>
                 </a>
             </li>
@@ -69,26 +69,26 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
             
             <li class="nav-item">
                 <a href="departmentAsset.php" class="nav-link">
-                    <i class="nav-icon">🏢</i>
+                    <i class="nav-icon"></i>
                     <span class="nav-text">Department Assets</span>
                 </a>
             </li>
             <li class="nav-item">
                 <a href="departmentTicket.php" class="nav-link">
-                    <i class="nav-icon">🎫</i>
+                    <i class="nav-icon"></i>
                     <span class="nav-text">Department Tickets</span>
                 </a>
             </li>
             <li class="nav-item">
-                <a href="../users/managerChat.php" class="nav-link" <?php if (basename($_SERVER['PHP_SELF']) == 'userChat.php') echo 'class="active"'; ?>>
-                    <i class="nav-icon">💬</i>
+                <a href="../users/managerChat.php" class="nav-link">
+                    <i class="nav-icon"></i>
                     <span class="nav-text">Messages</span>
                     <span id="unreadBadge" class="badge-notification" style="display: none;"></span>
                 </a>
             </li>
             <li class="nav-item">
                 <a href="teamMembers.php" class="nav-link">
-                    <i class="nav-icon">👥</i>
+                    <i class="nav-icon"></i>
                     <span class="nav-text">Team Members</span>
                 </a>
             </li>
@@ -100,14 +100,14 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
             </li>
             
             <li class="nav-item">
-                <a href="department_reports.php" class="nav-link">
-                    <i class="nav-icon">📈</i>
+                <a href="departmentReport.php" class="nav-link">
+                    <i class="nav-icon"></i>
                     <span class="nav-text">Department Reports</span>
                 </a>
             </li>
             <li class="nav-item">
                 <a href="asset_analytics.php" class="nav-link">
-                    <i class="nav-icon">📉</i>
+                    <i class="nav-icon"></i>
                     <span class="nav-text">Asset Analytics</span>
                 </a>
             </li>
@@ -116,13 +116,13 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
             <li class="nav-divider"></li>
             <li class="nav-item">
                 <a href="userProfile.php" class="nav-link">
-                    <i class="nav-icon">👤</i>
+                    <i class="nav-icon"></i>
                     <span class="nav-text">My Profile</span>
                 </a>
             </li>
             <li class="nav-item">
                 <a href="../settings/index.php" class="nav-link">
-                    <i class="nav-icon">⚙️</i>
+                    <i class="nav-icon"></i>
                     <span class="nav-text">Settings</span>
                 </a>
             </li>
@@ -155,7 +155,7 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
     <!-- Logout Button -->
     <div class="sidebar-footer">
         <a href="../auth/api/logout.php" class="logout-btn" onclick="return confirm('Are you sure you want to logout?')">
-            <i class="logout-icon">🚪</i>
+            <i class="logout-icon"></i>
             <span class="logout-text">Logout</span>
         </a>
     </div>
@@ -244,4 +244,26 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
         initializeSidebar();
         highlightActivePage();
     }
+
+    // Unread message counter update
+    function updateUnreadCount() {
+        fetch('../api/chat_get_unread_count.php')
+            .then(r => r.json())
+            .then(data => {
+                const badge = document.getElementById('unreadBadge');
+                if (data.unread > 0) {
+                    badge.textContent = data.unread;
+                    badge.style.display = 'inline-block';
+                    // Update page title
+                    document.title = `(${data.unread}) Messages - E-Asset Management`;
+                } else {
+                    badge.style.display = 'none';
+                }
+            })
+            .catch(err => console.error('Error loading unread count:', err));
+    }
+
+    // Update every 60 seconds
+    setInterval(updateUnreadCount, 60000);
+    updateUnreadCount(); // Initial load
 </script>

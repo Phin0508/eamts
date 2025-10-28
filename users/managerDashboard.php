@@ -201,6 +201,7 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
     <link rel="stylesheet" href="../style/dashboard.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+    <script src="../js/deviceTracker.js" defer></script>
 
     <style>
         .charts-section {

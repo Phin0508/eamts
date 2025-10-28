@@ -432,7 +432,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $valid_token) {
         <?php endif; ?>
         
         <div class="back-link">
-            <a href="login.php">← Back to Login</a>
+            <a href="login.php?logout=true">← Back to Login</a>
         </div>
     </div>
     

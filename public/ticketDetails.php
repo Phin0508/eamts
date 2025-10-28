@@ -824,7 +824,7 @@ if (isset($_GET['assigned'])) $success_message = "Ticket assigned successfully!"
                         <i class="fas fa-arrow-left"></i> Back to Tickets
                     </a>
                     <?php if ($user_role !== 'employee' || $ticket['requester_id'] == $user_id): ?>
-                        <a href="edit_ticket.php?id=<?php echo $ticket_id; ?>" class="btn btn-secondary">
+                        <a href="ticketEdit.php?id=<?php echo $ticket_id; ?>" class="btn btn-secondary">
                             <i class="fas fa-edit"></i> Edit Ticket
                         </a>
                     <?php endif; ?>
