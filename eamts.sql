@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Oct 24, 2025 at 04:41 PM
+-- Generation Time: Oct 27, 2025 at 06:33 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -20,129 +20,38 @@ SET time_zone = "+00:00";
 --
 -- Database: `eamts`
 --
+CREATE DATABASE IF NOT EXISTS `eamts` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+USE `eamts`;
 
-DELIMITER $$
---
--- Procedures
---
-CREATE DEFINER=`root`@`localhost` PROCEDURE `GetAllOverdueMaintenance` ()   BEGIN
-    SELECT 
-        rm.id,
-        rm.asset_id,
-        a.asset_code,
-        a.asset_name,
-        rm.schedule_name,
-        rm.maintenance_type,
-        rm.next_due_date,
-        DATEDIFF(CURDATE(), rm.next_due_date) as days_overdue,
-        rm.assigned_to,
-        CONCAT(u.first_name, ' ', u.last_name) as assigned_user_name,
-        u.email as assigned_user_email
-    FROM recurring_maintenance rm
-    INNER JOIN assets a ON rm.asset_id = a.id
-    LEFT JOIN users u ON rm.assigned_to = u.user_id
-    WHERE rm.is_active = 1 
-    AND rm.next_due_date < CURDATE()
-    ORDER BY days_overdue DESC;
-END$$
-
-CREATE DEFINER=`root`@`localhost` PROCEDURE `GetAssetMaintenanceSummary` (IN `p_asset_id` INT)   BEGIN
-    -- Asset basic info
-    SELECT 
-        a.id,
-        a.asset_code,
-        a.asset_name,
-        a.category,
-        a.status,
-        a.warranty_expiry,
-        DATEDIFF(a.warranty_expiry, CURDATE()) as warranty_days_remaining
-    FROM assets a
-    WHERE a.id = p_asset_id;
-    
-    -- Maintenance history summary
-    SELECT 
-        COUNT(*) as total_maintenance_count,
-        COALESCE(SUM(cost), 0) as total_cost,
-        MAX(maintenance_date) as last_maintenance_date,
-        MIN(maintenance_date) as first_maintenance_date
-    FROM asset_maintenance
-    WHERE asset_id = p_asset_id;
-    
-    -- Active recurring schedules
-    SELECT 
-        COUNT(*) as active_schedule_count,
-        MIN(next_due_date) as next_due_date
-    FROM recurring_maintenance
-    WHERE asset_id = p_asset_id AND is_active = 1;
-    
-    -- Overdue maintenance count
-    SELECT 
-        COUNT(*) as overdue_count
-    FROM recurring_maintenance
-    WHERE asset_id = p_asset_id 
-    AND is_active = 1 
-    AND next_due_date < CURDATE();
-END$$
-
-CREATE DEFINER=`root`@`localhost` PROCEDURE `GetMaintenanceDueWithinDays` (IN `p_days` INT)   BEGIN
-    SELECT 
-        rm.id,
-        rm.asset_id,
-        a.asset_code,
-        a.asset_name,
-        a.category,
-        rm.schedule_name,
-        rm.maintenance_type,
-        rm.next_due_date,
-        DATEDIFF(rm.next_due_date, CURDATE()) as days_until_due,
-        rm.assigned_to,
-        CONCAT(u.first_name, ' ', u.last_name) as assigned_user_name,
-        u.email as assigned_user_email
-    FROM recurring_maintenance rm
-    INNER JOIN assets a ON rm.asset_id = a.id
-    LEFT JOIN users u ON rm.assigned_to = u.user_id
-    WHERE rm.is_active = 1 
-    AND rm.next_due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL p_days DAY)
-    ORDER BY rm.next_due_date ASC;
-END$$
+-- --------------------------------------------------------
 
 --
--- Functions
+-- Table structure for table `activity_logs`
 --
-CREATE DEFINER=`root`@`localhost` FUNCTION `GetAssetMaintenanceCost` (`p_asset_id` INT) RETURNS DECIMAL(10,2) DETERMINISTIC READS SQL DATA BEGIN
-    DECLARE total_cost DECIMAL(10,2);
-    
-    SELECT COALESCE(SUM(cost), 0) INTO total_cost
-    FROM asset_maintenance
-    WHERE asset_id = p_asset_id;
-    
-    RETURN total_cost;
-END$$
 
-CREATE DEFINER=`root`@`localhost` FUNCTION `GetDaysUntilNextMaintenance` (`p_asset_id` INT) RETURNS INT(11) DETERMINISTIC READS SQL DATA BEGIN
-    DECLARE days_until INT;
-    
-    SELECT DATEDIFF(MIN(next_due_date), CURDATE()) INTO days_until
-    FROM recurring_maintenance
-    WHERE asset_id = p_asset_id 
-    AND is_active = 1;
-    
-    RETURN COALESCE(days_until, 9999);
-END$$
+CREATE TABLE `activity_logs` (
+  `log_id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `action` varchar(100) NOT NULL,
+  `details` text DEFAULT NULL,
+  `ip_address` varchar(45) DEFAULT NULL,
+  `user_agent` text DEFAULT NULL,
+  `created_at` datetime DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE DEFINER=`root`@`localhost` FUNCTION `HasOverdueMaintenance` (`p_asset_id` INT) RETURNS TINYINT(1) DETERMINISTIC READS SQL DATA BEGIN
-    DECLARE has_overdue TINYINT(1);
-    
-    SELECT COUNT(*) > 0 INTO has_overdue
-    FROM recurring_maintenance
-    WHERE asset_id = p_asset_id 
-    AND is_active = 1 
-    AND next_due_date < CURDATE();
-    
-    RETURN has_overdue;
-END$$
+--
+-- Dumping data for table `activity_logs`
+--
 
-DELIMITER ;
+INSERT INTO `activity_logs` (`log_id`, `user_id`, `action`, `details`, `ip_address`, `user_agent`, `created_at`) VALUES
+(1, 1, 'user_created', 'Created new user account: eephin (zjenphin@gmail.com)', '::1', NULL, '2025-10-26 19:06:35'),
+(2, 1, 'user_created', 'Created new user account: eephin (zjenphin@gmail.com)', '::1', NULL, '2025-10-26 19:07:33'),
+(3, 11, 'password_reset', 'Password reset successfully', '::1', NULL, '2025-10-26 19:11:41'),
+(4, 11, 'password_reset_requested', 'Password reset requested', '::1', NULL, '2025-10-26 19:18:18'),
+(5, 11, 'password_reset_requested', 'Password reset requested', '::1', NULL, '2025-10-26 19:22:02'),
+(6, 11, 'password_reset_requested', 'Password reset requested', '::1', NULL, '2025-10-26 19:22:33'),
+(7, 11, 'password_reset', 'Password reset successfully', '::1', NULL, '2025-10-26 19:23:23'),
+(8, 1, 'user_created', 'Created new user account: testpotato (p23015253@student.newinti.edu.my)', '::1', NULL, '2025-10-27 12:48:08');
 
 -- --------------------------------------------------------
 
@@ -178,8 +87,9 @@ CREATE TABLE `assets` (
 --
 
 INSERT INTO `assets` (`id`, `asset_name`, `asset_code`, `category`, `brand`, `model`, `serial_number`, `purchase_date`, `purchase_cost`, `supplier`, `warranty_expiry`, `last_maintenance_date`, `location`, `department`, `status`, `description`, `assigned_to`, `created_by`, `created_at`, `updated_at`) VALUES
-(2, 'dds', 'dd', 'Computer', 'dd', 'dd', 'dd', '2025-10-17', 123.00, 'dd', '2029-12-17', NULL, 'dd', 'IT', '', '', 1, 1, '2025-10-17 07:37:41', '2025-10-23 09:22:10'),
-(3, 'aa', 'aa', 'Computer', 'aa', 'aa', 'aa', '2025-10-23', 123.00, 'aa', '2025-12-23', NULL, 'aa', 'IT', '', '', 3, 1, '2025-10-23 09:20:49', '2025-10-23 09:20:49');
+(2, 'dds', 'dd', 'Computer', 'dd', 'dd', 'dd', '2025-10-17', 123.00, 'dd', '2029-12-17', NULL, 'dd', 'IT', '', '', 2, 1, '2025-10-17 07:37:41', '2025-10-26 13:22:14'),
+(3, 'aa', 'aa', 'Computer', 'aa', 'aa', 'aa', '2025-10-23', 123.00, 'aa', '2025-12-23', NULL, 'aa', 'IT', '', '', 8, 1, '2025-10-23 09:20:49', '2025-10-26 13:18:28'),
+(4, 'Asus rog', 'AST-001', 'Laptop', 'Asus', 'rog', 'N3NRKD00954113A', '2025-10-26', 5000.00, 'asus', '2027-10-26', NULL, 'hq', 'IT', '', 'New laptop', 11, 1, '2025-10-26 11:32:36', '2025-10-27 04:47:17');
 
 -- --------------------------------------------------------
 
@@ -199,6 +109,18 @@ CREATE TABLE `assets_history` (
   `notes` text DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `assets_history`
+--
+
+INSERT INTO `assets_history` (`id`, `asset_id`, `action_type`, `old_value`, `new_value`, `assigned_from`, `assigned_to`, `performed_by`, `notes`, `created_at`) VALUES
+(1, 3, 'assigned', NULL, NULL, 2, 2, 1, NULL, '2025-10-26 11:30:29'),
+(2, 3, 'assigned', NULL, NULL, 2, 8, 1, NULL, '2025-10-26 11:30:34'),
+(3, 3, 'assigned', NULL, NULL, 8, 3, 1, NULL, '2025-10-26 11:30:38'),
+(4, 3, 'assigned', NULL, NULL, 3, 2, 1, NULL, '2025-10-26 13:18:22'),
+(5, 3, 'assigned', NULL, NULL, 2, 8, 1, NULL, '2025-10-26 13:18:28'),
+(6, 2, 'assigned', NULL, NULL, 1, 2, 1, NULL, '2025-10-26 13:22:14');
 
 -- --------------------------------------------------------
 
@@ -306,8 +228,10 @@ CREATE TABLE `chat_conversations` (
 
 INSERT INTO `chat_conversations` (`id`, `type`, `name`, `created_by`, `created_at`, `updated_at`) VALUES
 (1, 'direct', NULL, 1, '2025-10-23 18:05:14', '2025-10-23 18:05:14'),
-(2, 'direct', NULL, 1, '2025-10-23 18:05:15', '2025-10-24 02:40:00'),
-(3, 'direct', NULL, 3, '2025-10-23 18:12:49', '2025-10-23 18:12:49');
+(2, 'direct', NULL, 1, '2025-10-23 18:05:15', '2025-10-27 04:49:39'),
+(3, 'direct', NULL, 3, '2025-10-23 18:12:49', '2025-10-23 18:12:49'),
+(4, 'direct', NULL, 1, '2025-10-25 11:11:43', '2025-10-25 11:11:43'),
+(5, 'direct', NULL, 1, '2025-10-27 04:49:33', '2025-10-27 04:49:33');
 
 -- --------------------------------------------------------
 
@@ -336,7 +260,9 @@ INSERT INTO `chat_messages` (`id`, `conversation_id`, `sender_id`, `message`, `m
 (1, 2, 1, 'hey', 'text', NULL, 1, 0, '2025-10-23 18:05:29', '2025-10-23 18:12:48'),
 (2, 2, 3, 'ya', 'text', NULL, 1, 0, '2025-10-23 18:13:08', '2025-10-23 18:31:27'),
 (3, 2, 3, 'wuiwuiwui', 'text', NULL, 1, 0, '2025-10-24 02:39:53', '2025-10-24 02:39:54'),
-(4, 2, 1, 'hami', 'text', NULL, 1, 0, '2025-10-24 02:40:00', '2025-10-24 02:40:01');
+(4, 2, 1, 'hami', 'text', NULL, 1, 0, '2025-10-24 02:40:00', '2025-10-24 02:40:01'),
+(5, 2, 1, 'hey', 'text', NULL, 1, 0, '2025-10-25 11:11:50', '2025-10-25 15:08:03'),
+(6, 2, 1, 'hello', 'text', NULL, 1, 0, '2025-10-27 04:49:39', '2025-10-27 04:50:10');
 
 -- --------------------------------------------------------
 
@@ -371,12 +297,16 @@ CREATE TABLE `chat_participants` (
 --
 
 INSERT INTO `chat_participants` (`id`, `conversation_id`, `user_id`, `joined_at`, `last_read_at`, `is_active`) VALUES
-(1, 1, 1, '2025-10-23 18:05:14', '2025-10-24 03:44:18', 1),
+(1, 1, 1, '2025-10-23 18:05:14', '2025-10-27 04:49:34', 1),
 (2, 1, 2, '2025-10-23 18:05:14', NULL, 1),
-(3, 2, 1, '2025-10-23 18:05:15', '2025-10-24 03:44:27', 1),
-(4, 2, 3, '2025-10-23 18:05:15', '2025-10-24 02:40:13', 1),
+(3, 2, 1, '2025-10-23 18:05:15', '2025-10-27 04:49:43', 1),
+(4, 2, 3, '2025-10-23 18:05:15', '2025-10-27 04:50:10', 1),
 (5, 3, 3, '2025-10-23 18:12:49', '2025-10-24 02:15:21', 1),
-(6, 3, 2, '2025-10-23 18:12:49', NULL, 1);
+(6, 3, 2, '2025-10-23 18:12:49', NULL, 1),
+(7, 4, 1, '2025-10-25 11:11:43', '2025-10-27 04:49:34', 1),
+(8, 4, 8, '2025-10-25 11:11:43', NULL, 1),
+(9, 5, 1, '2025-10-27 04:49:33', '2025-10-27 04:49:33', 1),
+(10, 5, 11, '2025-10-27 04:49:33', NULL, 1);
 
 -- --------------------------------------------------------
 
@@ -410,8 +340,10 @@ CREATE TABLE `chat_users` (
 --
 
 INSERT INTO `chat_users` (`id`, `user_id`, `status`, `last_activity`, `custom_status`) VALUES
-(1, 1, 'offline', '2025-10-24 03:44:28', NULL),
-(23, 3, 'offline', '2025-10-24 02:40:15', NULL);
+(1, 1, 'offline', '2025-10-27 04:49:43', NULL),
+(23, 3, 'offline', '2025-10-27 05:31:16', NULL),
+(236, 2, 'offline', '2025-10-27 05:12:02', NULL),
+(239, 11, 'offline', '2025-10-26 11:11:59', NULL);
 
 -- --------------------------------------------------------
 
@@ -437,7 +369,14 @@ CREATE TABLE `departments` (
 --
 
 INSERT INTO `departments` (`dept_id`, `dept_name`, `dept_code`, `description`, `manager_id`, `location`, `budget`, `is_active`, `created_at`, `updated_at`) VALUES
-(1, 'IT', 'IT', 'Its it', 2, 'west', 10000000.00, 1, '2025-10-24 14:11:49', '2025-10-24 14:11:49');
+(1, 'IT', 'IT', 'Its it', 2, 'west', 10000000.00, 1, '2025-10-24 14:11:49', '2025-10-24 14:11:49'),
+(2, 'Human Resources', 'HR', 'Human Resources Department', NULL, NULL, NULL, 1, '2025-10-26 10:58:44', '2025-10-26 10:58:44'),
+(3, 'Finance', 'FIN', 'Finance and Accounting Department', NULL, NULL, NULL, 1, '2025-10-26 10:58:44', '2025-10-26 10:58:44'),
+(4, 'Operations', 'OPS', 'Operations Department', NULL, NULL, NULL, 1, '2025-10-26 10:58:44', '2025-10-26 10:58:44'),
+(5, 'Sales', 'SALES', 'Sales Department', NULL, NULL, NULL, 1, '2025-10-26 10:58:44', '2025-10-26 10:58:44'),
+(6, 'Marketing', 'MKT', 'Marketing Department', NULL, NULL, NULL, 1, '2025-10-26 10:58:44', '2025-10-26 19:30:09'),
+(7, 'Engineering', 'ENG', 'Engineering Department', NULL, NULL, NULL, 1, '2025-10-26 10:58:44', '2025-10-26 10:58:44'),
+(8, 'Support', 'SUP', 'Customer Support Department', NULL, NULL, NULL, 1, '2025-10-26 10:58:44', '2025-10-26 10:58:44');
 
 -- --------------------------------------------------------
 
@@ -476,7 +415,11 @@ CREATE TABLE `login_attempts` (
 INSERT INTO `login_attempts` (`id`, `user_id`, `ip_address`, `attempted_at`, `success`) VALUES
 (1, 1, '::1', '2025-10-14 11:56:04', 0),
 (2, 3, '::1', '2025-10-21 17:44:08', 0),
-(3, 3, '::1', '2025-10-23 18:05:39', 0);
+(3, 3, '::1', '2025-10-23 18:05:39', 0),
+(4, 11, '::1', '2025-10-26 11:22:51', 0),
+(5, 11, '::1', '2025-10-26 11:22:56', 0),
+(6, 11, '::1', '2025-10-26 11:23:01', 0),
+(7, 2, '::1', '2025-10-27 04:33:56', 0);
 
 -- --------------------------------------------------------
 
@@ -514,7 +457,8 @@ CREATE TABLE `maintenance_notifications` (
 
 INSERT INTO `maintenance_notifications` (`id`, `recurring_maintenance_id`, `user_id`, `notification_date`, `is_read`, `created_at`) VALUES
 (1, 1, 1, '2025-11-23', 0, '2025-10-24 05:11:16'),
-(4, 2, 1, '2025-11-04', 0, '2025-10-24 05:21:30');
+(4, 2, 1, '2025-11-04', 0, '2025-10-24 05:21:30'),
+(5, 3, 1, '2025-11-25', 0, '2025-10-26 11:33:03');
 
 -- --------------------------------------------------------
 
@@ -543,6 +487,14 @@ CREATE TABLE `password_reset_tokens` (
   `used` tinyint(1) DEFAULT 0,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `password_reset_tokens`
+--
+
+INSERT INTO `password_reset_tokens` (`id`, `user_id`, `token`, `expires_at`, `used`, `created_at`) VALUES
+(1, 11, '99fbdd4f14dd4ec532345dbae50c752b95519d5d7aaca6c4020ffe1b77702126', '2025-10-26 13:14:04', 0, '2025-10-26 11:14:04'),
+(2, 11, '29c4493959b260b0b9cb3636f68e403e36eba82eb991b5fcf63203d0548db8f9', '2025-10-26 13:15:52', 0, '2025-10-26 11:15:52');
 
 -- --------------------------------------------------------
 
@@ -573,7 +525,8 @@ CREATE TABLE `recurring_maintenance` (
 
 INSERT INTO `recurring_maintenance` (`id`, `asset_id`, `schedule_name`, `maintenance_type`, `frequency_days`, `start_date`, `next_due_date`, `last_completed_date`, `assigned_to`, `notify_days_before`, `is_active`, `created_by`, `created_at`, `updated_at`) VALUES
 (1, 3, 'checking up', 'Preventive Maintenance', 30, '2025-10-24', '2025-11-23', NULL, 1, 7, 1, 1, '2025-10-24 05:11:16', '2025-10-24 05:11:16'),
-(2, 3, 'checking up', 'Preventive Maintenance', 7, '2025-10-14', '2025-11-04', '2025-10-24 13:21:30', 1, 3, 1, 1, '2025-10-24 05:20:59', '2025-10-24 05:21:30');
+(2, 3, 'checking up', 'Preventive Maintenance', 7, '2025-10-14', '2025-11-04', '2025-10-24 13:21:30', 1, 3, 1, 1, '2025-10-24 05:20:59', '2025-10-24 05:21:30'),
+(3, 4, 'checking up', 'Preventive Maintenance', 30, '2025-10-26', '2025-11-25', NULL, 1, 7, 1, 1, '2025-10-26 11:33:03', '2025-10-26 11:33:03');
 
 --
 -- Triggers `recurring_maintenance`
@@ -633,6 +586,10 @@ CREATE TABLE `tickets` (
   `description` text NOT NULL,
   `priority` enum('low','medium','high','urgent') DEFAULT 'medium',
   `status` enum('open','in_progress','pending','resolved','closed','cancelled') DEFAULT 'open',
+  `approval_status` enum('pending','approved','rejected') DEFAULT 'pending',
+  `approved_by` int(11) DEFAULT NULL,
+  `approved_at` datetime DEFAULT NULL,
+  `manager_notes` text DEFAULT NULL,
   `requester_id` int(11) NOT NULL,
   `requester_department` varchar(100) DEFAULT NULL,
   `asset_id` int(11) DEFAULT NULL,
@@ -652,11 +609,14 @@ CREATE TABLE `tickets` (
 -- Dumping data for table `tickets`
 --
 
-INSERT INTO `tickets` (`ticket_id`, `ticket_number`, `ticket_type`, `subject`, `description`, `priority`, `status`, `requester_id`, `requester_department`, `asset_id`, `assigned_to`, `assigned_at`, `resolution`, `resolved_by`, `resolved_at`, `closed_by`, `closed_at`, `created_at`, `updated_at`, `due_date`) VALUES
-(1, 'TKT-202510-00001', 'repair', 'laptop blackscreen', 'the laptop screen has some problem', 'medium', 'open', 1, 'IT', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-17 02:15:08', '2025-10-17 02:15:08', NULL),
-(2, 'TKT-202510-00002', 'repair', 'laptop blackscreen', 'the laptop screen has some problem', 'medium', 'open', 1, 'IT', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-17 02:15:43', '2025-10-17 02:15:43', NULL),
-(3, 'TKT-202510-00003', 'maintenance', 'laptop blackscreen', 'dasdasdasdasdasdasdasdasdasd', 'urgent', 'resolved', 1, 'IT', 2, 1, '2025-10-17 16:14:40', 'done repiar', 1, '2025-10-24 02:12:29', NULL, NULL, '2025-10-17 16:14:08', '2025-10-24 02:12:29', NULL),
-(4, 'TKT-202510-00004', 'repair', 'laptop blackscreen', 'cannot use', 'urgent', 'in_progress', 3, 'IT', NULL, 1, '2025-10-24 02:30:54', NULL, NULL, NULL, NULL, NULL, '2025-10-24 02:16:00', '2025-10-24 02:30:54', NULL);
+INSERT INTO `tickets` (`ticket_id`, `ticket_number`, `ticket_type`, `subject`, `description`, `priority`, `status`, `approval_status`, `approved_by`, `approved_at`, `manager_notes`, `requester_id`, `requester_department`, `asset_id`, `assigned_to`, `assigned_at`, `resolution`, `resolved_by`, `resolved_at`, `closed_by`, `closed_at`, `created_at`, `updated_at`, `due_date`) VALUES
+(1, 'TKT-202510-00001', 'repair', 'laptop blackscreen', 'the laptop screen has some problem', 'medium', 'open', 'approved', 2, '2025-10-25 12:41:25', 'yes', 1, 'IT', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-17 02:15:08', '2025-10-25 04:41:25', NULL),
+(2, 'TKT-202510-00002', 'repair', 'laptop blackscreen', 'the laptop screen has some problem', 'medium', 'open', 'approved', 2, '2025-10-25 12:41:00', 'yes', 1, 'IT', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-17 02:15:43', '2025-10-25 04:41:00', NULL),
+(3, 'TKT-202510-00003', 'maintenance', 'laptop blackscreen', 'dasdasdasdasdasdasdasdasdasd', 'urgent', 'resolved', 'approved', 2, '2025-10-25 12:38:29', '', 1, 'IT', 2, 1, '2025-10-17 16:14:40', 'done repiar', 1, '2025-10-24 02:12:29', NULL, NULL, '2025-10-17 16:14:08', '2025-10-25 04:38:29', NULL),
+(4, 'TKT-202510-00004', 'repair', 'laptop blackscreen', 'cannot use', 'urgent', 'closed', 'rejected', 2, '2025-10-25 11:49:07', 'no need', 3, 'IT', NULL, 1, '2025-10-24 02:30:54', NULL, NULL, NULL, NULL, NULL, '2025-10-24 02:16:00', '2025-10-25 03:49:07', NULL),
+(5, 'TKT-202510-00005', 'repair', 'laptop blackscreen', '121212121212', 'medium', 'open', 'pending', NULL, NULL, NULL, 3, 'IT', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-26 19:31:02', '2025-10-26 19:31:02', NULL),
+(6, 'TKT-202510-00006', 'request_item', 'laptop blackscreen', '12312312312312', 'urgent', 'open', 'pending', NULL, NULL, NULL, 3, 'IT', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-26 19:34:53', '2025-10-26 19:34:53', NULL),
+(7, 'TKT-202510-00007', 'request_item', 'laptop blackscreen', '12312312312312', 'urgent', 'open', 'pending', NULL, NULL, NULL, 3, 'IT', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-26 19:36:11', '2025-10-26 19:45:35', NULL);
 
 --
 -- Triggers `tickets`
@@ -731,6 +691,13 @@ CREATE TABLE `ticket_attachments` (
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Dumping data for table `ticket_attachments`
+--
+
+INSERT INTO `ticket_attachments` (`attachment_id`, `ticket_id`, `uploaded_by`, `file_name`, `file_path`, `file_type`, `file_size`, `created_at`) VALUES
+(2, 7, 3, 'Screenshot 2024-03-10 144141.png', '../uploads/tickets/7_1761507371_68fe782b2fb2f.png', 'image/png', 1207437, '2025-10-26 19:36:11');
+
 -- --------------------------------------------------------
 
 --
@@ -752,7 +719,8 @@ CREATE TABLE `ticket_comments` (
 --
 
 INSERT INTO `ticket_comments` (`comment_id`, `ticket_id`, `user_id`, `comment`, `is_internal`, `created_at`, `updated_at`) VALUES
-(1, 4, 1, 'HI', 0, '2025-10-24 02:56:58', '2025-10-24 02:56:58');
+(1, 4, 1, 'HI', 0, '2025-10-24 02:56:58', '2025-10-24 02:56:58'),
+(2, 7, 3, 'Hi please help admin', 0, '2025-10-26 19:45:35', '2025-10-26 19:45:35');
 
 -- --------------------------------------------------------
 
@@ -794,7 +762,16 @@ INSERT INTO `ticket_history` (`history_id`, `ticket_id`, `action_type`, `old_val
 (16, 4, 'status_changed', 'open', 'in_progress', 1, NULL, '2025-10-24 02:30:54'),
 (17, 4, 'reassigned', NULL, '1', 1, NULL, '2025-10-24 02:30:54'),
 (18, 4, 'assigned', NULL, '1', 1, NULL, '2025-10-24 02:30:54'),
-(19, 4, 'commented', NULL, NULL, 1, 'HI', '2025-10-24 02:56:58');
+(19, 4, 'commented', NULL, NULL, 1, 'HI', '2025-10-24 02:56:58'),
+(20, 4, 'status_changed', 'in_progress', 'closed', 1, NULL, '2025-10-25 03:49:07'),
+(21, 4, '', NULL, 'rejected', 2, 'Manager rejected: no need', '2025-10-25 03:49:07'),
+(22, 3, '', NULL, 'approved', 2, 'Manager approved: ', '2025-10-25 04:38:29'),
+(23, 2, '', NULL, 'approved', 2, 'Manager approved: yes', '2025-10-25 04:41:00'),
+(24, 1, '', NULL, 'approved', 2, 'Manager approved: yes', '2025-10-25 04:41:25'),
+(25, 5, 'created', NULL, 'Ticket created: TKT-202510-00005', 3, NULL, '2025-10-26 19:31:02'),
+(26, 6, 'created', NULL, 'Ticket created: TKT-202510-00006', 3, NULL, '2025-10-26 19:34:53'),
+(27, 7, 'created', NULL, 'Ticket created: TKT-202510-00007', 3, NULL, '2025-10-26 19:36:11'),
+(28, 7, '', NULL, 'Comment added by requester', 3, NULL, '2025-10-26 19:45:35');
 
 -- --------------------------------------------------------
 
@@ -850,18 +827,25 @@ CREATE TABLE `users` (
   `rejection_reason` text DEFAULT NULL,
   `last_ip` varchar(45) DEFAULT NULL,
   `last_device_sn` varchar(255) DEFAULT NULL,
-  `last_login_at` datetime DEFAULT NULL
+  `last_login_at` datetime DEFAULT NULL,
+  `password_reset_token` varchar(64) DEFAULT NULL,
+  `password_reset_expiry` datetime DEFAULT NULL,
+  `must_change_password` tinyint(1) DEFAULT 0,
+  `password_changed_at` datetime DEFAULT NULL,
+  `created_by` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `users`
 --
 
-INSERT INTO `users` (`user_id`, `first_name`, `last_name`, `email`, `username`, `password_hash`, `temp_password`, `phone`, `department`, `role`, `employee_id`, `is_active`, `is_verified`, `force_password_reset`, `created_at`, `updated_at`, `last_login`, `verified_at`, `verified_by`, `rejected_at`, `rejected_by`, `rejection_reason`, `last_ip`, `last_device_sn`, `last_login_at`) VALUES
-(1, 'test', '1', 'test01@test.com', 'test1', '$2y$10$s5lEP8lK9qUJ4XSziatHcemORu.dNACepsYPNt8TVnS.lNHliDoEC', NULL, '0123456789', 'IT', 'admin', 'EMP-01', 1, 1, 0, '2025-10-13 07:37:01', '2025-10-24 14:13:47', '2025-10-24 14:13:47', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
-(2, 'test', '2', 'test2@test.com', 'test2', '$2y$10$hrDlVCP0C4nBXE1YJvVL0eJ7U4fa0YrXmz4R6rbKgIzxmT860hNgq', NULL, '01234567899', 'IT', 'manager', 'EMP-02', 1, 1, 0, '2025-10-18 11:05:07', '2025-10-22 17:53:54', '2025-10-22 17:53:54', '2025-10-20 17:03:18', 1, NULL, NULL, NULL, NULL, NULL, NULL),
-(3, 'test', '3', 'test3@test.com', 'test3', '$2y$10$3TLin8GQlyNAw/n9X.bDL.NLJMXNkTMV4D3Ynfiiq1s9DIPUMQYsa', NULL, '0123456789', 'IT', 'employee', 'EMP-03', 1, 1, 0, '2025-10-21 16:48:41', '2025-10-24 10:56:29', '2025-10-24 10:56:29', '2025-10-21 16:50:33', 1, NULL, NULL, NULL, NULL, NULL, NULL),
-(8, 'test', '4', 'test4@test.com', 'test4', '$2y$10$4Yoc13qk4SFHubHk8XdRfOCAsQ5KQv.tsenmC1uGYcvoEBaHCbnjG', NULL, '01124230109', 'IT', 'employee', 'EMP-04', 1, 0, 0, '2025-10-24 14:13:39', '2025-10-24 14:13:39', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO `users` (`user_id`, `first_name`, `last_name`, `email`, `username`, `password_hash`, `temp_password`, `phone`, `department`, `role`, `employee_id`, `is_active`, `is_verified`, `force_password_reset`, `created_at`, `updated_at`, `last_login`, `verified_at`, `verified_by`, `rejected_at`, `rejected_by`, `rejection_reason`, `last_ip`, `last_device_sn`, `last_login_at`, `password_reset_token`, `password_reset_expiry`, `must_change_password`, `password_changed_at`, `created_by`) VALUES
+(1, 'test', '1', 'test01@test.com', 'test1', '$2y$10$s5lEP8lK9qUJ4XSziatHcemORu.dNACepsYPNt8TVnS.lNHliDoEC', NULL, '0123456789', 'IT', 'admin', 'EMP-01', 1, 1, 0, '2025-10-13 07:37:01', '2025-10-27 05:31:37', '2025-10-27 05:31:37', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL),
+(2, 'test', '2', 'test2@test.com', 'test2', '$2y$10$hrDlVCP0C4nBXE1YJvVL0eJ7U4fa0YrXmz4R6rbKgIzxmT860hNgq', NULL, '01234567899', 'IT', 'manager', 'EMP-02', 1, 1, 0, '2025-10-18 11:05:07', '2025-10-27 05:32:31', '2025-10-27 05:32:31', '2025-10-20 17:03:18', 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL),
+(3, 'test', '3', 'test3@test.com', 'test3', '$2y$10$3TLin8GQlyNAw/n9X.bDL.NLJMXNkTMV4D3Ynfiiq1s9DIPUMQYsa', NULL, '0123456789', 'IT', 'employee', 'EMP-03', 1, 1, 0, '2025-10-21 16:48:41', '2025-10-27 05:32:11', '2025-10-27 05:32:11', '2025-10-21 16:50:33', 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL),
+(8, 'test', '4', 'test4@test.com', 'test4', '$2y$10$4Yoc13qk4SFHubHk8XdRfOCAsQ5KQv.tsenmC1uGYcvoEBaHCbnjG', NULL, '01124230109', 'IT', 'employee', 'EMP-04', 1, 0, 0, '2025-10-24 14:13:39', '2025-10-24 14:13:39', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL),
+(11, 'Ee', 'phin', 'zjenphin@gmail.com', 'eephin', '$argon2id$v=19$m=65536,t=4,p=1$Um94c0I1WHcvNVJoL3h6OQ$y89mtaomasyzDNtdBRESZKxSMuRGoYWHkvWWBSpTzIE', NULL, '0123456789', 'Marketing', 'employee', 'EMP-05', 1, 1, 0, '2025-10-26 11:07:29', '2025-10-26 11:23:53', '2025-10-26 11:23:53', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, '2025-10-26 19:23:23', 1),
+(12, 'test', 'potato', 'p23015253@student.newinti.edu.my', 'testpotato', '$argon2id$v=19$m=65536,t=4,p=1$S0RzQW9xb3I0a3VVY0tCSg$8ytnAiBEgdn9kRv96C01PSFJFcPGas31CIwxqArQBps', NULL, '01124230109', 'IT', 'admin', 'EMP-06', 1, 0, 0, '2025-10-27 04:48:04', '2025-10-27 04:48:04', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '80bd264330783d1b90b869c7d91f5b19e93423eaa3ef1c187bc3074587ce71a2', '2025-10-28 05:48:04', 1, NULL, 1);
 
 -- --------------------------------------------------------
 
@@ -885,10 +869,15 @@ CREATE TABLE `user_sessions` (
 --
 
 INSERT INTO `user_sessions` (`id`, `user_id`, `ip_address`, `device_serial`, `user_agent`, `login_time`, `last_activity`, `is_active`) VALUES
-(2, 3, '::1 (localhost)', 'DEV-EC88B3BD2E984242', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-23 23:58:11', '2025-10-24 10:15:26', 1),
-(3, 1, '::1 (localhost)', 'DEV-47E1153F10ED8BFA', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-24 00:15:56', '2025-10-24 18:48:38', 1),
-(4, 1, '::1 (localhost)', 'DEV-EC88B3BD2E984242', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-24 02:05:10', '2025-10-24 22:39:55', 1),
-(5, 3, '::1 (localhost)', 'DEV-47E1153F10ED8BFA', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-24 10:39:23', '2025-10-24 20:06:55', 1);
+(2, 3, '::1 (localhost)', 'DEV-EC88B3BD2E984242', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-23 23:58:11', '2025-10-25 12:38:13', 0),
+(3, 1, '::1 (localhost)', 'DEV-47E1153F10ED8BFA', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-24 00:15:56', '2025-10-25 18:50:05', 0),
+(4, 1, '::1 (localhost)', 'DEV-EC88B3BD2E984242', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-24 02:05:10', '2025-10-25 14:27:41', 0),
+(5, 3, '::1 (localhost)', 'DEV-47E1153F10ED8BFA', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-24 10:39:23', '2025-10-25 20:08:25', 0),
+(6, 1, '::1 (localhost)', 'DEV-EC88B3BD2E984242', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-25 18:50:05', '2025-10-27 13:32:01', 1),
+(7, 3, '::1 (localhost)', 'DEV-EC88B3BD2E984242', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-25 23:07:58', '2025-10-26 23:09:52', 0),
+(8, 11, '::1 (localhost)', 'DEV-47E1153F10ED8BFA', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-26 19:11:54', '2025-10-26 19:23:53', 1),
+(9, 2, '::1 (localhost)', 'DEV-EC88B3BD2E984242', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-27 03:19:58', '2025-10-27 03:19:58', 1),
+(10, 3, '::1 (localhost)', 'DEV-EC88B3BD2E984242', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-27 03:30:32', '2025-10-27 13:32:17', 1);
 
 -- --------------------------------------------------------
 
@@ -980,6 +969,15 @@ CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW 
 --
 -- Indexes for dumped tables
 --
+
+--
+-- Indexes for table `activity_logs`
+--
+ALTER TABLE `activity_logs`
+  ADD PRIMARY KEY (`log_id`),
+  ADD KEY `idx_user_id` (`user_id`),
+  ADD KEY `idx_action` (`action`),
+  ADD KEY `idx_created_at` (`created_at`);
 
 --
 -- Indexes for table `assets`
@@ -1145,7 +1143,10 @@ ALTER TABLE `tickets`
   ADD KEY `idx_requester` (`requester_id`),
   ADD KEY `idx_assigned_to` (`assigned_to`),
   ADD KEY `idx_asset` (`asset_id`),
-  ADD KEY `idx_created_at` (`created_at`);
+  ADD KEY `idx_created_at` (`created_at`),
+  ADD KEY `idx_approval_status` (`approval_status`),
+  ADD KEY `idx_requester_department` (`requester_department`),
+  ADD KEY `idx_approved_by` (`approved_by`);
 
 --
 -- Indexes for table `ticket_attachments`
@@ -1180,7 +1181,12 @@ ALTER TABLE `users`
   ADD UNIQUE KEY `username` (`username`),
   ADD UNIQUE KEY `employee_id` (`employee_id`),
   ADD KEY `verified_by` (`verified_by`),
-  ADD KEY `rejected_by` (`rejected_by`);
+  ADD KEY `rejected_by` (`rejected_by`),
+  ADD KEY `idx_password_reset_token` (`password_reset_token`),
+  ADD KEY `idx_email` (`email`),
+  ADD KEY `idx_username` (`username`),
+  ADD KEY `idx_is_active` (`is_active`),
+  ADD KEY `fk_created_by` (`created_by`);
 
 --
 -- Indexes for table `user_sessions`
@@ -1195,16 +1201,22 @@ ALTER TABLE `user_sessions`
 --
 
 --
+-- AUTO_INCREMENT for table `activity_logs`
+--
+ALTER TABLE `activity_logs`
+  MODIFY `log_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
+
+--
 -- AUTO_INCREMENT for table `assets`
 --
 ALTER TABLE `assets`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `assets_history`
 --
 ALTER TABLE `assets_history`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `asset_maintenance`
@@ -1216,13 +1228,13 @@ ALTER TABLE `asset_maintenance`
 -- AUTO_INCREMENT for table `chat_conversations`
 --
 ALTER TABLE `chat_conversations`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `chat_messages`
 --
 ALTER TABLE `chat_messages`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `chat_message_reads`
@@ -1234,7 +1246,7 @@ ALTER TABLE `chat_message_reads`
 -- AUTO_INCREMENT for table `chat_participants`
 --
 ALTER TABLE `chat_participants`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
 
 --
 -- AUTO_INCREMENT for table `chat_typing`
@@ -1246,13 +1258,13 @@ ALTER TABLE `chat_typing`
 -- AUTO_INCREMENT for table `chat_users`
 --
 ALTER TABLE `chat_users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=125;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=284;
 
 --
 -- AUTO_INCREMENT for table `departments`
 --
 ALTER TABLE `departments`
-  MODIFY `dept_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `dept_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
 
 --
 -- AUTO_INCREMENT for table `email_logs`
@@ -1264,25 +1276,25 @@ ALTER TABLE `email_logs`
 -- AUTO_INCREMENT for table `login_attempts`
 --
 ALTER TABLE `login_attempts`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT for table `maintenance_notifications`
 --
 ALTER TABLE `maintenance_notifications`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `password_reset_tokens`
 --
 ALTER TABLE `password_reset_tokens`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `recurring_maintenance`
 --
 ALTER TABLE `recurring_maintenance`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `remember_tokens`
@@ -1294,41 +1306,47 @@ ALTER TABLE `remember_tokens`
 -- AUTO_INCREMENT for table `tickets`
 --
 ALTER TABLE `tickets`
-  MODIFY `ticket_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `ticket_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT for table `ticket_attachments`
 --
 ALTER TABLE `ticket_attachments`
-  MODIFY `attachment_id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `attachment_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `ticket_comments`
 --
 ALTER TABLE `ticket_comments`
-  MODIFY `comment_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `comment_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `ticket_history`
 --
 ALTER TABLE `ticket_history`
-  MODIFY `history_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=20;
+  MODIFY `history_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=29;
 
 --
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `user_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
+  MODIFY `user_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
 
 --
 -- AUTO_INCREMENT for table `user_sessions`
 --
 ALTER TABLE `user_sessions`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
 
 --
 -- Constraints for dumped tables
 --
+
+--
+-- Constraints for table `activity_logs`
+--
+ALTER TABLE `activity_logs`
+  ADD CONSTRAINT `activity_logs_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `assets`
@@ -1442,6 +1460,7 @@ ALTER TABLE `remember_tokens`
 -- Constraints for table `tickets`
 --
 ALTER TABLE `tickets`
+  ADD CONSTRAINT `fk_approved_by` FOREIGN KEY (`approved_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
   ADD CONSTRAINT `tickets_ibfk_1` FOREIGN KEY (`requester_id`) REFERENCES `users` (`user_id`),
   ADD CONSTRAINT `tickets_ibfk_2` FOREIGN KEY (`asset_id`) REFERENCES `assets` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `tickets_ibfk_3` FOREIGN KEY (`assigned_to`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
@@ -1473,6 +1492,7 @@ ALTER TABLE `ticket_history`
 -- Constraints for table `users`
 --
 ALTER TABLE `users`
+  ADD CONSTRAINT `fk_created_by` FOREIGN KEY (`created_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
   ADD CONSTRAINT `users_ibfk_1` FOREIGN KEY (`verified_by`) REFERENCES `users` (`user_id`),
   ADD CONSTRAINT `users_ibfk_2` FOREIGN KEY (`rejected_by`) REFERENCES `users` (`user_id`);
 
@@ -1481,6 +1501,455 @@ ALTER TABLE `users`
 --
 ALTER TABLE `user_sessions`
   ADD CONSTRAINT `user_sessions_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE;
+--
+-- Database: `phpmyadmin`
+--
+CREATE DATABASE IF NOT EXISTS `phpmyadmin` DEFAULT CHARACTER SET utf8 COLLATE utf8_bin;
+USE `phpmyadmin`;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `pma__bookmark`
+--
+
+CREATE TABLE `pma__bookmark` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `dbase` varchar(255) NOT NULL DEFAULT '',
+  `user` varchar(255) NOT NULL DEFAULT '',
+  `label` varchar(255) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT '',
+  `query` text NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='Bookmarks';
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `pma__central_columns`
+--
+
+CREATE TABLE `pma__central_columns` (
+  `db_name` varchar(64) NOT NULL,
+  `col_name` varchar(64) NOT NULL,
+  `col_type` varchar(64) NOT NULL,
+  `col_length` text DEFAULT NULL,
+  `col_collation` varchar(64) NOT NULL,
+  `col_isNull` tinyint(1) NOT NULL,
+  `col_extra` varchar(255) DEFAULT '',
+  `col_default` text DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='Central list of columns';
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `pma__column_info`
+--
+
+CREATE TABLE `pma__column_info` (
+  `id` int(5) UNSIGNED NOT NULL,
+  `db_name` varchar(64) NOT NULL DEFAULT '',
+  `table_name` varchar(64) NOT NULL DEFAULT '',
+  `column_name` varchar(64) NOT NULL DEFAULT '',
+  `comment` varchar(255) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT '',
+  `mimetype` varchar(255) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT '',
+  `transformation` varchar(255) NOT NULL DEFAULT '',
+  `transformation_options` varchar(255) NOT NULL DEFAULT '',
+  `input_transformation` varchar(255) NOT NULL DEFAULT '',
+  `input_transformation_options` varchar(255) NOT NULL DEFAULT ''
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='Column information for phpMyAdmin';
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `pma__designer_settings`
+--
+
+CREATE TABLE `pma__designer_settings` (
+  `username` varchar(64) NOT NULL,
+  `settings_data` text NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='Settings related to Designer';
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `pma__export_templates`
+--
+
+CREATE TABLE `pma__export_templates` (
+  `id` int(5) UNSIGNED NOT NULL,
+  `username` varchar(64) NOT NULL,
+  `export_type` varchar(10) NOT NULL,
+  `template_name` varchar(64) NOT NULL,
+  `template_data` text NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='Saved export templates';
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `pma__favorite`
+--
+
+CREATE TABLE `pma__favorite` (
+  `username` varchar(64) NOT NULL,
+  `tables` text NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='Favorite tables';
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `pma__history`
+--
+
+CREATE TABLE `pma__history` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `username` varchar(64) NOT NULL DEFAULT '',
+  `db` varchar(64) NOT NULL DEFAULT '',
+  `table` varchar(64) NOT NULL DEFAULT '',
+  `timevalue` timestamp NOT NULL DEFAULT current_timestamp(),
+  `sqlquery` text NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='SQL history for phpMyAdmin';
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `pma__navigationhiding`
+--
+
+CREATE TABLE `pma__navigationhiding` (
+  `username` varchar(64) NOT NULL,
+  `item_name` varchar(64) NOT NULL,
+  `item_type` varchar(64) NOT NULL,
+  `db_name` varchar(64) NOT NULL,
+  `table_name` varchar(64) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='Hidden items of navigation tree';
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `pma__pdf_pages`
+--
+
+CREATE TABLE `pma__pdf_pages` (
+  `db_name` varchar(64) NOT NULL DEFAULT '',
+  `page_nr` int(10) UNSIGNED NOT NULL,
+  `page_descr` varchar(50) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT ''
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='PDF relation pages for phpMyAdmin';
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `pma__recent`
+--
+
+CREATE TABLE `pma__recent` (
+  `username` varchar(64) NOT NULL,
+  `tables` text NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='Recently accessed tables';
+
+--
+-- Dumping data for table `pma__recent`
+--
+
+INSERT INTO `pma__recent` (`username`, `tables`) VALUES
+('root', '[{\"db\":\"eamts\",\"table\":\"users\"}]');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `pma__relation`
+--
+
+CREATE TABLE `pma__relation` (
+  `master_db` varchar(64) NOT NULL DEFAULT '',
+  `master_table` varchar(64) NOT NULL DEFAULT '',
+  `master_field` varchar(64) NOT NULL DEFAULT '',
+  `foreign_db` varchar(64) NOT NULL DEFAULT '',
+  `foreign_table` varchar(64) NOT NULL DEFAULT '',
+  `foreign_field` varchar(64) NOT NULL DEFAULT ''
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='Relation table';
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `pma__savedsearches`
+--
+
+CREATE TABLE `pma__savedsearches` (
+  `id` int(5) UNSIGNED NOT NULL,
+  `username` varchar(64) NOT NULL DEFAULT '',
+  `db_name` varchar(64) NOT NULL DEFAULT '',
+  `search_name` varchar(64) NOT NULL DEFAULT '',
+  `search_data` text NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='Saved searches';
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `pma__table_coords`
+--
+
+CREATE TABLE `pma__table_coords` (
+  `db_name` varchar(64) NOT NULL DEFAULT '',
+  `table_name` varchar(64) NOT NULL DEFAULT '',
+  `pdf_page_number` int(11) NOT NULL DEFAULT 0,
+  `x` float UNSIGNED NOT NULL DEFAULT 0,
+  `y` float UNSIGNED NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='Table coordinates for phpMyAdmin PDF output';
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `pma__table_info`
+--
+
+CREATE TABLE `pma__table_info` (
+  `db_name` varchar(64) NOT NULL DEFAULT '',
+  `table_name` varchar(64) NOT NULL DEFAULT '',
+  `display_field` varchar(64) NOT NULL DEFAULT ''
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='Table information for phpMyAdmin';
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `pma__table_uiprefs`
+--
+
+CREATE TABLE `pma__table_uiprefs` (
+  `username` varchar(64) NOT NULL,
+  `db_name` varchar(64) NOT NULL,
+  `table_name` varchar(64) NOT NULL,
+  `prefs` text NOT NULL,
+  `last_update` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='Tables'' UI preferences';
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `pma__tracking`
+--
+
+CREATE TABLE `pma__tracking` (
+  `db_name` varchar(64) NOT NULL,
+  `table_name` varchar(64) NOT NULL,
+  `version` int(10) UNSIGNED NOT NULL,
+  `date_created` datetime NOT NULL,
+  `date_updated` datetime NOT NULL,
+  `schema_snapshot` text NOT NULL,
+  `schema_sql` text DEFAULT NULL,
+  `data_sql` longtext DEFAULT NULL,
+  `tracking` set('UPDATE','REPLACE','INSERT','DELETE','TRUNCATE','CREATE DATABASE','ALTER DATABASE','DROP DATABASE','CREATE TABLE','ALTER TABLE','RENAME TABLE','DROP TABLE','CREATE INDEX','DROP INDEX','CREATE VIEW','ALTER VIEW','DROP VIEW') DEFAULT NULL,
+  `tracking_active` int(1) UNSIGNED NOT NULL DEFAULT 1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='Database changes tracking for phpMyAdmin';
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `pma__userconfig`
+--
+
+CREATE TABLE `pma__userconfig` (
+  `username` varchar(64) NOT NULL,
+  `timevalue` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `config_data` text NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='User preferences storage for phpMyAdmin';
+
+--
+-- Dumping data for table `pma__userconfig`
+--
+
+INSERT INTO `pma__userconfig` (`username`, `timevalue`, `config_data`) VALUES
+('root', '2025-09-09 16:20:15', '{\"Console\\/Mode\":\"collapse\"}');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `pma__usergroups`
+--
+
+CREATE TABLE `pma__usergroups` (
+  `usergroup` varchar(64) NOT NULL,
+  `tab` varchar(64) NOT NULL,
+  `allowed` enum('Y','N') NOT NULL DEFAULT 'N'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='User groups with configured menu items';
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `pma__users`
+--
+
+CREATE TABLE `pma__users` (
+  `username` varchar(64) NOT NULL,
+  `usergroup` varchar(64) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='Users and their assignments to user groups';
+
+--
+-- Indexes for dumped tables
+--
+
+--
+-- Indexes for table `pma__bookmark`
+--
+ALTER TABLE `pma__bookmark`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `pma__central_columns`
+--
+ALTER TABLE `pma__central_columns`
+  ADD PRIMARY KEY (`db_name`,`col_name`);
+
+--
+-- Indexes for table `pma__column_info`
+--
+ALTER TABLE `pma__column_info`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `db_name` (`db_name`,`table_name`,`column_name`);
+
+--
+-- Indexes for table `pma__designer_settings`
+--
+ALTER TABLE `pma__designer_settings`
+  ADD PRIMARY KEY (`username`);
+
+--
+-- Indexes for table `pma__export_templates`
+--
+ALTER TABLE `pma__export_templates`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `u_user_type_template` (`username`,`export_type`,`template_name`);
+
+--
+-- Indexes for table `pma__favorite`
+--
+ALTER TABLE `pma__favorite`
+  ADD PRIMARY KEY (`username`);
+
+--
+-- Indexes for table `pma__history`
+--
+ALTER TABLE `pma__history`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `username` (`username`,`db`,`table`,`timevalue`);
+
+--
+-- Indexes for table `pma__navigationhiding`
+--
+ALTER TABLE `pma__navigationhiding`
+  ADD PRIMARY KEY (`username`,`item_name`,`item_type`,`db_name`,`table_name`);
+
+--
+-- Indexes for table `pma__pdf_pages`
+--
+ALTER TABLE `pma__pdf_pages`
+  ADD PRIMARY KEY (`page_nr`),
+  ADD KEY `db_name` (`db_name`);
+
+--
+-- Indexes for table `pma__recent`
+--
+ALTER TABLE `pma__recent`
+  ADD PRIMARY KEY (`username`);
+
+--
+-- Indexes for table `pma__relation`
+--
+ALTER TABLE `pma__relation`
+  ADD PRIMARY KEY (`master_db`,`master_table`,`master_field`),
+  ADD KEY `foreign_field` (`foreign_db`,`foreign_table`);
+
+--
+-- Indexes for table `pma__savedsearches`
+--
+ALTER TABLE `pma__savedsearches`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `u_savedsearches_username_dbname` (`username`,`db_name`,`search_name`);
+
+--
+-- Indexes for table `pma__table_coords`
+--
+ALTER TABLE `pma__table_coords`
+  ADD PRIMARY KEY (`db_name`,`table_name`,`pdf_page_number`);
+
+--
+-- Indexes for table `pma__table_info`
+--
+ALTER TABLE `pma__table_info`
+  ADD PRIMARY KEY (`db_name`,`table_name`);
+
+--
+-- Indexes for table `pma__table_uiprefs`
+--
+ALTER TABLE `pma__table_uiprefs`
+  ADD PRIMARY KEY (`username`,`db_name`,`table_name`);
+
+--
+-- Indexes for table `pma__tracking`
+--
+ALTER TABLE `pma__tracking`
+  ADD PRIMARY KEY (`db_name`,`table_name`,`version`);
+
+--
+-- Indexes for table `pma__userconfig`
+--
+ALTER TABLE `pma__userconfig`
+  ADD PRIMARY KEY (`username`);
+
+--
+-- Indexes for table `pma__usergroups`
+--
+ALTER TABLE `pma__usergroups`
+  ADD PRIMARY KEY (`usergroup`,`tab`,`allowed`);
+
+--
+-- Indexes for table `pma__users`
+--
+ALTER TABLE `pma__users`
+  ADD PRIMARY KEY (`username`,`usergroup`);
+
+--
+-- AUTO_INCREMENT for dumped tables
+--
+
+--
+-- AUTO_INCREMENT for table `pma__bookmark`
+--
+ALTER TABLE `pma__bookmark`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `pma__column_info`
+--
+ALTER TABLE `pma__column_info`
+  MODIFY `id` int(5) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `pma__export_templates`
+--
+ALTER TABLE `pma__export_templates`
+  MODIFY `id` int(5) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `pma__history`
+--
+ALTER TABLE `pma__history`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `pma__pdf_pages`
+--
+ALTER TABLE `pma__pdf_pages`
+  MODIFY `page_nr` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `pma__savedsearches`
+--
+ALTER TABLE `pma__savedsearches`
+  MODIFY `id` int(5) UNSIGNED NOT NULL AUTO_INCREMENT;
+--
+-- Database: `test`
+--
+CREATE DATABASE IF NOT EXISTS `test` DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci;
+USE `test`;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
