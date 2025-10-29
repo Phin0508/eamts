@@ -111,7 +111,7 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Get statistics
+// Get statistics - FIXED: Exclude deleted users
 $stats_stmt = $pdo->query("
     SELECT 
         COUNT(*) as total,
@@ -121,6 +121,7 @@ $stats_stmt = $pdo->query("
         SUM(CASE WHEN role = 'manager' THEN 1 ELSE 0 END) as managers,
         SUM(CASE WHEN role = 'employee' THEN 1 ELSE 0 END) as employees
     FROM users
+    WHERE (is_deleted IS NULL OR is_deleted = 0)
 ");
 $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
 ?>

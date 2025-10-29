@@ -31,6 +31,17 @@ $emailHelper = new EmailHelper();
 $success_message = '';
 $error_message = '';
 
+// Check for session messages
+if (isset($_SESSION['success_message'])) {
+    $success_message = $_SESSION['success_message'];
+    unset($_SESSION['success_message']);
+}
+
+if (isset($_SESSION['error_message'])) {
+    $error_message = $_SESSION['error_message'];
+    unset($_SESSION['error_message']);
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_asset'])) {
     $asset_name = trim($_POST['asset_name']);
     $asset_code = trim($_POST['asset_code']);
@@ -61,14 +72,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_asset'])) {
                 $error_message = "Asset Code already exists! Please use a unique code.";
             } else {
                 // Insert new asset
-                $stmt = $pdo->prepare("INSERT INTO assets (asset_name, asset_code, category, brand, model, serial_number, purchase_date, purchase_cost, supplier, warranty_expiry, location, department, status, description, assigned_to, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
+                $stmt = $pdo->prepare("INSERT INTO assets (asset_name, asset_code, 
+                category, brand, model, serial_number, purchase_date, purchase_cost, supplier, warranty_expiry, 
+                location, department, status, description, assigned_to, created_by, created_at) VALUES 
+                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
 
                 $created_by = $_SESSION['user_id'];
 
                 if ($stmt->execute([$asset_name, $asset_code, $category, $brand, $model, $serial_number, $purchase_date, $purchase_cost, $supplier, $warranty_expiry, $location, $department, $status, $description, $assigned_to, $created_by])) {
                     $asset_id = $pdo->lastInsertId();
                     $success_message = "Asset added successfully!";
-                    
+
                     // Send email notification if asset is assigned to a user
                     if ($assigned_to) {
                         try {
@@ -76,13 +90,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_asset'])) {
                             $user_stmt = $pdo->prepare("SELECT user_id, first_name, last_name, email FROM users WHERE user_id = ?");
                             $user_stmt->execute([$assigned_to]);
                             $user = $user_stmt->fetch(PDO::FETCH_ASSOC);
-                            
+
                             // Get assigned by user details
                             $assigned_by_stmt = $pdo->prepare("SELECT first_name, last_name FROM users WHERE user_id = ?");
                             $assigned_by_stmt->execute([$_SESSION['user_id']]);
                             $assigned_by = $assigned_by_stmt->fetch(PDO::FETCH_ASSOC);
                             $assigned_by_name = $assigned_by['first_name'] . ' ' . $assigned_by['last_name'];
-                            
+
                             if ($user) {
                                 $assignment_data = [
                                     'asset_id' => $asset_id,
@@ -96,16 +110,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_asset'])) {
                                     'location' => $location ?: 'Not specified',
                                     'assigned_by' => $assigned_by_name
                                 ];
-                                
+
                                 if ($emailHelper->sendAssetAssignmentEmail($assignment_data)) {
                                     $success_message .= " Assignment notification email sent to " . $user['email'];
                                 }
                             }
-                            
+
                             // Log the assignment
-                            $log_stmt = $pdo->prepare("INSERT INTO assets_history (asset_id, action_type, assigned_from, assigned_to, performed_by, created_at) VALUES (?, 'assigned', NULL, ?, ?, NOW())");
+                            $log_stmt = $pdo->prepare("INSERT INTO assets_history (asset_id, action_type, assigned_from,
+                             assigned_to, performed_by, created_at) VALUES (?, 'assigned', NULL, ?, ?, NOW())");
                             $log_stmt->execute([$asset_id, $assigned_to, $_SESSION['user_id']]);
-                            
                         } catch (Exception $e) {
                             // Don't fail the whole operation if email fails
                             error_log("Failed to send assignment email: " . $e->getMessage());
@@ -142,17 +156,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_asset'])) {
         $asset_data = $current_stmt->fetch(PDO::FETCH_ASSOC);
         $current_user_id = $asset_data['current_user_id'];
 
-        // Update assignment
-        $new_status = $assigned_to ? 'In Use' : 'Available';
-        $update_stmt = $pdo->prepare("UPDATE assets SET assigned_to = ?, status = ? WHERE id = ?");
+        // Update assignment with explicit status - ensure no empty status
+        $new_status = $assigned_to ? 'in_use' : 'available';
 
-        if ($update_stmt->execute([$assigned_to, $new_status, $asset_id])) {
+        // Debug: Log what we're about to update
+        error_log("=== ASSIGNMENT UPDATE DEBUG ===");
+        error_log("Asset ID: $asset_id");
+        error_log("Assigned to: " . ($assigned_to ?: 'NULL'));
+        error_log("New status: $new_status");
+        error_log("Current status in DB: " . $asset_data['status']);
+
+        $update_stmt = $pdo->prepare("UPDATE assets SET assigned_to = ?, status = ?, updated_at = NOW() WHERE id = ?");
+        $update_result = $update_stmt->execute([$assigned_to, $new_status, $asset_id]);
+
+        // Check how many rows were affected
+        $rows_affected = $update_stmt->rowCount();
+        error_log("Update result: " . ($update_result ? 'SUCCESS' : 'FAILED'));
+        error_log("Rows affected: $rows_affected");
+
+        if ($update_result) {
+            // Verify the update worked
+            $verify_stmt = $pdo->prepare("SELECT status, assigned_to FROM assets WHERE id = ?");
+            $verify_stmt->execute([$asset_id]);
+            $verify = $verify_stmt->fetch(PDO::FETCH_ASSOC);
+            error_log("Status after update: " . $verify['status']);
+            error_log("Assigned_to after update: " . ($verify['assigned_to'] ?: 'NULL'));
+            error_log("=== END DEBUG ===");
+
             // Get assigned by user details
             $assigned_by_stmt = $pdo->prepare("SELECT first_name, last_name FROM users WHERE user_id = ?");
             $assigned_by_stmt->execute([$_SESSION['user_id']]);
             $assigned_by = $assigned_by_stmt->fetch(PDO::FETCH_ASSOC);
             $assigned_by_name = $assigned_by['first_name'] . ' ' . $assigned_by['last_name'];
-            
+
             // Send unassignment email to previous user
             if ($current_user_id && $current_user_id != $assigned_to) {
                 try {
@@ -163,13 +199,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_asset'])) {
                         'asset_code' => $asset_data['asset_code'],
                         'unassigned_by' => $assigned_by_name
                     ];
-                    
+
                     $emailHelper->sendAssetUnassignmentEmail($unassignment_data);
                 } catch (Exception $e) {
                     error_log("Failed to send unassignment email: " . $e->getMessage());
                 }
             }
-            
+
             // Send assignment email to new user
             if ($assigned_to) {
                 try {
@@ -177,7 +213,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_asset'])) {
                     $new_user_stmt = $pdo->prepare("SELECT user_id, first_name, last_name, email FROM users WHERE user_id = ?");
                     $new_user_stmt->execute([$assigned_to]);
                     $new_user = $new_user_stmt->fetch(PDO::FETCH_ASSOC);
-                    
+
                     if ($new_user) {
                         $assignment_data = [
                             'asset_id' => $asset_id,
@@ -191,30 +227,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_asset'])) {
                             'location' => $asset_data['location'] ?: 'Not specified',
                             'assigned_by' => $assigned_by_name
                         ];
-                        
+
                         if ($emailHelper->sendAssetAssignmentEmail($assignment_data)) {
-                            $success_message = "Asset assignment updated successfully! Notification email sent to " . $new_user['email'];
+                            $_SESSION['success_message'] = "Asset assignment updated successfully! Notification email sent to " . $new_user['email'];
                         } else {
-                            $success_message = "Asset assignment updated successfully! (Email notification failed to send)";
+                            $_SESSION['success_message'] = "Asset assignment updated successfully! (Email notification failed to send)";
                         }
                     }
                 } catch (Exception $e) {
                     error_log("Failed to send assignment email: " . $e->getMessage());
-                    $success_message = "Asset assignment updated successfully! (Email notification failed to send)";
+                    $_SESSION['success_message'] = "Asset assignment updated successfully! (Email notification failed to send)";
                 }
             } else {
-                $success_message = "Asset unassigned successfully!";
+                $_SESSION['success_message'] = "Asset unassigned successfully!";
             }
-            
+
             // Log the assignment change
             $action = $assigned_to ? 'assigned' : 'unassigned';
             $log_stmt = $pdo->prepare("INSERT INTO assets_history (asset_id, action_type, assigned_from, assigned_to, performed_by, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
             $log_stmt->execute([$asset_id, $action, $current_user_id, $assigned_to, $_SESSION['user_id']]);
+
+            // Redirect to refresh the page with updated data
+            header("Location: asset.php");
+            exit();
         } else {
-            $error_message = "Error updating asset assignment.";
+            $_SESSION['error_message'] = "Error updating asset assignment.";
+            header("Location: asset.php");
+            exit();
         }
     } catch (PDOException $e) {
-        $error_message = "Database error: " . $e->getMessage();
+        $_SESSION['error_message'] = "Database error: " . $e->getMessage();
+        error_log("Database error in assignment: " . $e->getMessage());
+        header("Location: asset.php");
+        exit();
     }
 }
 
@@ -267,16 +312,49 @@ $in_use_assets = 0;
 $maintenance_assets = 0;
 
 foreach ($assets as $asset) {
-    $status = strtolower(trim($asset['status']));
+    $status = strtolower(str_replace(' ', '_', trim($asset['status'])));
 
     if ($status === 'available') {
         $available_assets++;
-    } elseif ($status === 'in_use') {
+    } elseif ($status === 'in_use' || $status === 'in use') {
         $in_use_assets++;
     } elseif ($status === 'maintenance') {
         $maintenance_assets++;
     }
 }
+// Calculate expiring warranties (within next 30 days)
+$expiring_assets = [];
+$expired_assets = [];
+$today = new DateTime();
+
+foreach ($assets as $asset) {
+    if ($asset['warranty_expiry']) {
+        $warranty_date = new DateTime($asset['warranty_expiry']);
+        $interval = $today->diff($warranty_date);
+        $days_left = $interval->days * ($interval->invert ? -1 : 1);
+
+        // Check if expiring within 30 days
+        if ($days_left >= 0 && $days_left <= 30) {
+            $asset['days_until_expiry'] = $days_left;
+            $expiring_assets[] = $asset;
+        }
+
+        // Check if already expired
+        if ($days_left < 0) {
+            $asset['days_since_expiry'] = abs($days_left);
+            $expired_assets[] = $asset;
+        }
+    }
+}
+
+// Sort by days remaining
+usort($expiring_assets, function ($a, $b) {
+    return $a['days_until_expiry'] - $b['days_until_expiry'];
+});
+
+usort($expired_assets, function ($a, $b) {
+    return $b['days_since_expiry'] - $a['days_since_expiry'];
+});
 
 ?>
 
@@ -1105,6 +1183,245 @@ foreach ($assets as $asset) {
                 justify-content: center;
             }
         }
+
+        /* Warranty Alerts Section */
+        .warranty-alerts-section {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .alert-card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            overflow: hidden;
+            border-left: 5px solid;
+        }
+
+        .alert-card.expired {
+            border-left-color: #ef4444;
+        }
+
+        .alert-card.expiring {
+            border-left-color: #f59e0b;
+        }
+
+        .alert-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 30px;
+            background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .alert-card.expiring .alert-header {
+            background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+        }
+
+        .alert-header:hover {
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+        }
+
+        .alert-card.expiring .alert-header:hover {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+        }
+
+        .alert-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .alert-title i {
+            font-size: 24px;
+        }
+
+        .alert-card.expired .alert-title i {
+            color: #ef4444;
+        }
+
+        .alert-card.expiring .alert-title i {
+            color: #f59e0b;
+        }
+
+        .alert-title h3 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 700;
+            color: #1a202c;
+        }
+
+        .toggle-alert-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 20px;
+            color: #718096;
+            transition: transform 0.3s, color 0.3s;
+            padding: 8px;
+        }
+
+        .toggle-alert-btn:hover {
+            color: #2d3748;
+        }
+
+        .toggle-alert-btn.rotated {
+            transform: rotate(180deg);
+        }
+
+        .alert-content {
+            padding: 0 30px 20px 30px;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .alert-content.collapsed {
+            display: none;
+        }
+
+        .alert-items {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .alert-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 15px;
+            padding: 20px;
+            background: #fafbfc;
+            border-radius: 12px;
+            border: 2px solid #e2e8f0;
+            transition: all 0.3s;
+        }
+
+        .alert-item:hover {
+            border-color: #cbd5e0;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            transform: translateY(-2px);
+        }
+
+        .alert-item-icon {
+            font-size: 28px;
+            line-height: 1;
+        }
+
+        .alert-item-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .alert-item-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+
+        .alert-asset-name {
+            font-size: 16px;
+            font-weight: 700;
+            color: #7c3aed;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .alert-asset-name:hover {
+            color: #6d28d9;
+            text-decoration: underline;
+        }
+
+        .alert-code {
+            font-size: 14px;
+            color: #718096;
+            font-weight: 600;
+            padding: 4px 10px;
+            background: white;
+            border-radius: 6px;
+        }
+
+        .alert-item-details {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 8px;
+        }
+
+        .detail-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            color: #4b5563;
+        }
+
+        .detail-item i {
+            color: #9ca3af;
+            font-size: 12px;
+        }
+
+        .alert-item-actions {
+            display: flex;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .alert-header {
+                padding: 15px 20px;
+            }
+
+            .alert-content {
+                padding: 0 20px 15px 20px;
+            }
+
+            .alert-title h3 {
+                font-size: 16px;
+            }
+
+            .alert-item {
+                flex-direction: column;
+                padding: 15px;
+            }
+
+            .alert-item-actions {
+                width: 100%;
+            }
+
+            .alert-item-actions .btn {
+                width: 100%;
+            }
+
+            .alert-item-details {
+                flex-direction: column;
+                gap: 8px;
+            }
+        }
+
+        /* Scrollbar styling for alert content */
+        .alert-content::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .alert-content::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 4px;
+        }
+
+        .alert-content::-webkit-scrollbar-thumb {
+            background: #cbd5e0;
+            border-radius: 4px;
+        }
+
+        .alert-content::-webkit-scrollbar-thumb:hover {
+            background: #a0aec0;
+        }
     </style>
     <link rel="stylesheet" href="../auth/inc/navigation.css">
 </head>
@@ -1156,6 +1473,118 @@ foreach ($assets as $asset) {
                 <div class="stat-label">Maintenance</div>
             </div>
         </div>
+        <?php if (!empty($expiring_assets) || !empty($expired_assets)): ?>
+            <div class="warranty-alerts-section" style="margin-bottom: 30px;">
+                <?php if (!empty($expired_assets)): ?>
+                    <div class="alert-card expired">
+                        <div class="alert-header">
+                            <div class="alert-title">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <h3>Expired Warranties (<?php echo count($expired_assets); ?>)</h3>
+                            </div>
+                            <button class="toggle-alert-btn" onclick="toggleAlert('expired')">
+                                <i class="fas fa-chevron-down"></i>
+                            </button>
+                        </div>
+                        <div class="alert-content" id="expired-alerts">
+                            <div class="alert-items">
+                                <?php foreach ($expired_assets as $asset): ?>
+                                    <div class="alert-item">
+                                        <div class="alert-item-icon">🚨</div>
+                                        <div class="alert-item-content">
+                                            <div class="alert-item-header">
+                                                <a href="assetDetails.php?id=<?php echo $asset['id']; ?>" class="alert-asset-name">
+                                                    <?php echo htmlspecialchars($asset['asset_name']); ?>
+                                                </a>
+                                                <span class="alert-code"><?php echo htmlspecialchars($asset['asset_code']); ?></span>
+                                            </div>
+                                            <div class="alert-item-details">
+                                                <span class="detail-item">
+                                                    <i class="fas fa-tag"></i>
+                                                    <?php echo htmlspecialchars($asset['category']); ?>
+                                                </span>
+                                                <span class="detail-item">
+                                                    <i class="fas fa-calendar-times"></i>
+                                                    Expired <?php echo $asset['days_since_expiry']; ?> days ago
+                                                </span>
+                                                <?php if ($asset['department']): ?>
+                                                    <span class="detail-item">
+                                                        <i class="fas fa-building"></i>
+                                                        <?php echo htmlspecialchars($asset['department']); ?>
+                                                    </span>
+                                                <?php endif; ?>
+                                            </div>
+                                        </div>
+                                        <div class="alert-item-actions">
+                                            <a href="assetEdit.php?id=<?php echo $asset['id']; ?>" class="btn btn-small btn-secondary">
+                                                <i class="fas fa-edit"></i> Update
+                                            </a>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    </div>
+                <?php endif; ?>
+
+                <?php if (!empty($expiring_assets)): ?>
+                    <div class="alert-card expiring">
+                        <div class="alert-header">
+                            <div class="alert-title">
+                                <i class="fas fa-exclamation-circle"></i>
+                                <h3>Warranties Expiring Soon (<?php echo count($expiring_assets); ?>)</h3>
+                            </div>
+                            <button class="toggle-alert-btn" onclick="toggleAlert('expiring')">
+                                <i class="fas fa-chevron-down"></i>
+                            </button>
+                        </div>
+                        <div class="alert-content" id="expiring-alerts">
+                            <div class="alert-items">
+                                <?php foreach ($expiring_assets as $asset): ?>
+                                    <div class="alert-item">
+                                        <div class="alert-item-icon">⚠️</div>
+                                        <div class="alert-item-content">
+                                            <div class="alert-item-header">
+                                                <a href="assetDetails.php?id=<?php echo $asset['id']; ?>" class="alert-asset-name">
+                                                    <?php echo htmlspecialchars($asset['asset_name']); ?>
+                                                </a>
+                                                <span class="alert-code"><?php echo htmlspecialchars($asset['asset_code']); ?></span>
+                                            </div>
+                                            <div class="alert-item-details">
+                                                <span class="detail-item">
+                                                    <i class="fas fa-tag"></i>
+                                                    <?php echo htmlspecialchars($asset['category']); ?>
+                                                </span>
+                                                <span class="detail-item">
+                                                    <i class="fas fa-calendar-check"></i>
+                                                    Expires in <?php echo $asset['days_until_expiry']; ?> day<?php echo $asset['days_until_expiry'] != 1 ? 's' : ''; ?>
+                                                </span>
+                                                <span class="detail-item">
+                                                    <i class="fas fa-clock"></i>
+                                                    <?php echo date('M d, Y', strtotime($asset['warranty_expiry'])); ?>
+                                                </span>
+                                                <?php if ($asset['department']): ?>
+                                                    <span class="detail-item">
+                                                        <i class="fas fa-building"></i>
+                                                        <?php echo htmlspecialchars($asset['department']); ?>
+                                                    </span>
+                                                <?php endif; ?>
+                                            </div>
+                                        </div>
+                                        <div class="alert-item-actions">
+                                            <a href="assetEdit.php?id=<?php echo $asset['id']; ?>" class="btn btn-small btn-secondary">
+                                                <i class="fas fa-edit"></i> Update
+                                            </a>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    </div>
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
+
 
         <!-- Add Asset Form -->
         <div class="form-card" id="assetForm">
@@ -1241,10 +1670,10 @@ foreach ($assets as $asset) {
                     <div class="form-group">
                         <label for="status">Status</label>
                         <select id="status" name="status">
-                            <option value="Available">Available</option>
-                            <option value="In Use">In Use</option>
-                            <option value="Maintenance">Maintenance</option>
-                            <option value="Retired">Retired</option>
+                            <option value="available">Available</option>
+                            <option value="in_use">In Use</option>
+                            <option value="maintenance">Maintenance</option>
+                            <option value="retired">Retired</option>
                         </select>
                     </div>
 
@@ -1391,9 +1820,14 @@ foreach ($assets as $asset) {
                             </tr>
                         </thead>
                         <tbody id="assetsTableBody">
-                            <?php foreach ($assets as $asset): ?>
+                            <?php foreach ($assets as $asset):
+                                // Normalize status to prevent empty values
+                                $display_status = trim($asset['status']) ?: 'Available';
+                                $status_class = strtolower(str_replace(' ', '-', $display_status));
+                                $status_data_attr = strtolower(str_replace(' ', '_', $display_status));
+                            ?>
                                 <tr data-category="<?php echo htmlspecialchars($asset['category']); ?>"
-                                    data-status="<?php echo htmlspecialchars($asset['status']); ?>"
+                                    data-status="<?php echo htmlspecialchars($status_data_attr); ?>"
                                     data-department="<?php echo htmlspecialchars($asset['department'] ?: ''); ?>"
                                     data-search="<?php echo htmlspecialchars(strtolower($asset['asset_code'] . ' ' . $asset['asset_name'] . ' ' . $asset['brand'] . ' ' . $asset['model'] . ' ' . $asset['serial_number'] . ' ' . $asset['assigned_user_name'])); ?>">
                                     <td data-label="Asset Code">
@@ -1421,8 +1855,8 @@ foreach ($assets as $asset) {
                                     </td>
                                     <td data-label="Department"><?php echo htmlspecialchars($asset['department'] ?: '-'); ?></td>
                                     <td data-label="Status">
-                                        <span class="status-badge status-<?php echo strtolower(str_replace(' ', '-', $asset['status'])); ?>">
-                                            <?php echo htmlspecialchars($asset['status']); ?>
+                                        <span class="status-badge status-<?php echo $status_class; ?>">
+                                            <?php echo htmlspecialchars($display_status); ?>
                                         </span>
                                     </td>
                                     <td data-label="Purchase Date"><?php echo $asset['purchase_date'] ? date('M j, Y', strtotime($asset['purchase_date'])) : '-'; ?></td>
@@ -1504,324 +1938,352 @@ foreach ($assets as $asset) {
         </div>
     </div>
 
-        <script>
-            // Handle sidebar toggle
-            function updateMainContainer() {
-                const mainContainer = document.getElementById('mainContainer');
-                const sidebar = document.querySelector('.sidebar');
-
-                if (sidebar && sidebar.classList.contains('collapsed')) {
-                    mainContainer.classList.add('sidebar-collapsed');
-                } else {
-                    mainContainer.classList.remove('sidebar-collapsed');
-                }
-            }
-
-            // Check on load
-            document.addEventListener('DOMContentLoaded', updateMainContainer);
-
-            // Listen for sidebar changes
-            document.addEventListener('click', function(e) {
-                if (e.target.closest('.toggle-sidebar')) {
-                    setTimeout(updateMainContainer, 50);
-                }
-            });
-
-            // Observe sidebar changes
-            const observer = new MutationObserver(updateMainContainer);
+    <script>
+        // Handle sidebar toggle
+        function updateMainContainer() {
+            const mainContainer = document.getElementById('mainContainer');
             const sidebar = document.querySelector('.sidebar');
-            if (sidebar) {
-                observer.observe(sidebar, {
-                    attributes: true,
-                    attributeFilter: ['class']
-                });
+
+            if (sidebar && sidebar.classList.contains('collapsed')) {
+                mainContainer.classList.add('sidebar-collapsed');
+            } else {
+                mainContainer.classList.remove('sidebar-collapsed');
             }
+        }
 
-            // Toggle form visibility
-            const toggleFormBtn = document.getElementById('toggleFormBtn');
-            const assetForm = document.getElementById('assetForm');
-            const cancelBtn = document.getElementById('cancelBtn');
+        // Check on load
+        document.addEventListener('DOMContentLoaded', updateMainContainer);
 
-            toggleFormBtn.addEventListener('click', function() {
-                assetForm.classList.toggle('active');
-                if (assetForm.classList.contains('active')) {
-                    this.innerHTML = '<i class="fas fa-times"></i> Close Form';
-                    assetForm.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'start'
-                    });
-                } else {
-                    this.innerHTML = '<i class="fas fa-plus"></i> Add New Asset';
-                }
-            });
-
-            cancelBtn.addEventListener('click', function() {
-                assetForm.classList.remove('active');
-                toggleFormBtn.innerHTML = '<i class="fas fa-plus"></i> Add New Asset';
-                document.querySelector('form').reset();
-            });
-
-            // Auto-generate asset code suggestion
-            const categorySelect = document.getElementById('category');
-            const assetCodeInput = document.getElementById('asset_code');
-
-            categorySelect.addEventListener('change', function() {
-                if (assetCodeInput.value === '') {
-                    const prefix = this.value.substring(0, 3).toUpperCase();
-                    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-                    assetCodeInput.value = prefix + '-' + random;
-                }
-            });
-
-            // Auto-update status when assigning user
-            const assignedToSelect = document.getElementById('assigned_to');
-            const statusSelect = document.getElementById('status');
-
-            assignedToSelect.addEventListener('change', function() {
-                if (this.value) {
-                    statusSelect.value = 'In Use';
-                } else {
-                    statusSelect.value = 'Available';
-                }
-            });
-
-            // Assignment Modal
-            const assignModal = document.getElementById('assignModal');
-            const assignButtons = document.querySelectorAll('.assign-btn');
-            const modalClose = document.querySelector('.modal-close');
-            const modalCancel = document.querySelector('.modal-cancel');
-
-            assignButtons.forEach(button => {
-                button.addEventListener('click', function() {
-                    const assetId = this.getAttribute('data-asset-id');
-                    const assetName = this.getAttribute('data-asset-name');
-                    const currentUser = this.getAttribute('data-current-user');
-
-                    document.getElementById('modal_asset_id').value = assetId;
-                    document.getElementById('modal_asset_name').value = assetName;
-                    document.getElementById('assign_to_user').value = currentUser;
-
-                    assignModal.classList.add('active');
-                    document.body.style.overflow = 'hidden';
-                });
-            });
-
-            function closeModal() {
-                assignModal.classList.remove('active');
-                document.body.style.overflow = 'auto';
+        // Listen for sidebar changes
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('.toggle-sidebar')) {
+                setTimeout(updateMainContainer, 50);
             }
+        });
 
-            modalClose.addEventListener('click', closeModal);
-            modalCancel.addEventListener('click', closeModal);
+        // Observe sidebar changes
+        const observer = new MutationObserver(updateMainContainer);
+        const sidebar = document.querySelector('.sidebar');
+        if (sidebar) {
+            observer.observe(sidebar, {
+                attributes: true,
+                attributeFilter: ['class']
+            });
+        }
 
-            window.addEventListener('click', function(event) {
-                if (event.target === assignModal) {
+        // Toggle form visibility
+        const toggleFormBtn = document.getElementById('toggleFormBtn');
+        const assetForm = document.getElementById('assetForm');
+        const cancelBtn = document.getElementById('cancelBtn');
+
+        toggleFormBtn.addEventListener('click', function() {
+            assetForm.classList.toggle('active');
+            if (assetForm.classList.contains('active')) {
+                this.innerHTML = '<i class="fas fa-times"></i> Close Form';
+                assetForm.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start'
+                });
+            } else {
+                this.innerHTML = '<i class="fas fa-plus"></i> Add New Asset';
+            }
+        });
+
+        cancelBtn.addEventListener('click', function() {
+            assetForm.classList.remove('active');
+            toggleFormBtn.innerHTML = '<i class="fas fa-plus"></i> Add New Asset';
+            document.querySelector('form').reset();
+        });
+
+        // Auto-generate asset code suggestion
+        const categorySelect = document.getElementById('category');
+        const assetCodeInput = document.getElementById('asset_code');
+
+        categorySelect.addEventListener('change', function() {
+            if (assetCodeInput.value === '') {
+                const prefix = this.value.substring(0, 3).toUpperCase();
+                const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+                assetCodeInput.value = prefix + '-' + random;
+            }
+        });
+
+        // Auto-update status when assigning user
+        const assignedToSelect = document.getElementById('assigned_to');
+        const statusSelect = document.getElementById('status');
+
+        assignedToSelect.addEventListener('change', function() {
+            if (this.value) {
+                statusSelect.value = 'In Use';
+            } else {
+                statusSelect.value = 'Available';
+            }
+        });
+
+        // Assignment Modal
+        const assignModal = document.getElementById('assignModal');
+        const assignButtons = document.querySelectorAll('.assign-btn');
+        const modalClose = document.querySelector('.modal-close');
+        const modalCancel = document.querySelector('.modal-cancel');
+
+        assignButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const assetId = this.getAttribute('data-asset-id');
+                const assetName = this.getAttribute('data-asset-name');
+                const currentUser = this.getAttribute('data-current-user');
+
+                document.getElementById('modal_asset_id').value = assetId;
+                document.getElementById('modal_asset_name').value = assetName;
+                document.getElementById('assign_to_user').value = currentUser;
+
+                assignModal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            });
+        });
+
+        function closeModal() {
+            assignModal.classList.remove('active');
+            document.body.style.overflow = 'auto';
+        }
+
+        modalClose.addEventListener('click', closeModal);
+        modalCancel.addEventListener('click', closeModal);
+
+        window.addEventListener('click', function(event) {
+            if (event.target === assignModal) {
+                closeModal();
+            }
+        });
+
+        // Close modals with Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                if (assignModal.classList.contains('active')) {
                     closeModal();
                 }
-            });
+            }
+        });
 
-            // Close modals with Escape key
-            document.addEventListener('keydown', function(e) {
-                if (e.key === 'Escape') {
-                    if (assignModal.classList.contains('active')) {
-                        closeModal();
-                    }
-                }
-            });
+        // Auto-hide success/error messages
+        setTimeout(() => {
+            const successMsg = document.querySelector('.success-message');
+            const errorMsg = document.querySelector('.error-message');
+            if (successMsg) {
+                successMsg.style.transition = 'opacity 0.5s';
+                successMsg.style.opacity = '0';
+                setTimeout(() => successMsg.style.display = 'none', 500);
+            }
+            if (errorMsg) {
+                errorMsg.style.transition = 'opacity 0.5s';
+                errorMsg.style.opacity = '0';
+                setTimeout(() => errorMsg.style.display = 'none', 500);
+            }
+        }, 5000);
 
-            // Auto-hide success/error messages
-            setTimeout(() => {
-                const successMsg = document.querySelector('.success-message');
-                const errorMsg = document.querySelector('.error-message');
-                if (successMsg) {
-                    successMsg.style.transition = 'opacity 0.5s';
-                    successMsg.style.opacity = '0';
-                    setTimeout(() => successMsg.style.display = 'none', 500);
-                }
-                if (errorMsg) {
-                    errorMsg.style.transition = 'opacity 0.5s';
-                    errorMsg.style.opacity = '0';
-                    setTimeout(() => errorMsg.style.display = 'none', 500);
-                }
-            }, 5000);
-            
-            // Search and Filter Functionality
-            (function() {
-                const searchInput = document.getElementById('searchInput');
-                const categoryFilter = document.getElementById('categoryFilter');
-                const statusFilter = document.getElementById('statusFilter');
-                const departmentFilter = document.getElementById('departmentFilter');
-                const resetFiltersBtn = document.getElementById('resetFilters');
-                const tableBody = document.getElementById('assetsTableBody');
-                const resultsCount = document.getElementById('resultsCount');
-                const activeFilters = document.getElementById('activeFilters');
-                const noResults = document.getElementById('noResults');
-                const table = document.getElementById('assetsTable');
+        // Search and Filter Functionality
+        (function() {
+            const searchInput = document.getElementById('searchInput');
+            const categoryFilter = document.getElementById('categoryFilter');
+            const statusFilter = document.getElementById('statusFilter');
+            const departmentFilter = document.getElementById('departmentFilter');
+            const resetFiltersBtn = document.getElementById('resetFilters');
+            const tableBody = document.getElementById('assetsTableBody');
+            const resultsCount = document.getElementById('resultsCount');
+            const activeFilters = document.getElementById('activeFilters');
+            const noResults = document.getElementById('noResults');
+            const table = document.getElementById('assetsTable');
 
-                const rows = Array.from(tableBody.querySelectorAll('tr'));
-                const totalAssets = rows.length;
+            const rows = Array.from(tableBody.querySelectorAll('tr'));
+            const totalAssets = rows.length;
 
-                function filterTable() {
-                    const searchTerm = searchInput.value.toLowerCase().trim();
-                    const categoryValue = categoryFilter.value;
-                    const statusValue = statusFilter.value;
-                    const departmentValue = departmentFilter.value;
+            function filterTable() {
+                const searchTerm = searchInput.value.toLowerCase().trim();
+                const categoryValue = categoryFilter.value;
+                const statusValue = statusFilter.value;
+                const departmentValue = departmentFilter.value;
 
-                    let visibleCount = 0;
-                    const activeFiltersList = [];
+                let visibleCount = 0;
+                const activeFiltersList = [];
 
-                    rows.forEach(row => {
-                        const searchData = row.getAttribute('data-search');
-                        const category = row.getAttribute('data-category');
-                        const status = row.getAttribute('data-status') ? row.getAttribute('data-status').trim() : '';
-                        const department = row.getAttribute('data-department');
+                rows.forEach(row => {
+                    const searchData = row.getAttribute('data-search');
+                    const category = row.getAttribute('data-category');
+                    const status = row.getAttribute('data-status') ? row.getAttribute('data-status').trim() : '';
+                    const department = row.getAttribute('data-department');
 
-                        const matchesSearch = searchData.includes(searchTerm);
-                        const matchesCategory = !categoryValue || category === categoryValue;
-                        const matchesStatus = !statusValue || status === statusValue;
-                        const matchesDepartment = !departmentValue || department === departmentValue;
+                    const matchesSearch = searchData.includes(searchTerm);
+                    const matchesCategory = !categoryValue || category === categoryValue;
+                    const matchesStatus = !statusValue || status === statusValue;
+                    const matchesDepartment = !departmentValue || department === departmentValue;
 
-                        if (matchesSearch && matchesCategory && matchesStatus && matchesDepartment) {
-                            row.style.display = '';
-                            visibleCount++;
-                        } else {
-                            row.style.display = 'none';
-                        }
-                    });
-
-                    resultsCount.textContent = visibleCount;
-
-                    if (visibleCount === 0) {
-                        noResults.style.display = 'block';
-                        table.style.display = 'none';
+                    if (matchesSearch && matchesCategory && matchesStatus && matchesDepartment) {
+                        row.style.display = '';
+                        visibleCount++;
                     } else {
-                        noResults.style.display = 'none';
-                        table.style.display = 'table';
+                        row.style.display = 'none';
                     }
-
-                    if (searchTerm) activeFiltersList.push(`Search: "${searchTerm}"`);
-                    if (categoryValue) activeFiltersList.push(`Category: ${categoryValue}`);
-                    if (statusValue) activeFiltersList.push(`Status: ${statusValue}`);
-                    if (departmentValue) activeFiltersList.push(`Department: ${departmentValue}`);
-
-                    if (activeFiltersList.length > 0) {
-                        activeFilters.innerHTML = '<i class="fas fa-filter"></i> Active filters: ' + activeFiltersList.join(', ');
-                    } else {
-                        activeFilters.textContent = '';
-                    }
-                }
-
-                searchInput.addEventListener('input', filterTable);
-                categoryFilter.addEventListener('change', filterTable);
-                statusFilter.addEventListener('change', filterTable);
-                departmentFilter.addEventListener('change', filterTable);
-
-                resetFiltersBtn.addEventListener('click', function() {
-                    searchInput.value = '';
-                    categoryFilter.value = '';
-                    statusFilter.value = '';
-                    departmentFilter.value = '';
-                    filterTable();
                 });
 
-                // Table Sorting
-                let currentSort = {
-                    column: null,
-                    direction: 'asc'
-                };
+                resultsCount.textContent = visibleCount;
 
-                const sortableHeaders = document.querySelectorAll('.sortable');
+                if (visibleCount === 0) {
+                    noResults.style.display = 'block';
+                    table.style.display = 'none';
+                } else {
+                    noResults.style.display = 'none';
+                    table.style.display = 'table';
+                }
 
-                sortableHeaders.forEach(header => {
-                    header.addEventListener('click', function() {
-                        const column = this.getAttribute('data-column');
+                if (searchTerm) activeFiltersList.push(`Search: "${searchTerm}"`);
+                if (categoryValue) activeFiltersList.push(`Category: ${categoryValue}`);
+                if (statusValue) activeFiltersList.push(`Status: ${statusValue}`);
+                if (departmentValue) activeFiltersList.push(`Department: ${departmentValue}`);
 
-                        if (currentSort.column === column) {
-                            currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
-                        } else {
-                            currentSort.column = column;
-                            currentSort.direction = 'asc';
-                        }
+                if (activeFiltersList.length > 0) {
+                    activeFilters.innerHTML = '<i class="fas fa-filter"></i> Active filters: ' + activeFiltersList.join(', ');
+                } else {
+                    activeFilters.textContent = '';
+                }
+            }
 
-                        sortableHeaders.forEach(h => {
-                            h.classList.remove('asc', 'desc');
-                            h.querySelector('.sort-icon').className = 'fas fa-sort sort-icon';
-                        });
+            searchInput.addEventListener('input', filterTable);
+            categoryFilter.addEventListener('change', filterTable);
+            statusFilter.addEventListener('change', filterTable);
+            departmentFilter.addEventListener('change', filterTable);
 
-                        this.classList.add(currentSort.direction);
-                        const icon = this.querySelector('.sort-icon');
-                        icon.className = currentSort.direction === 'asc' ?
-                            'fas fa-sort-up sort-icon' :
-                            'fas fa-sort-down sort-icon';
+            resetFiltersBtn.addEventListener('click', function() {
+                searchInput.value = '';
+                categoryFilter.value = '';
+                statusFilter.value = '';
+                departmentFilter.value = '';
+                filterTable();
+            });
 
-                        sortTable(column, currentSort.direction);
+            // Table Sorting
+            let currentSort = {
+                column: null,
+                direction: 'asc'
+            };
+
+            const sortableHeaders = document.querySelectorAll('.sortable');
+
+            sortableHeaders.forEach(header => {
+                header.addEventListener('click', function() {
+                    const column = this.getAttribute('data-column');
+
+                    if (currentSort.column === column) {
+                        currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        currentSort.column = column;
+                        currentSort.direction = 'asc';
+                    }
+
+                    sortableHeaders.forEach(h => {
+                        h.classList.remove('asc', 'desc');
+                        h.querySelector('.sort-icon').className = 'fas fa-sort sort-icon';
                     });
+
+                    this.classList.add(currentSort.direction);
+                    const icon = this.querySelector('.sort-icon');
+                    icon.className = currentSort.direction === 'asc' ?
+                        'fas fa-sort-up sort-icon' :
+                        'fas fa-sort-down sort-icon';
+
+                    sortTable(column, currentSort.direction);
                 });
+            });
 
-                function sortTable(column, direction) {
-                    const visibleRows = rows.filter(row => row.style.display !== 'none');
+            function sortTable(column, direction) {
+                const visibleRows = rows.filter(row => row.style.display !== 'none');
 
-                    visibleRows.sort((a, b) => {
-                        let aValue, bValue;
+                visibleRows.sort((a, b) => {
+                    let aValue, bValue;
 
-                        switch (column) {
-                            case 'asset_code':
-                                aValue = a.querySelector('td:nth-child(1)').textContent.trim();
-                                bValue = b.querySelector('td:nth-child(1)').textContent.trim();
-                                break;
-                            case 'asset_name':
-                                aValue = a.querySelector('td:nth-child(2)').textContent.trim();
-                                bValue = b.querySelector('td:nth-child(2)').textContent.trim();
-                                break;
-                            case 'category':
-                                aValue = a.getAttribute('data-category');
-                                bValue = b.getAttribute('data-category');
-                                break;
-                            case 'brand_model':
-                                aValue = a.querySelector('td:nth-child(4)').textContent.trim();
-                                bValue = b.querySelector('td:nth-child(4)').textContent.trim();
-                                break;
-                            case 'assigned_user_name':
-                                aValue = a.querySelector('td:nth-child(5)').textContent.trim().toLowerCase();
-                                bValue = b.querySelector('td:nth-child(5)').textContent.trim().toLowerCase();
-                                break;
-                            case 'department':
-                                aValue = a.getAttribute('data-department') || '';
-                                bValue = b.getAttribute('data-department') || '';
-                                break;
-                            case 'status':
-                                aValue = a.getAttribute('data-status');
-                                bValue = b.getAttribute('data-status');
-                                break;
-                            case 'purchase_date':
-                                aValue = a.querySelector('td:nth-child(8)').textContent.trim();
-                                bValue = b.querySelector('td:nth-child(8)').textContent.trim();
-                                aValue = aValue === '-' ? new Date(0) : new Date(aValue);
-                                bValue = bValue === '-' ? new Date(0) : new Date(bValue);
-                                break;
-                            default:
-                                return 0;
-                        }
-
-                        if (!aValue || aValue === '-') aValue = '';
-                        if (!bValue || bValue === '-') bValue = '';
-
-                        if (column === 'purchase_date') {
-                            return direction === 'asc' ? aValue - bValue : bValue - aValue;
-                        } else {
-                            if (aValue < bValue) return direction === 'asc' ? -1 : 1;
-                            if (aValue > bValue) return direction === 'asc' ? 1 : -1;
+                    switch (column) {
+                        case 'asset_code':
+                            aValue = a.querySelector('td:nth-child(1)').textContent.trim();
+                            bValue = b.querySelector('td:nth-child(1)').textContent.trim();
+                            break;
+                        case 'asset_name':
+                            aValue = a.querySelector('td:nth-child(2)').textContent.trim();
+                            bValue = b.querySelector('td:nth-child(2)').textContent.trim();
+                            break;
+                        case 'category':
+                            aValue = a.getAttribute('data-category');
+                            bValue = b.getAttribute('data-category');
+                            break;
+                        case 'brand_model':
+                            aValue = a.querySelector('td:nth-child(4)').textContent.trim();
+                            bValue = b.querySelector('td:nth-child(4)').textContent.trim();
+                            break;
+                        case 'assigned_user_name':
+                            aValue = a.querySelector('td:nth-child(5)').textContent.trim().toLowerCase();
+                            bValue = b.querySelector('td:nth-child(5)').textContent.trim().toLowerCase();
+                            break;
+                        case 'department':
+                            aValue = a.getAttribute('data-department') || '';
+                            bValue = b.getAttribute('data-department') || '';
+                            break;
+                        case 'status':
+                            aValue = a.getAttribute('data-status');
+                            bValue = b.getAttribute('data-status');
+                            break;
+                        case 'purchase_date':
+                            aValue = a.querySelector('td:nth-child(8)').textContent.trim();
+                            bValue = b.querySelector('td:nth-child(8)').textContent.trim();
+                            aValue = aValue === '-' ? new Date(0) : new Date(aValue);
+                            bValue = bValue === '-' ? new Date(0) : new Date(bValue);
+                            break;
+                        default:
                             return 0;
-                        }
-                    });
+                    }
 
-                    visibleRows.forEach(row => tableBody.appendChild(row));
+                    if (!aValue || aValue === '-') aValue = '';
+                    if (!bValue || bValue === '-') bValue = '';
 
-                    rows.filter(row => row.style.display === 'none').forEach(row => {
-                        tableBody.appendChild(row);
-                    });
+                    if (column === 'purchase_date') {
+                        return direction === 'asc' ? aValue - bValue : bValue - aValue;
+                    } else {
+                        if (aValue < bValue) return direction === 'asc' ? -1 : 1;
+                        if (aValue > bValue) return direction === 'asc' ? 1 : -1;
+                        return 0;
+                    }
+                });
+
+                visibleRows.forEach(row => tableBody.appendChild(row));
+
+                rows.filter(row => row.style.display === 'none').forEach(row => {
+                    tableBody.appendChild(row);
+                });
+            }
+        })();
+        // Toggle alert card collapse/expand
+        function toggleAlert(type) {
+            const content = document.getElementById(type + '-alerts');
+            const button = event.currentTarget;
+
+            content.classList.toggle('collapsed');
+            button.classList.toggle('rotated');
+        }
+
+        // Auto-collapse alerts if there are more than 5 items
+        document.addEventListener('DOMContentLoaded', function() {
+            const alertContents = document.querySelectorAll('.alert-content');
+
+            alertContents.forEach(content => {
+                const itemCount = content.querySelectorAll('.alert-item').length;
+
+                // If there are more than 5 items, start collapsed
+                if (itemCount > 5) {
+                    content.classList.add('collapsed');
+                    const cardHeader = content.previousElementSibling;
+                    const toggleBtn = cardHeader.querySelector('.toggle-alert-btn');
+                    if (toggleBtn) {
+                        toggleBtn.classList.add('rotated');
+                    }
                 }
-            })();
-        </script>
+            });
+        });
+    </script>
 </body>
+
 </html>

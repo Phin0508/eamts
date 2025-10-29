@@ -51,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_asset'])) {
     $status = $_POST['status'];
     $description = trim($_POST['description']);
     $assigned_to = !empty($_POST['assigned_to']) ? $_POST['assigned_to'] : NULL;
-    
+
     // Validate required fields
     if (empty($asset_name) || empty($asset_code) || empty($category)) {
         $error_message = "Asset Name, Asset Code, and Category are required!";
@@ -60,7 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_asset'])) {
             // Check if asset code already exists for other assets
             $check_stmt = $pdo->prepare("SELECT id FROM assets WHERE asset_code = ? AND id != ?");
             $check_stmt->execute([$asset_code, $asset_id]);
-            
+
             if ($check_stmt->rowCount() > 0) {
                 $error_message = "Asset Code already exists! Please use a unique code.";
             } else {
@@ -68,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_asset'])) {
                 $current_stmt = $pdo->prepare("SELECT * FROM assets WHERE id = ?");
                 $current_stmt->execute([$asset_id]);
                 $current_asset = $current_stmt->fetch(PDO::FETCH_ASSOC);
-                
+
                 // Update asset
                 $stmt = $pdo->prepare("UPDATE assets SET 
                     asset_name = ?, 
@@ -88,13 +88,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_asset'])) {
                     assigned_to = ?,
                     updated_at = NOW() 
                     WHERE id = ?");
-                
+
                 if ($stmt->execute([$asset_name, $asset_code, $category, $brand, $model, $serial_number, $purchase_date, $purchase_cost, $supplier, $warranty_expiry, $location, $department, $status, $description, $assigned_to, $asset_id])) {
-                    
+
                     // Log assignment change if it changed
                     if ($current_asset['assigned_to'] != $assigned_to) {
                         $action = $assigned_to ? ($current_asset['assigned_to'] ? 'reassigned' : 'assigned') : 'unassigned';
-                        
+
                         // Check if assets_history table exists, if not use asset_history
                         try {
                             $log_stmt = $pdo->prepare("INSERT INTO assets_history (asset_id, action_type, assigned_from, assigned_to, performed_by, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
@@ -105,7 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_asset'])) {
                             $log_stmt->execute([$asset_id, $action, $current_asset['assigned_to'], $assigned_to, $_SESSION['user_id']]);
                         }
                     }
-                    
+
                     $success_message = "Asset updated successfully!";
                     // Redirect after short delay
                     header("refresh:2;url=asset.php?updated=1");
@@ -134,7 +134,7 @@ try {
     $stmt = $pdo->prepare($query);
     $stmt->execute([$asset_id]);
     $asset = $stmt->fetch(PDO::FETCH_ASSOC);
-    
+
     if (!$asset) {
         header("Location: asset.php?error=notfound");
         exit();
@@ -213,6 +213,7 @@ $status_value = strtolower(str_replace(' ', '_', $asset['status']));
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -231,7 +232,7 @@ $status_value = strtolower(str_replace(' ', '_', $asset['status']));
             padding: 20px;
             border-radius: 8px;
             margin-bottom: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -277,7 +278,7 @@ $status_value = strtolower(str_replace(' ', '_', $asset['status']));
             background: #fff;
             padding: 25px;
             border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
         .edit-form-card h2 {
@@ -298,7 +299,7 @@ $status_value = strtolower(str_replace(' ', '_', $asset['status']));
             background: #fff;
             padding: 20px;
             border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
         .info-card h3 {
@@ -339,7 +340,7 @@ $status_value = strtolower(str_replace(' ', '_', $asset['status']));
             background: #fff;
             padding: 20px;
             border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
         .history-card h3 {
@@ -390,8 +391,9 @@ $status_value = strtolower(str_replace(' ', '_', $asset['status']));
         }
     </style>
 </head>
+
 <body>
-    
+
     <!-- Include Sidebar -->
     <?php include("../auth/inc/sidebar.php"); ?>
 
@@ -425,14 +427,14 @@ $status_value = strtolower(str_replace(' ', '_', $asset['status']));
                         <div class="form-grid">
                             <div class="form-group">
                                 <label for="asset_name" class="required">Asset Name</label>
-                                <input type="text" id="asset_name" name="asset_name" 
-                                       value="<?php echo htmlspecialchars($asset['asset_name']); ?>" required>
+                                <input type="text" id="asset_name" name="asset_name"
+                                    value="<?php echo htmlspecialchars($asset['asset_name']); ?>" required>
                             </div>
 
                             <div class="form-group">
                                 <label for="asset_code" class="required">Asset Code</label>
-                                <input type="text" id="asset_code" name="asset_code" 
-                                       value="<?php echo htmlspecialchars($asset['asset_code']); ?>" required>
+                                <input type="text" id="asset_code" name="asset_code"
+                                    value="<?php echo htmlspecialchars($asset['asset_code']); ?>" required>
                             </div>
 
                             <div class="form-group">
@@ -451,51 +453,51 @@ $status_value = strtolower(str_replace(' ', '_', $asset['status']));
 
                             <div class="form-group">
                                 <label for="brand">Brand</label>
-                                <input type="text" id="brand" name="brand" 
-                                       value="<?php echo htmlspecialchars($asset['brand']); ?>">
+                                <input type="text" id="brand" name="brand"
+                                    value="<?php echo htmlspecialchars($asset['brand']); ?>">
                             </div>
 
                             <div class="form-group">
                                 <label for="model">Model</label>
-                                <input type="text" id="model" name="model" 
-                                       value="<?php echo htmlspecialchars($asset['model']); ?>">
+                                <input type="text" id="model" name="model"
+                                    value="<?php echo htmlspecialchars($asset['model']); ?>">
                             </div>
 
                             <div class="form-group">
                                 <label for="serial_number">Serial Number</label>
-                                <input type="text" id="serial_number" name="serial_number" 
-                                       value="<?php echo htmlspecialchars($asset['serial_number']); ?>">
+                                <input type="text" id="serial_number" name="serial_number"
+                                    value="<?php echo htmlspecialchars($asset['serial_number']); ?>">
                             </div>
 
                             <div class="form-group">
                                 <label for="purchase_date">Purchase Date</label>
-                                <input type="date" id="purchase_date" name="purchase_date" 
-                                       value="<?php echo $asset['purchase_date']; ?>">
+                                <input type="date" id="purchase_date" name="purchase_date"
+                                    value="<?php echo $asset['purchase_date']; ?>">
                             </div>
 
                             <div class="form-group">
                                 <label for="purchase_cost">Purchase Cost ($)</label>
-                                <input type="number" id="purchase_cost" name="purchase_cost" 
-                                       step="0.01" min="0" 
-                                       value="<?php echo $asset['purchase_cost']; ?>">
+                                <input type="number" id="purchase_cost" name="purchase_cost"
+                                    step="0.01" min="0"
+                                    value="<?php echo $asset['purchase_cost']; ?>">
                             </div>
 
                             <div class="form-group">
                                 <label for="supplier">Supplier</label>
-                                <input type="text" id="supplier" name="supplier" 
-                                       value="<?php echo htmlspecialchars($asset['supplier']); ?>">
+                                <input type="text" id="supplier" name="supplier"
+                                    value="<?php echo htmlspecialchars($asset['supplier']); ?>">
                             </div>
 
                             <div class="form-group">
                                 <label for="warranty_expiry">Warranty Expiry</label>
-                                <input type="date" id="warranty_expiry" name="warranty_expiry" 
-                                       value="<?php echo $asset['warranty_expiry']; ?>">
+                                <input type="date" id="warranty_expiry" name="warranty_expiry"
+                                    value="<?php echo $asset['warranty_expiry']; ?>">
                             </div>
 
                             <div class="form-group">
                                 <label for="location">Location</label>
-                                <input type="text" id="location" name="location" 
-                                       value="<?php echo htmlspecialchars($asset['location']); ?>">
+                                <input type="text" id="location" name="location"
+                                    value="<?php echo htmlspecialchars($asset['location']); ?>">
                             </div>
 
                             <div class="form-group">
@@ -504,7 +506,7 @@ $status_value = strtolower(str_replace(' ', '_', $asset['status']));
                                     <option value="">Select Department</option>
                                     <?php foreach ($departments as $dept): ?>
                                         <option value="<?php echo htmlspecialchars($dept); ?>"
-                                                <?php echo $asset['department'] === $dept ? 'selected' : ''; ?>>
+                                            <?php echo $asset['department'] === $dept ? 'selected' : ''; ?>>
                                             <?php echo htmlspecialchars($dept); ?>
                                         </option>
                                     <?php endforeach; ?>
@@ -517,8 +519,8 @@ $status_value = strtolower(str_replace(' ', '_', $asset['status']));
                                     <option value="">-- Leave Unassigned --</option>
                                     <?php foreach ($users as $user): ?>
                                         <option value="<?php echo $user['user_id']; ?>"
-                                                <?php echo $asset['assigned_to'] == $user['user_id'] ? 'selected' : ''; ?>>
-                                            <?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?> 
+                                            <?php echo $asset['assigned_to'] == $user['user_id'] ? 'selected' : ''; ?>>
+                                            <?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?>
                                             (<?php echo htmlspecialchars($user['username']); ?>)
                                             <?php if ($user['department']): ?>
                                                 - <?php echo htmlspecialchars($user['department']); ?>
@@ -537,7 +539,6 @@ $status_value = strtolower(str_replace(' ', '_', $asset['status']));
                                     <option value="retired" <?php echo $status_value === 'retired' ? 'selected' : ''; ?>>Retired</option>
                                 </select>
                             </div>
-
                             <div class="form-group" style="grid-column: 1 / -1;">
                                 <label for="description">Description</label>
                                 <textarea id="description" name="description" rows="4"><?php echo htmlspecialchars($asset['description']); ?></textarea>
@@ -584,10 +585,10 @@ $status_value = strtolower(str_replace(' ', '_', $asset['status']));
                             <div class="info-value"><?php echo date('M d, Y', strtotime($asset['created_at'])); ?></div>
                         </div>
                         <?php if ($asset['updated_at']): ?>
-                        <div class="info-item">
-                            <div class="info-label">Last Updated</div>
-                            <div class="info-value"><?php echo date('M d, Y H:i', strtotime($asset['updated_at'])); ?></div>
-                        </div>
+                            <div class="info-item">
+                                <div class="info-label">Last Updated</div>
+                                <div class="info-value"><?php echo date('M d, Y H:i', strtotime($asset['updated_at'])); ?></div>
+                            </div>
                         <?php endif; ?>
                     </div>
 
@@ -598,14 +599,14 @@ $status_value = strtolower(str_replace(' ', '_', $asset['status']));
                             <?php foreach ($history as $record): ?>
                                 <div class="history-item">
                                     <div class="history-action">
-                                        <?php 
+                                        <?php
                                         $action_icon = [
                                             'assigned' => '✓',
                                             'unassigned' => '✗',
                                             'reassigned' => '↔'
                                         ];
                                         echo $action_icon[$record['action_type']] ?? '•';
-                                        echo ' ' . ucfirst($record['action_type']); 
+                                        echo ' ' . ucfirst($record['action_type']);
                                         ?>
                                     </div>
                                     <div class="history-details">
@@ -638,7 +639,7 @@ $status_value = strtolower(str_replace(' ', '_', $asset['status']));
         // Auto-update status when assigning user
         const assignedToSelect = document.getElementById('assigned_to');
         const statusSelect = document.getElementById('status');
-        
+
         assignedToSelect.addEventListener('change', function() {
             if (this.value) {
                 // If assigning to someone and current status is available
@@ -667,4 +668,5 @@ $status_value = strtolower(str_replace(' ', '_', $asset['status']));
         });
     </script>
 </body>
+
 </html>

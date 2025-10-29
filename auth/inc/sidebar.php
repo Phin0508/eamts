@@ -58,7 +58,7 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
             <li class="nav-item">
                 <a href="../public/asset.php" class="nav-link">
                     <i class="nav-icon"></i>
-                    <span class="nav-text">My Assets</span>
+                    <span class="nav-text">Assets</span>
                 </a>
             </li>
             <li class="nav-item">
