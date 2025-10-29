@@ -42,6 +42,7 @@ if (isset($_SESSION['error_message'])) {
     unset($_SESSION['error_message']);
 }
 
+// handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_asset'])) {
     $asset_name = trim($_POST['asset_name']);
     $asset_code = trim($_POST['asset_code']);
