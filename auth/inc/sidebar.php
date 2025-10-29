@@ -104,6 +104,7 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
                         <span class="nav-text">Departments</span>
                     </a>
                 </li>
+                
                 <li class="nav-item">
                     <a href="../admin/settings.php" class="nav-link">
                         <i class="nav-icon"></i>
@@ -111,7 +112,12 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
                     </a>
                 </li>
             <?php endif; ?>
-
+            <li class="nav-item">
+                    <a href="../public/report.php" class="nav-link">
+                        <i class="nav-icon"></i>
+                        <span class="nav-text">Reports</span>
+                    </a>
+                </li>
             <li class="nav-divider"></li>
             <li class="nav-item">
                 <a href="../public/adminProfile.php" class="nav-link">

@@ -40,33 +40,34 @@ class EmailHelper {
             error_log("Email configuration error: " . $e->getMessage());
         }
     }
+    
     public function sendNewUserWelcomeEmail($user_data) {
-    $subject = "Welcome to " . SYSTEM_NAME . " - Set Your Password";
-    
-    // Build reset link
-    $reset_link = SYSTEM_URL . "/public/reset_password.php?token=" . $user_data['reset_token'];
-    
-    // Prepare variables for template
-    $name = $user_data['first_name'] . ' ' . $user_data['last_name'];
-    $username = $user_data['username'];
-    $email = $user_data['email'];
-    $role = $user_data['role'];
-    $department = $user_data['department'];
-    $temporary_password = $user_data['temporary_password']; // Optional: remove if you don't want to show it
-    
-    // Load template
-    $body = $this->getTemplate('welcome', [
-        'name' => $name,
-        'username' => $username,
-        'email' => $email,
-        'role' => $role,
-        'department' => $department,
-        'temporary_password' => $temporary_password,
-        'reset_link' => $reset_link
-    ]);
-    
-    return $this->sendEmail($user_data['email'], $subject, $body);
-}
+        $subject = "Welcome to " . SYSTEM_NAME . " - Set Your Password";
+        
+        // Build reset link
+        $reset_link = SYSTEM_URL . "/public/reset_password.php?token=" . $user_data['reset_token'];
+        
+        // Prepare variables for template
+        $name = $user_data['first_name'] . ' ' . $user_data['last_name'];
+        $username = $user_data['username'];
+        $email = $user_data['email'];
+        $role = $user_data['role'];
+        $department = $user_data['department'];
+        $temporary_password = $user_data['temporary_password']; // Optional: remove if you don't want to show it
+        
+        // Load template
+        $body = $this->getTemplate('welcome', [
+            'name' => $name,
+            'username' => $username,
+            'email' => $email,
+            'role' => $role,
+            'department' => $department,
+            'temporary_password' => $temporary_password,
+            'reset_link' => $reset_link
+        ]);
+        
+        return $this->sendEmail($user_data['email'], $subject, $body);
+    }
 
     
     /**
@@ -123,7 +124,7 @@ class EmailHelper {
      */
     public function sendPasswordResetEmail($email, $reset_token, $user_name) {
         $subject = "Password Reset Request - " . SYSTEM_NAME;
-        $reset_link = SYSTEM_URL . "../public/reset_password.php?token=" . $reset_token;
+        $reset_link = SYSTEM_URL . "/public/reset_password.php?token=" . $reset_token;
         
         $body = $this->getTemplate('password_reset', [
             'name' => $user_name,
@@ -135,22 +136,378 @@ class EmailHelper {
     }
     
     /**
-     * Send asset assignment notification
+     * Send asset assignment notification (Updated signature to accept single array parameter)
      */
-    public function sendAssetAssignmentEmail($user_email, $user_name, $asset_data) {
-        $subject = "New Asset Assigned - " . $asset_data['asset_name'];
-        $body = $this->getTemplate('asset_assignment', [
-            'user_name' => $user_name,
-            'asset_name' => $asset_data['asset_name'],
-            'asset_code' => $asset_data['asset_code'],
-            'category' => $asset_data['category'],
-            'brand' => $asset_data['brand'] ?? 'N/A',
-            'model' => $asset_data['model'] ?? 'N/A',
-            'assigned_date' => date('Y-m-d H:i:s'),
-            'view_url' => SYSTEM_URL . '/public/asset.php'
-        ]);
+    public function sendAssetAssignmentEmail($assignment_data) {
+        // Extract data
+        $user_name = $assignment_data['user_name'];
+        $user_email = $assignment_data['user_email'];
+        $asset_name = $assignment_data['asset_name'];
+        $asset_code = $assignment_data['asset_code'];
+        $asset_category = $assignment_data['asset_category'];
+        $assigned_by = $assignment_data['assigned_by'];
+        $assigned_date = date('F j, Y');
+        $brand_model = $assignment_data['brand_model'] ?? '-';
+        $serial_number = $assignment_data['serial_number'] ?? '-';
+        $location = $assignment_data['location'] ?? '-';
         
-        return $this->sendEmail($user_email, $subject, $body);
+        $subject = "Asset Assigned to You - " . $asset_code;
+        
+        $body = "
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset='UTF-8'>
+            <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+            <style>
+                body {
+                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                    line-height: 1.6;
+                    color: #333;
+                    margin: 0;
+                    padding: 0;
+                    background-color: #f4f4f4;
+                }
+                .email-container {
+                    max-width: 600px;
+                    margin: 20px auto;
+                    background: white;
+                    border-radius: 12px;
+                    overflow: hidden;
+                    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                }
+                .header {
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    padding: 30px;
+                    text-align: center;
+                }
+                .header h1 {
+                    margin: 0;
+                    font-size: 28px;
+                    font-weight: 700;
+                }
+                .header p {
+                    margin: 10px 0 0 0;
+                    font-size: 16px;
+                    opacity: 0.9;
+                }
+                .content {
+                    padding: 30px;
+                }
+                .greeting {
+                    font-size: 18px;
+                    color: #2c3e50;
+                    margin-bottom: 20px;
+                }
+                .message {
+                    background: #f8f9fa;
+                    border-left: 4px solid #667eea;
+                    padding: 20px;
+                    margin: 20px 0;
+                    border-radius: 6px;
+                }
+                .asset-details {
+                    background: white;
+                    border: 2px solid #e9ecef;
+                    border-radius: 8px;
+                    padding: 20px;
+                    margin: 20px 0;
+                }
+                .asset-details h3 {
+                    color: #667eea;
+                    margin-top: 0;
+                    margin-bottom: 15px;
+                    font-size: 18px;
+                }
+                .detail-row {
+                    display: flex;
+                    padding: 10px 0;
+                    border-bottom: 1px solid #e9ecef;
+                }
+                .detail-row:last-child {
+                    border-bottom: none;
+                }
+                .detail-label {
+                    font-weight: 600;
+                    color: #6c757d;
+                    width: 140px;
+                    flex-shrink: 0;
+                }
+                .detail-value {
+                    color: #2c3e50;
+                }
+                .info-box {
+                    background: #e7f3ff;
+                    border-left: 4px solid #2196F3;
+                    padding: 15px;
+                    margin: 20px 0;
+                    border-radius: 6px;
+                }
+                .info-box h4 {
+                    color: #1976D2;
+                    margin-top: 0;
+                    margin-bottom: 10px;
+                    font-size: 16px;
+                }
+                .info-box ul {
+                    margin: 10px 0;
+                    padding-left: 20px;
+                }
+                .info-box li {
+                    color: #495057;
+                    margin: 5px 0;
+                }
+                .cta-button {
+                    display: inline-block;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    padding: 14px 30px;
+                    text-decoration: none;
+                    border-radius: 8px;
+                    font-weight: 600;
+                    margin: 20px 0;
+                    text-align: center;
+                }
+                .footer {
+                    background: #f8f9fa;
+                    padding: 20px 30px;
+                    text-align: center;
+                    color: #6c757d;
+                    font-size: 14px;
+                    border-top: 1px solid #e9ecef;
+                }
+                .footer p {
+                    margin: 5px 0;
+                }
+            </style>
+        </head>
+        <body>
+            <div class='email-container'>
+                <div class='header'>
+                    <h1>📦 Asset Assignment</h1>
+                    <p>" . SYSTEM_NAME . "</p>
+                </div>
+                
+                <div class='content'>
+                    <p class='greeting'>Hello <strong>$user_name</strong>,</p>
+                    
+                    <div class='message'>
+                        <p style='margin: 0; font-size: 16px;'>
+                            An asset has been assigned to you by <strong>$assigned_by</strong> on <strong>$assigned_date</strong>.
+                        </p>
+                    </div>
+                    
+                    <div class='asset-details'>
+                        <h3>📋 Asset Details</h3>
+                        <div class='detail-row'>
+                            <span class='detail-label'>Asset Name:</span>
+                            <span class='detail-value'><strong>$asset_name</strong></span>
+                        </div>
+                        <div class='detail-row'>
+                            <span class='detail-label'>Asset Code:</span>
+                            <span class='detail-value'><strong>$asset_code</strong></span>
+                        </div>
+                        <div class='detail-row'>
+                            <span class='detail-label'>Category:</span>
+                            <span class='detail-value'>$asset_category</span>
+                        </div>
+                        <div class='detail-row'>
+                            <span class='detail-label'>Brand/Model:</span>
+                            <span class='detail-value'>$brand_model</span>
+                        </div>
+                        <div class='detail-row'>
+                            <span class='detail-label'>Serial Number:</span>
+                            <span class='detail-value'>$serial_number</span>
+                        </div>
+                        <div class='detail-row'>
+                            <span class='detail-label'>Location:</span>
+                            <span class='detail-value'>$location</span>
+                        </div>
+                    </div>
+                    
+                    <div class='info-box'>
+                        <h4>📌 Important Reminders:</h4>
+                        <ul>
+                            <li>You are now responsible for this asset</li>
+                            <li>Please inspect the asset and report any issues immediately</li>
+                            <li>Keep the asset in good condition and follow company policies</li>
+                            <li>Report any damage, loss, or maintenance needs promptly</li>
+                            <li>Return the asset when requested or when leaving the organization</li>
+                        </ul>
+                    </div>
+                    
+                    <center>
+                        <a href='" . SYSTEM_URL . "/auth/login.php?redirect=" . urlencode("/users/userAsset.php") . "' class='cta-button'>
+                            Login to View Your Assets
+                        </a>
+                    </center>
+                    
+                    <p style='color: #6c757d; font-size: 14px; margin-top: 20px;'>
+                        If you have any questions about this assignment, please contact your supervisor or the IT department.
+                    </p>
+                </div>
+                
+                <div class='footer'>
+                    <p><strong>" . SYSTEM_NAME . "</strong></p>
+                    <p>This is an automated notification. Please do not reply to this email.</p>
+                    <p style='margin-top: 10px;'>
+                        <a href='" . SYSTEM_URL . "' style='color: #667eea; text-decoration: none;'>Access Dashboard</a>
+                    </p>
+                </div>
+            </div>
+        </body>
+        </html>
+        ";
+        
+        $altBody = "Hello $user_name,\n\n" .
+                  "An asset has been assigned to you by $assigned_by on $assigned_date.\n\n" .
+                  "Asset Details:\n" .
+                  "- Asset Name: $asset_name\n" .
+                  "- Asset Code: $asset_code\n" .
+                  "- Category: $asset_category\n" .
+                  "- Brand/Model: $brand_model\n" .
+                  "- Serial Number: $serial_number\n" .
+                  "- Location: $location\n\n" .
+                  "Important Reminders:\n" .
+                  "- You are now responsible for this asset\n" .
+                  "- Please inspect the asset and report any issues immediately\n" .
+                  "- Keep the asset in good condition and follow company policies\n" .
+                  "- Report any damage, loss, or maintenance needs promptly\n" .
+                  "- Return the asset when requested or when leaving the organization\n\n" .
+                  "Login to view asset details: " . SYSTEM_URL . "/auth/login.php\n\n" .
+                  SYSTEM_NAME . "\n" .
+                  "This is an automated notification. Please do not reply to this email.";
+        
+        return $this->sendEmail($user_email, $subject, $body, $altBody);
+    }
+    
+    /**
+     * Send asset unassignment notification (NEW METHOD)
+     */
+    public function sendAssetUnassignmentEmail($unassignment_data) {
+        $user_name = $unassignment_data['user_name'];
+        $user_email = $unassignment_data['user_email'];
+        $asset_name = $unassignment_data['asset_name'];
+        $asset_code = $unassignment_data['asset_code'];
+        $unassigned_by = $unassignment_data['unassigned_by'];
+        $unassigned_date = date('F j, Y');
+        
+        $subject = "Asset Unassigned - " . $asset_code;
+        
+        $body = "
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset='UTF-8'>
+            <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+            <style>
+                body {
+                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                    line-height: 1.6;
+                    color: #333;
+                    margin: 0;
+                    padding: 0;
+                    background-color: #f4f4f4;
+                }
+                .email-container {
+                    max-width: 600px;
+                    margin: 20px auto;
+                    background: white;
+                    border-radius: 12px;
+                    overflow: hidden;
+                    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                }
+                .header {
+                    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+                    color: white;
+                    padding: 30px;
+                    text-align: center;
+                }
+                .header h1 {
+                    margin: 0;
+                    font-size: 28px;
+                    font-weight: 700;
+                }
+                .header p {
+                    margin: 10px 0 0 0;
+                    font-size: 16px;
+                    opacity: 0.9;
+                }
+                .content {
+                    padding: 30px;
+                }
+                .greeting {
+                    font-size: 18px;
+                    color: #2c3e50;
+                    margin-bottom: 20px;
+                }
+                .message {
+                    background: #fff3cd;
+                    border-left: 4px solid #f59e0b;
+                    padding: 20px;
+                    margin: 20px 0;
+                    border-radius: 6px;
+                }
+                .asset-info {
+                    background: #f8f9fa;
+                    padding: 15px;
+                    border-radius: 6px;
+                    margin: 20px 0;
+                }
+                .footer {
+                    background: #f8f9fa;
+                    padding: 20px 30px;
+                    text-align: center;
+                    color: #6c757d;
+                    font-size: 14px;
+                    border-top: 1px solid #e9ecef;
+                }
+            </style>
+        </head>
+        <body>
+            <div class='email-container'>
+                <div class='header'>
+                    <h1>📤 Asset Unassigned</h1>
+                    <p>" . SYSTEM_NAME . "</p>
+                </div>
+                
+                <div class='content'>
+                    <p class='greeting'>Hello <strong>$user_name</strong>,</p>
+                    
+                    <div class='message'>
+                        <p style='margin: 0; font-size: 16px;'>
+                            The following asset has been unassigned from you by <strong>$unassigned_by</strong> on <strong>$unassigned_date</strong>.
+                        </p>
+                    </div>
+                    
+                    <div class='asset-info'>
+                        <p style='margin: 5px 0;'><strong>Asset Name:</strong> $asset_name</p>
+                        <p style='margin: 5px 0;'><strong>Asset Code:</strong> $asset_code</p>
+                    </div>
+                    
+                    <p style='color: #6c757d; font-size: 14px;'>
+                        You are no longer responsible for this asset. If you have any questions, please contact your supervisor.
+                    </p>
+                </div>
+                
+                <div class='footer'>
+                    <p><strong>" . SYSTEM_NAME . "</strong></p>
+                    <p>This is an automated notification. Please do not reply to this email.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        ";
+        
+        $altBody = "Hello $user_name,\n\n" .
+                  "The following asset has been unassigned from you by $unassigned_by on $unassigned_date.\n\n" .
+                  "Asset Name: $asset_name\n" .
+                  "Asset Code: $asset_code\n\n" .
+                  "You are no longer responsible for this asset.\n\n" .
+                  SYSTEM_NAME;
+        
+        return $this->sendEmail($user_email, $subject, $body, $altBody);
     }
     
     /**

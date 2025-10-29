@@ -1,8 +1,8 @@
 <?php
 session_start();
 
-// Check if user is logged in and has admin/manager role
-if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['admin', 'manager'])) {
+// Check if user is logged in and has admin role
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: login.php");
     exit();
 }
@@ -13,57 +13,48 @@ include("../auth/config/database.php");
 $success_message = '';
 $error_message = '';
 
-// Handle user status updates (activate/deactivate)
+// Handle user restoration
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
-    if ($_POST['action'] === 'toggle_status' && isset($_POST['user_id'])) {
+    if ($_POST['action'] === 'restore_user' && isset($_POST['user_id'])) {
         try {
             $user_id = $_POST['user_id'];
-            $new_status = $_POST['new_status'];
             
-            $stmt = $pdo->prepare("UPDATE users SET is_active = ?, updated_at = NOW() WHERE user_id = ?");
-            if ($stmt->execute([$new_status, $user_id])) {
-                $success_message = "User status updated successfully";
+            // Get original email and username
+            $check_stmt = $pdo->prepare("SELECT email, username FROM users WHERE user_id = ?");
+            $check_stmt->execute([$user_id]);
+            $user = $check_stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($user) {
+                // Remove _DELETED_ suffix from email and username
+                $original_email = preg_replace('/_DELETED_.*$/', '', $user['email']);
+                $original_username = preg_replace('/_DELETED_.*$/', '', $user['username']);
+                
+                $stmt = $pdo->prepare("
+                    UPDATE users 
+                    SET is_active = 1, 
+                        is_deleted = 0,
+                        email = ?,
+                        username = ?,
+                        updated_at = NOW() 
+                    WHERE user_id = ?
+                ");
+                if ($stmt->execute([$original_email, $original_username, $user_id])) {
+                    $success_message = "User restored successfully";
+                }
             }
         } catch (PDOException $e) {
-            $error_message = "Error updating user status: " . $e->getMessage();
+            $error_message = "Error restoring user: " . $e->getMessage();
         }
     }
-    
-    if ($_POST['action'] === 'delete_user' && isset($_POST['user_id']) && $_SESSION['role'] === 'admin') {
-    try {
-        $user_id = $_POST['user_id'];
-        
-        // Prevent self-deletion
-        if ($user_id != $_SESSION['user_id']) {
-            // Soft delete: Set is_active to 0, is_deleted to 1, and mark email as deleted
-            $stmt = $pdo->prepare("
-                UPDATE users 
-                SET is_active = 0, 
-                    is_deleted = 1,
-                    email = CONCAT(email, '_DELETED_', NOW()),
-                    username = CONCAT(username, '_DELETED_', user_id),
-                    updated_at = NOW() 
-                WHERE user_id = ?
-            ");
-            if ($stmt->execute([$user_id])) {
-                $success_message = "User marked as deleted successfully";
-            }
-        } else {
-            $error_message = "You cannot delete your own account";
-        }
-    } catch (PDOException $e) {
-        $error_message = "Error deleting user: " . $e->getMessage();
-    }
-}
 }
 
 // Get filter parameters
 $search = $_GET['search'] ?? '';
 $department_filter = $_GET['department'] ?? '';
 $role_filter = $_GET['role'] ?? '';
-$status_filter = $_GET['status'] ?? '';
+$status_filter = $_GET['status'] ?? ''; // all, active, inactive, deleted
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-$per_page = 10;
+$per_page = 15;
 $offset = ($page - 1) * $per_page;
 
 // Build query
@@ -86,11 +77,14 @@ if (!empty($role_filter)) {
     $params[] = $role_filter;
 }
 
-if ($status_filter !== '') {
-    $where_conditions[] = "is_active = ?";
-    $params[] = $status_filter;
+if ($status_filter === 'active') {
+    $where_conditions[] = "is_active = 1 AND (is_deleted IS NULL OR is_deleted = 0)";
+} elseif ($status_filter === 'inactive') {
+    $where_conditions[] = "is_active = 0 AND (is_deleted IS NULL OR is_deleted = 0)";
+} elseif ($status_filter === 'deleted') {
+    $where_conditions[] = "is_deleted = 1";
 }
-$where_conditions[] = "(is_deleted IS NULL OR is_deleted = 0)";
+
 $where_clause = implode(" AND ", $where_conditions);
 
 // Get total count
@@ -101,25 +95,29 @@ $total_pages = ceil($total_users / $per_page);
 
 // Get users with pagination
 $sql = "SELECT user_id, first_name, last_name, email, username, phone, department, role, 
-        employee_id, is_active, is_verified, created_at, last_login 
+        employee_id, is_active, is_deleted, is_verified, created_at, updated_at, last_login 
         FROM users 
         WHERE $where_clause 
-        ORDER BY created_at DESC 
+        ORDER BY 
+            CASE WHEN is_deleted = 1 THEN 1 ELSE 0 END,
+            CASE WHEN is_active = 0 THEN 1 ELSE 0 END,
+            created_at DESC 
         LIMIT $per_page OFFSET $offset";
 
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Get statistics
+// Get comprehensive statistics
 $stats_stmt = $pdo->query("
     SELECT 
         COUNT(*) as total,
-        SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) as active,
-        SUM(CASE WHEN is_active = 0 THEN 1 ELSE 0 END) as inactive,
-        SUM(CASE WHEN role = 'admin' THEN 1 ELSE 0 END) as admins,
-        SUM(CASE WHEN role = 'manager' THEN 1 ELSE 0 END) as managers,
-        SUM(CASE WHEN role = 'employee' THEN 1 ELSE 0 END) as employees
+        SUM(CASE WHEN is_active = 1 AND (is_deleted IS NULL OR is_deleted = 0) THEN 1 ELSE 0 END) as active,
+        SUM(CASE WHEN is_active = 0 AND (is_deleted IS NULL OR is_deleted = 0) THEN 1 ELSE 0 END) as inactive,
+        SUM(CASE WHEN is_deleted = 1 THEN 1 ELSE 0 END) as deleted,
+        SUM(CASE WHEN role = 'admin' AND (is_deleted IS NULL OR is_deleted = 0) THEN 1 ELSE 0 END) as admins,
+        SUM(CASE WHEN role = 'manager' AND (is_deleted IS NULL OR is_deleted = 0) THEN 1 ELSE 0 END) as managers,
+        SUM(CASE WHEN role = 'employee' AND (is_deleted IS NULL OR is_deleted = 0) THEN 1 ELSE 0 END) as employees
     FROM users
 ");
 $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
@@ -130,7 +128,7 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>User Management - E-Asset Management System</title>
+    <title>User History - E-Asset Management System</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -147,7 +145,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             min-height: 100vh;
         }
 
-        /* Main Container */
         .container {
             margin-left: 260px;
             padding: 30px;
@@ -159,7 +156,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             margin-left: 80px;
         }
 
-        /* Header */
         .header {
             background: white;
             border-radius: 16px;
@@ -173,11 +169,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             justify-content: space-between;
             align-items: center;
             margin-bottom: 20px;
-        }
-
-        .header-title {
-            display: flex;
-            flex-direction: column;
         }
 
         .header-title h1 {
@@ -204,7 +195,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             gap: 10px;
         }
 
-        /* Messages */
         .success-message, .error-message {
             padding: 16px 20px;
             border-radius: 12px;
@@ -239,10 +229,9 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             }
         }
 
-        /* Stats Grid */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
             gap: 20px;
             margin-bottom: 30px;
         }
@@ -250,7 +239,7 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
         .stat-card {
             background: white;
             border-radius: 16px;
-            padding: 28px;
+            padding: 24px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
             transition: all 0.3s;
             border-left: 4px solid #7c3aed;
@@ -269,20 +258,20 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
 
         .stat-number.total { color: #7c3aed; }
         .stat-number.active { color: #10b981; }
-        .stat-number.inactive { color: #ef4444; }
+        .stat-number.inactive { color: #f59e0b; }
+        .stat-number.deleted { color: #ef4444; }
         .stat-number.admins { color: #3b82f6; }
         .stat-number.managers { color: #f59e0b; }
         .stat-number.employees { color: #8b5cf6; }
 
         .stat-label {
             color: #718096;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
 
-        /* Filter Section */
         .filter-section {
             background: white;
             border-radius: 16px;
@@ -344,7 +333,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.1);
         }
 
-        /* Buttons */
         .btn {
             padding: 10px 18px;
             border: none;
@@ -381,34 +369,11 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
         }
 
-        .btn-danger {
-            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-            color: white;
-            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
-        }
-
-        .btn-danger:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
-        }
-
-        .btn-warning {
-            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-            color: white;
-            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
-        }
-
-        .btn-warning:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
-        }
-
         .btn-sm {
             padding: 8px 14px;
             font-size: 12px;
         }
 
-        /* Section */
         .section {
             background: white;
             border-radius: 16px;
@@ -436,7 +401,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             color: #7c3aed;
         }
 
-        /* Table */
         .table-container {
             overflow-x: auto;
         }
@@ -470,13 +434,20 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             background: #fafbfc;
         }
 
+        .table tbody tr.deleted-row {
+            background: #fff5f5;
+        }
+
+        .table tbody tr.deleted-row:hover {
+            background: #fed7d7;
+        }
+
         .table tbody td {
             padding: 20px 16px;
             font-size: 14px;
             color: #2d3748;
         }
 
-        /* User Info */
         .user-info {
             display: flex;
             align-items: center;
@@ -497,6 +468,11 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             flex-shrink: 0;
         }
 
+        .user-avatar.deleted {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            opacity: 0.7;
+        }
+
         .user-details h4 {
             font-size: 15px;
             font-weight: 600;
@@ -509,7 +485,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             color: #718096;
         }
 
-        /* Badge */
         .badge {
             display: inline-block;
             padding: 6px 12px;
@@ -526,6 +501,11 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
         }
 
         .badge-inactive {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            color: #92400e;
+        }
+
+        .badge-deleted {
             background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
             color: #991b1b;
         }
@@ -561,7 +541,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             flex-wrap: wrap;
         }
 
-        /* Pagination */
         .pagination {
             display: flex;
             justify-content: center;
@@ -594,7 +573,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             border-color: #7c3aed;
         }
 
-        /* Empty State */
         .empty-state {
             text-align: center;
             padding: 60px 20px;
@@ -616,7 +594,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             font-size: 15px;
         }
 
-        /* Modal */
         .modal {
             display: none;
             position: fixed;
@@ -675,7 +652,7 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
         }
 
         .modal-header h3 i {
-            color: #ef4444;
+            color: #10b981;
         }
 
         .modal-header p {
@@ -683,14 +660,14 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             font-size: 15px;
         }
 
-        .modal-warning {
-            color: #ef4444;
+        .modal-info {
+            color: #10b981;
             font-size: 14px;
             margin-top: 15px;
             padding: 12px;
-            background: #fee2e2;
+            background: #d1fae5;
             border-radius: 8px;
-            border-left: 4px solid #ef4444;
+            border-left: 4px solid #10b981;
         }
 
         .modal-actions {
@@ -700,13 +677,20 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             margin-top: 24px;
         }
 
-        /* Responsive Design */
+        .deleted-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            background: #fee2e2;
+            border-radius: 6px;
+            font-size: 12px;
+            color: #991b1b;
+            font-weight: 600;
+        }
+
         @media (max-width: 1024px) {
             .container {
-                margin-left: 80px;
-            }
-
-            .container.sidebar-collapsed {
                 margin-left: 80px;
             }
         }
@@ -717,10 +701,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                 padding: 20px;
             }
 
-            .container.sidebar-collapsed {
-                margin-left: 0;
-            }
-
             .header {
                 padding: 20px;
             }
@@ -729,10 +709,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                 flex-direction: column;
                 align-items: flex-start;
                 gap: 15px;
-            }
-
-            .header-title h1 {
-                font-size: 22px;
             }
 
             .header-actions {
@@ -761,13 +737,8 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                 padding: 20px;
             }
 
-            .table-container {
-                overflow-x: auto;
-                -webkit-overflow-scrolling: touch;
-            }
-
             .table {
-                min-width: 1000px;
+                min-width: 1200px;
             }
 
             .action-buttons {
@@ -803,28 +774,23 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
     <?php include("../auth/inc/sidebar.php"); ?>
 
     <div class="container" id="mainContainer">
-        <!-- Header -->
         <div class="header">
             <div class="header-top">
                 <div class="header-title">
-                    <h1><i class="fas fa-users"></i> User Management</h1>
-                    <p>Manage system users and permissions</p>
+                    <h1><i class="fas fa-history"></i> User History</h1>
+                    <p>View all users including deleted accounts</p>
                 </div>
                 <div class="header-actions">
-                    <a href="adminCreateUser.php" class="btn btn-primary">
-                        <i class="fas fa-user-plus"></i> Add New User
+                    <a href="userManagement.php" class="btn btn-primary">
+                        <i class="fas fa-users"></i> Active Users
                     </a>
-                    <a href="dashboard.php" class="btn btn-primary">
-                        <i class="fas fa-arrow-left"></i> Back to Dashboard
-                    </a>
-                    <a href="userHistoryList.php" class="btn btn-primary">
-                        <i class></i> User History
+                    <a href="userList.php" class="btn btn-primary">
+                        <i class="fas fa-arrow-left"></i> Back
                     </a>
                 </div>
             </div>
         </div>
 
-        <!-- Messages -->
         <?php if (!empty($success_message)): ?>
         <div class="success-message">
             <i class="fas fa-check-circle"></i>
@@ -839,7 +805,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
         </div>
         <?php endif; ?>
 
-        <!-- Statistics -->
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="stat-number total"><?php echo $stats['total']; ?></div>
@@ -852,6 +817,10 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             <div class="stat-card">
                 <div class="stat-number inactive"><?php echo $stats['inactive']; ?></div>
                 <div class="stat-label">Inactive Users</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number deleted"><?php echo $stats['deleted']; ?></div>
+                <div class="stat-label">Deleted Users</div>
             </div>
             <div class="stat-card">
                 <div class="stat-number admins"><?php echo $stats['admins']; ?></div>
@@ -867,7 +836,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             </div>
         </div>
 
-        <!-- Filters -->
         <div class="filter-section">
             <div class="filter-header">
                 <h3><i class="fas fa-filter"></i> Filter Users</h3>
@@ -906,8 +874,9 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                         <label><i class="fas fa-toggle-on"></i> Status</label>
                         <select name="status">
                             <option value="">All Status</option>
-                            <option value="1" <?php echo $status_filter === '1' ? 'selected' : ''; ?>>Active</option>
-                            <option value="0" <?php echo $status_filter === '0' ? 'selected' : ''; ?>>Inactive</option>
+                            <option value="active" <?php echo $status_filter === 'active' ? 'selected' : ''; ?>>Active</option>
+                            <option value="inactive" <?php echo $status_filter === 'inactive' ? 'selected' : ''; ?>>Inactive</option>
+                            <option value="deleted" <?php echo $status_filter === 'deleted' ? 'selected' : ''; ?>>Deleted</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -919,7 +888,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             </form>
         </div>
 
-        <!-- Users Table -->
         <div class="section">
             <div class="section-header">
                 <h2><i class="fas fa-table"></i> All Users (<?php echo $total_users; ?>)</h2>
@@ -938,20 +906,29 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                             <th>Phone</th>
                             <th>Status</th>
                             <th>Verified</th>
+                            <th>Created</th>
+                            <th>Updated</th>
                             <th>Last Login</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php foreach ($users as $user): ?>
-                        <tr>
+                        <tr class="<?php echo $user['is_deleted'] ? 'deleted-row' : ''; ?>">
                             <td>
                                 <div class="user-info">
-                                    <div class="user-avatar">
+                                    <div class="user-avatar <?php echo $user['is_deleted'] ? 'deleted' : ''; ?>">
                                         <?php echo strtoupper(substr($user['first_name'], 0, 1) . substr($user['last_name'], 0, 1)); ?>
                                     </div>
                                     <div class="user-details">
-                                        <h4><?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?></h4>
+                                        <h4>
+                                            <?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?>
+                                            <?php if ($user['is_deleted']): ?>
+                                            <span class="deleted-indicator">
+                                                <i class="fas fa-trash"></i> DELETED
+                                            </span>
+                                            <?php endif; ?>
+                                        </h4>
                                         <p><?php echo htmlspecialchars($user['email']); ?></p>
                                     </div>
                                 </div>
@@ -973,34 +950,58 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                                 <?php endif; ?>
                             </td>
                             <td>
-                                <span class="badge badge-<?php echo $user['is_active'] ? 'active' : 'inactive'; ?>">
-                                    <?php echo $user['is_active'] ? 'Active' : 'Inactive'; ?>
-                                </span>
+                                <?php if ($user['is_deleted']): ?>
+                                    <span class="badge badge-deleted">Deleted</span>
+                                <?php else: ?>
+                                    <span class="badge badge-<?php echo $user['is_active'] ? 'active' : 'inactive'; ?>">
+                                        <?php echo $user['is_active'] ? 'Active' : 'Inactive'; ?>
+                                    </span>
+                                <?php endif; ?>
                             </td>
                             <td>
                                 <span class="badge badge-<?php echo $user['is_verified'] ? 'verified' : 'unverified'; ?>">
                                     <?php echo $user['is_verified'] ? 'Yes' : 'No'; ?>
                                 </span>
                             </td>
-                            <td><?php echo $user['last_login'] ? date('M d, Y', strtotime($user['last_login'])) : 'Never'; ?></td>
+                            <td>
+                                <div style="font-size: 13px;">
+                                    <?php echo date('M d, Y', strtotime($user['created_at'])); ?>
+                                    <div style="color: #718096; font-size: 12px;">
+                                        <?php echo date('h:i A', strtotime($user['created_at'])); ?>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div style="font-size: 13px;">
+                                    <?php echo date('M d, Y', strtotime($user['updated_at'])); ?>
+                                    <div style="color: #718096; font-size: 12px;">
+                                        <?php echo date('h:i A', strtotime($user['updated_at'])); ?>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <?php if ($user['last_login']): ?>
+                                    <div style="font-size: 13px;">
+                                        <?php echo date('M d, Y', strtotime($user['last_login'])); ?>
+                                        <div style="color: #718096; font-size: 12px;">
+                                            <?php echo date('h:i A', strtotime($user['last_login'])); ?>
+                                        </div>
+                                    </div>
+                                <?php else: ?>
+                                    <span style="color: #9ca3af;">Never</span>
+                                <?php endif; ?>
+                            </td>
                             <td>
                                 <div class="action-buttons">
-                                    <?php if ($user['user_id'] != $_SESSION['user_id']): ?>
-                                    <form method="POST" style="display: inline;">
-                                        <input type="hidden" name="action" value="toggle_status">
-                                        <input type="hidden" name="user_id" value="<?php echo $user['user_id']; ?>">
-                                        <input type="hidden" name="new_status" value="<?php echo $user['is_active'] ? 0 : 1; ?>">
-                                        <button type="submit" class="btn btn-sm <?php echo $user['is_active'] ? 'btn-warning' : 'btn-success'; ?>">
-                                            <i class="fas fa-<?php echo $user['is_active'] ? 'ban' : 'check'; ?>"></i>
-                                            <?php echo $user['is_active'] ? 'Deactivate' : 'Activate'; ?>
-                                        </button>
-                                    </form>
-                                    <?php if ($_SESSION['role'] === 'admin'): ?>
-                                    <button type="button" class="btn btn-sm btn-danger" 
-                                            onclick="confirmDelete(<?php echo $user['user_id']; ?>, '<?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?>')">
-                                        <i class="fas fa-trash"></i> Delete
+                                    <?php if ($user['is_deleted']): ?>
+                                    <button type="button" class="btn btn-sm btn-success" 
+                                            onclick="confirmRestore(<?php echo $user['user_id']; ?>, '<?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?>')">
+                                        <i class="fas fa-undo"></i> Restore
                                     </button>
-                                    <?php endif; ?>
+                                    <?php else: ?>
+                                    <a href="userManagement.php" class="btn btn-sm btn-primary">
+                                        <i class="fas fa-eye"></i> View
+                                    </a>
                                     <?php endif; ?>
                                 </div>
                             </td>
@@ -1011,14 +1012,13 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             </div>
             <?php else: ?>
             <div class="empty-state">
-                <div class="empty-state-icon">👥</div>
+                <div class="empty-state-icon">📋</div>
                 <h3>No users found</h3>
                 <p>Try adjusting your filters or search terms</p>
             </div>
             <?php endif; ?>
         </div>
 
-        <!-- Pagination -->
         <?php if ($total_pages > 1): ?>
         <div class="pagination">
             <?php if ($page > 1): ?>
@@ -1064,25 +1064,25 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
         <?php endif; ?>
     </div>
 
-    <!-- Delete Confirmation Modal -->
-    <div id="deleteModal" class="modal">
+    <!-- Restore Confirmation Modal -->
+    <div id="restoreModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3><i class="fas fa-exclamation-triangle"></i> Confirm Delete</h3>
-                <p>Are you sure you want to delete <strong id="deleteUserName"></strong>?</p>
+                <h3><i class="fas fa-undo"></i> Confirm Restore</h3>
+                <p>Are you sure you want to restore <strong id="restoreUserName"></strong>?</p>
             </div>
-            <div class="modal-warning">
-                <i class="fas fa-info-circle"></i> This action cannot be undone. All user data will be permanently deleted.
+            <div class="modal-info">
+                <i class="fas fa-info-circle"></i> This will reactivate the user account and restore their access to the system.
             </div>
-            <form method="POST" id="deleteForm">
-                <input type="hidden" name="action" value="delete_user">
-                <input type="hidden" name="user_id" id="deleteUserId">
+            <form method="POST" id="restoreForm">
+                <input type="hidden" name="action" value="restore_user">
+                <input type="hidden" name="user_id" id="restoreUserId">
                 <div class="modal-actions">
-                    <button type="button" class="btn btn-primary" onclick="closeDeleteModal()">
+                    <button type="button" class="btn btn-primary" onclick="closeRestoreModal()">
                         <i class="fas fa-times"></i> Cancel
                     </button>
-                    <button type="submit" class="btn btn-danger">
-                        <i class="fas fa-trash"></i> Delete User
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-undo"></i> Restore User
                     </button>
                 </div>
             </form>
@@ -1090,7 +1090,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
     </div>
 
     <script>
-        // Handle sidebar toggle
         function updateMainContainer() {
             const mainContainer = document.getElementById('mainContainer');
             const sidebar = document.querySelector('.sidebar');
@@ -1102,51 +1101,45 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             }
         }
 
-        // Check on load
         document.addEventListener('DOMContentLoaded', updateMainContainer);
 
-        // Listen for sidebar changes
         document.addEventListener('click', function(e) {
             if (e.target.closest('.toggle-sidebar')) {
                 setTimeout(updateMainContainer, 50);
             }
         });
 
-        // Observe sidebar changes
         const observer = new MutationObserver(updateMainContainer);
         const sidebar = document.querySelector('.sidebar');
         if (sidebar) {
             observer.observe(sidebar, { attributes: true, attributeFilter: ['class'] });
         }
 
-        function confirmDelete(userId, userName) {
-            document.getElementById('deleteUserId').value = userId;
-            document.getElementById('deleteUserName').textContent = userName;
-            document.getElementById('deleteModal').style.display = 'block';
+        function confirmRestore(userId, userName) {
+            document.getElementById('restoreUserId').value = userId;
+            document.getElementById('restoreUserName').textContent = userName;
+            document.getElementById('restoreModal').style.display = 'block';
             document.body.style.overflow = 'hidden';
         }
 
-        function closeDeleteModal() {
-            document.getElementById('deleteModal').style.display = 'none';
+        function closeRestoreModal() {
+            document.getElementById('restoreModal').style.display = 'none';
             document.body.style.overflow = 'auto';
         }
 
-        // Close modal when clicking outside
         window.onclick = function(event) {
-            const modal = document.getElementById('deleteModal');
+            const modal = document.getElementById('restoreModal');
             if (event.target === modal) {
-                closeDeleteModal();
+                closeRestoreModal();
             }
         }
 
-        // Close modal with Escape key
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
-                closeDeleteModal();
+                closeRestoreModal();
             }
         });
 
-        // Auto-hide success/error messages
         setTimeout(() => {
             const successMsg = document.querySelector('.success-message');
             const errorMsg = document.querySelector('.error-message');

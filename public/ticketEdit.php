@@ -33,21 +33,23 @@ if (!$ticket) {
     exit();
 }
 
-// Check permissions - only requester, managers, and admins can edit
-if ($user_role === 'employee' && $ticket['requester_id'] != $user_id) {
-    header("Location: tickets.php");
-    exit();
-}
-
-// Fetch available assets for the requester's department
+// Fetch assets - ONLY show assets owned by the REQUESTER (not the current user)
 $assets_query = "
-    SELECT id, asset_code, asset_name, category, brand, model 
+    SELECT 
+        id, 
+        asset_code, 
+        asset_name, 
+        category, 
+        brand, 
+        model, 
+        status, 
+        assigned_to
     FROM assets 
-    WHERE status = 'active' OR id = ?
-    ORDER BY asset_code
+    WHERE assigned_to = ?
+    ORDER BY asset_code ASC
 ";
 $assets_stmt = $pdo->prepare($assets_query);
-$assets_stmt->execute([$ticket['asset_id']]);
+$assets_stmt->execute([$ticket['requester_id']]);
 $assets = $assets_stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Handle form submission
@@ -57,7 +59,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $description = trim($_POST['description']);
         $ticket_type = $_POST['ticket_type'];
         $priority = $_POST['priority'];
-        $asset_id = !empty($_POST['asset_id']) ? $_POST['asset_id'] : null;
+        
+        // Only admins can change the asset
+        if ($user_role === 'admin') {
+            $asset_id = !empty($_POST['asset_id']) ? $_POST['asset_id'] : null;
+        } else {
+            // Keep existing asset_id for non-admins
+            $asset_id = $ticket['asset_id'];
+        }
         
         // Validation
         $errors = [];
@@ -374,6 +383,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             border: 1px solid #90caf9;
         }
 
+        .alert-warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+
         .form-actions {
             display: flex;
             gap: 1rem;
@@ -531,6 +546,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
                 <?php endif; ?>
 
+                <?php if ($user_role !== 'admin'): ?>
+                <div class="alert alert-warning">
+                    <i class="fas fa-lock"></i>
+                    <div>
+                        <strong>Note:</strong> Only administrators can change the related asset for this ticket.
+                    </div>
+                </div>
+                <?php endif; ?>
+
                 <form method="POST" action="" id="editTicketForm">
                     <!-- Basic Information -->
                     <div class="form-card">
@@ -599,8 +623,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div class="form-group">
                                 <label for="asset_id">
                                     Related Asset (Optional)
+                                    <?php if ($user_role !== 'admin'): ?>
+                                    <i class="fas fa-lock" style="font-size: 0.75rem; color: #f59e0b;" title="Only admins can edit"></i>
+                                    <?php endif; ?>
                                 </label>
-                                <select id="asset_id" name="asset_id">
+                                <select id="asset_id" name="asset_id" <?php echo $user_role !== 'admin' ? 'disabled' : ''; ?>>
                                     <option value="">No Asset</option>
                                     <?php foreach ($assets as $asset): ?>
                                     <option 
@@ -613,7 +640,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     </option>
                                     <?php endforeach; ?>
                                 </select>
-                                <span class="form-hint">Select an asset if this ticket is related to specific equipment</span>
+                                <span class="form-hint">
+                                    <?php if ($user_role === 'admin'): ?>
+                                        Showing assets owned by <?php echo htmlspecialchars($ticket['requester_name']); ?>
+                                    <?php else: ?>
+                                        Only administrators can change the related asset
+                                    <?php endif; ?>
+                                </span>
                             </div>
 
                             <div class="form-group full-width">

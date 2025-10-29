@@ -15,13 +15,17 @@ if ($_SESSION['role'] !== 'admin' && $_SESSION['role'] !== 'manager') {
     exit();
 }
 
-// Include database connection
+// Include database connection and email helper
 include("../auth/config/database.php");
+require_once '../auth/helpers/EmailHelper.php';
 
 // Verify PDO connection exists
 if (!isset($pdo)) {
     die("Database connection failed. Please check your database configuration.");
 }
+
+// Initialize EmailHelper
+$emailHelper = new EmailHelper();
 
 // Handle form submission
 $success_message = '';
@@ -62,7 +66,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_asset'])) {
                 $created_by = $_SESSION['user_id'];
 
                 if ($stmt->execute([$asset_name, $asset_code, $category, $brand, $model, $serial_number, $purchase_date, $purchase_cost, $supplier, $warranty_expiry, $location, $department, $status, $description, $assigned_to, $created_by])) {
+                    $asset_id = $pdo->lastInsertId();
                     $success_message = "Asset added successfully!";
+                    
+                    // Send email notification if asset is assigned to a user
+                    if ($assigned_to) {
+                        try {
+                            // Get user details
+                            $user_stmt = $pdo->prepare("SELECT user_id, first_name, last_name, email FROM users WHERE user_id = ?");
+                            $user_stmt->execute([$assigned_to]);
+                            $user = $user_stmt->fetch(PDO::FETCH_ASSOC);
+                            
+                            // Get assigned by user details
+                            $assigned_by_stmt = $pdo->prepare("SELECT first_name, last_name FROM users WHERE user_id = ?");
+                            $assigned_by_stmt->execute([$_SESSION['user_id']]);
+                            $assigned_by = $assigned_by_stmt->fetch(PDO::FETCH_ASSOC);
+                            $assigned_by_name = $assigned_by['first_name'] . ' ' . $assigned_by['last_name'];
+                            
+                            if ($user) {
+                                $assignment_data = [
+                                    'asset_id' => $asset_id,
+                                    'user_name' => $user['first_name'] . ' ' . $user['last_name'],
+                                    'user_email' => $user['email'],
+                                    'asset_name' => $asset_name,
+                                    'asset_code' => $asset_code,
+                                    'asset_category' => $category,
+                                    'brand_model' => trim($brand . ' ' . $model),
+                                    'serial_number' => $serial_number ?: 'N/A',
+                                    'location' => $location ?: 'Not specified',
+                                    'assigned_by' => $assigned_by_name
+                                ];
+                                
+                                if ($emailHelper->sendAssetAssignmentEmail($assignment_data)) {
+                                    $success_message .= " Assignment notification email sent to " . $user['email'];
+                                }
+                            }
+                            
+                            // Log the assignment
+                            $log_stmt = $pdo->prepare("INSERT INTO assets_history (asset_id, action_type, assigned_from, assigned_to, performed_by, created_at) VALUES (?, 'assigned', NULL, ?, ?, NOW())");
+                            $log_stmt->execute([$asset_id, $assigned_to, $_SESSION['user_id']]);
+                            
+                        } catch (Exception $e) {
+                            // Don't fail the whole operation if email fails
+                            error_log("Failed to send assignment email: " . $e->getMessage());
+                        }
+                    }
                 } else {
                     $error_message = "Error adding asset.";
                 }
@@ -79,23 +127,89 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_asset'])) {
     $assigned_to = !empty($_POST['assign_to_user']) ? $_POST['assign_to_user'] : NULL;
 
     try {
-        // Get current assignment for logging
-        $current_stmt = $pdo->prepare("SELECT assigned_to FROM assets WHERE id = ?");
+        // Get current asset and assignment info
+        $current_stmt = $pdo->prepare("
+            SELECT a.*, 
+                   u.user_id as current_user_id, 
+                   u.first_name as current_first_name, 
+                   u.last_name as current_last_name,
+                   u.email as current_email
+            FROM assets a
+            LEFT JOIN users u ON a.assigned_to = u.user_id
+            WHERE a.id = ?
+        ");
         $current_stmt->execute([$asset_id]);
-        $current_data = $current_stmt->fetch(PDO::FETCH_ASSOC);
-        $current_user_id = $current_data['assigned_to'];
+        $asset_data = $current_stmt->fetch(PDO::FETCH_ASSOC);
+        $current_user_id = $asset_data['current_user_id'];
 
         // Update assignment
         $new_status = $assigned_to ? 'In Use' : 'Available';
         $update_stmt = $pdo->prepare("UPDATE assets SET assigned_to = ?, status = ? WHERE id = ?");
 
         if ($update_stmt->execute([$assigned_to, $new_status, $asset_id])) {
+            // Get assigned by user details
+            $assigned_by_stmt = $pdo->prepare("SELECT first_name, last_name FROM users WHERE user_id = ?");
+            $assigned_by_stmt->execute([$_SESSION['user_id']]);
+            $assigned_by = $assigned_by_stmt->fetch(PDO::FETCH_ASSOC);
+            $assigned_by_name = $assigned_by['first_name'] . ' ' . $assigned_by['last_name'];
+            
+            // Send unassignment email to previous user
+            if ($current_user_id && $current_user_id != $assigned_to) {
+                try {
+                    $unassignment_data = [
+                        'user_name' => $asset_data['current_first_name'] . ' ' . $asset_data['current_last_name'],
+                        'user_email' => $asset_data['current_email'],
+                        'asset_name' => $asset_data['asset_name'],
+                        'asset_code' => $asset_data['asset_code'],
+                        'unassigned_by' => $assigned_by_name
+                    ];
+                    
+                    $emailHelper->sendAssetUnassignmentEmail($unassignment_data);
+                } catch (Exception $e) {
+                    error_log("Failed to send unassignment email: " . $e->getMessage());
+                }
+            }
+            
+            // Send assignment email to new user
+            if ($assigned_to) {
+                try {
+                    // Get new user details
+                    $new_user_stmt = $pdo->prepare("SELECT user_id, first_name, last_name, email FROM users WHERE user_id = ?");
+                    $new_user_stmt->execute([$assigned_to]);
+                    $new_user = $new_user_stmt->fetch(PDO::FETCH_ASSOC);
+                    
+                    if ($new_user) {
+                        $assignment_data = [
+                            'asset_id' => $asset_id,
+                            'user_name' => $new_user['first_name'] . ' ' . $new_user['last_name'],
+                            'user_email' => $new_user['email'],
+                            'asset_name' => $asset_data['asset_name'],
+                            'asset_code' => $asset_data['asset_code'],
+                            'asset_category' => $asset_data['category'],
+                            'brand_model' => trim($asset_data['brand'] . ' ' . $asset_data['model']),
+                            'serial_number' => $asset_data['serial_number'] ?: 'N/A',
+                            'location' => $asset_data['location'] ?: 'Not specified',
+                            'assigned_by' => $assigned_by_name
+                        ];
+                        
+                        if ($emailHelper->sendAssetAssignmentEmail($assignment_data)) {
+                            $success_message = "Asset assignment updated successfully! Notification email sent to " . $new_user['email'];
+                        } else {
+                            $success_message = "Asset assignment updated successfully! (Email notification failed to send)";
+                        }
+                    }
+                } catch (Exception $e) {
+                    error_log("Failed to send assignment email: " . $e->getMessage());
+                    $success_message = "Asset assignment updated successfully! (Email notification failed to send)";
+                }
+            } else {
+                $success_message = "Asset unassigned successfully!";
+            }
+            
             // Log the assignment change
             $action = $assigned_to ? 'assigned' : 'unassigned';
             $log_stmt = $pdo->prepare("INSERT INTO assets_history (asset_id, action_type, assigned_from, assigned_to, performed_by, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
             $log_stmt->execute([$asset_id, $action, $current_user_id, $assigned_to, $_SESSION['user_id']]);
-
-            $success_message = "Asset assignment updated successfully!";
         } else {
             $error_message = "Error updating asset assignment.";
         }
@@ -168,6 +282,7 @@ foreach ($assets as $asset) {
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -234,7 +349,8 @@ foreach ($assets as $asset) {
         }
 
         /* Messages */
-        .success-message, .error-message {
+        .success-message,
+        .error-message {
             padding: 16px 20px;
             border-radius: 12px;
             margin-bottom: 24px;
@@ -262,6 +378,7 @@ foreach ($assets as $asset) {
                 opacity: 0;
                 transform: translateY(-10px);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
@@ -290,9 +407,17 @@ foreach ($assets as $asset) {
             box-shadow: 0 8px 20px rgba(124, 58, 237, 0.15);
         }
 
-        .stat-card.available { border-left-color: #10b981; }
-        .stat-card.in-use { border-left-color: #3b82f6; }
-        .stat-card.maintenance { border-left-color: #f59e0b; }
+        .stat-card.available {
+            border-left-color: #10b981;
+        }
+
+        .stat-card.in-use {
+            border-left-color: #3b82f6;
+        }
+
+        .stat-card.maintenance {
+            border-left-color: #f59e0b;
+        }
 
         .stat-number {
             font-size: 36px;
@@ -301,9 +426,17 @@ foreach ($assets as $asset) {
             color: #7c3aed;
         }
 
-        .stat-card.available .stat-number { color: #10b981; }
-        .stat-card.in-use .stat-number { color: #3b82f6; }
-        .stat-card.maintenance .stat-number { color: #f59e0b; }
+        .stat-card.available .stat-number {
+            color: #10b981;
+        }
+
+        .stat-card.in-use .stat-number {
+            color: #3b82f6;
+        }
+
+        .stat-card.maintenance .stat-number {
+            color: #f59e0b;
+        }
 
         .stat-label {
             color: #718096;
@@ -657,8 +790,13 @@ foreach ($assets as $asset) {
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
         }
 
         .modal-content {
@@ -676,6 +814,7 @@ foreach ($assets as $asset) {
                 opacity: 0;
                 transform: translateY(20px);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
@@ -727,13 +866,6 @@ foreach ($assets as $asset) {
             color: #991b1b;
             font-weight: 500;
             margin-bottom: 8px;
-        }
-
-        .delete-warning .asset-details {
-            background: white;
-            padding: 12px;
-            border-radius: 6px;
-            margin-top: 12px;
         }
 
         .delete-warning .asset-details strong {
@@ -799,9 +931,184 @@ foreach ($assets as $asset) {
                 width: 95%;
             }
         }
+
+        /* Search and Filter Bar */
+        .search-filter-bar {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+
+        .search-filter-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr auto;
+            gap: 15px;
+            align-items: end;
+        }
+
+        .search-group {
+            position: relative;
+        }
+
+        .search-group input {
+            width: 100%;
+            padding: 12px 16px 12px 45px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .search-group input:focus {
+            outline: none;
+            border-color: #7c3aed;
+            box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.1);
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #718096;
+            font-size: 16px;
+        }
+
+        .filter-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #2d3748;
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .filter-group select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 14px;
+            transition: all 0.3s;
+            background: white;
+        }
+
+        .filter-group select:focus {
+            outline: none;
+            border-color: #7c3aed;
+            box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.1);
+        }
+
+        .reset-filters-btn {
+            padding: 12px 20px;
+            background: #f7fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            color: #718096;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .reset-filters-btn:hover {
+            background: white;
+            border-color: #cbd5e0;
+            color: #2d3748;
+        }
+
+        .results-info {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #e2e8f0;
+            color: #718096;
+            font-size: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .results-count {
+            font-weight: 600;
+            color: #7c3aed;
+        }
+
+        /* Sortable Table Headers */
+        .table thead th.sortable {
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            padding-right: 30px;
+        }
+
+        .table thead th.sortable:hover {
+            background: #ede9fe;
+        }
+
+        .sort-icon {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 12px;
+            color: #cbd5e0;
+            transition: color 0.2s;
+        }
+
+        .table thead th.sortable.asc .sort-icon,
+        .table thead th.sortable.desc .sort-icon {
+            color: #7c3aed;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .no-results-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+
+        .no-results h3 {
+            font-size: 20px;
+            color: #1a202c;
+            margin-bottom: 10px;
+        }
+
+        .no-results p {
+            color: #718096;
+            font-size: 15px;
+        }
+
+        /* Responsive Search Bar */
+        @media (max-width: 1200px) {
+            .search-filter-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .search-group {
+                grid-column: 1 / -1;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .search-filter-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .reset-filters-btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
     </style>
     <link rel="stylesheet" href="../auth/inc/navigation.css">
 </head>
+
 <body>
     <?php include("../auth/inc/sidebar.php"); ?>
 
@@ -817,17 +1124,17 @@ foreach ($assets as $asset) {
         </div>
 
         <?php if (!empty($success_message)): ?>
-        <div class="success-message">
-            <i class="fas fa-check-circle"></i>
-            <span><?php echo htmlspecialchars($success_message); ?></span>
-        </div>
+            <div class="success-message">
+                <i class="fas fa-check-circle"></i>
+                <span><?php echo htmlspecialchars($success_message); ?></span>
+            </div>
         <?php endif; ?>
 
         <?php if (!empty($error_message)): ?>
-        <div class="error-message">
-            <i class="fas fa-exclamation-circle"></i>
-            <span><?php echo htmlspecialchars($error_message); ?></span>
-        </div>
+            <div class="error-message">
+                <i class="fas fa-exclamation-circle"></i>
+                <span><?php echo htmlspecialchars($error_message); ?></span>
+            </div>
         <?php endif; ?>
 
         <!-- Statistics -->
@@ -849,9 +1156,6 @@ foreach ($assets as $asset) {
                 <div class="stat-label">Maintenance</div>
             </div>
         </div>
-
-        <?php if ($_SESSION['role'] === 'admin'): ?>
-        <?php endif; ?>
 
         <!-- Add Asset Form -->
         <div class="form-card" id="assetForm">
@@ -958,7 +1262,7 @@ foreach ($assets as $asset) {
                                 </option>
                             <?php endforeach; ?>
                         </select>
-                        <span class="help-text">You can assign this asset to a user now or leave it unassigned and assign later.</span>
+                        <span class="help-text">User will receive an email notification if assigned.</span>
                     </div>
 
                     <div class="form-group" style="grid-column: 1 / -1;">
@@ -978,6 +1282,62 @@ foreach ($assets as $asset) {
             </form>
         </div>
 
+        <!-- Search and Filter Bar -->
+        <div class="search-filter-bar">
+            <div class="search-filter-grid">
+                <div class="search-group">
+                    <i class="fas fa-search search-icon"></i>
+                    <input type="text" id="searchInput" placeholder="Search by asset name, code, brand, model, or serial number...">
+                </div>
+
+                <div class="filter-group">
+                    <label for="categoryFilter">Category</label>
+                    <select id="categoryFilter">
+                        <option value="">All Categories</option>
+                        <option value="Computer">Computer</option>
+                        <option value="Laptop">Laptop</option>
+                        <option value="Monitor">Monitor</option>
+                        <option value="Printer">Printer</option>
+                        <option value="Mobile Device">Mobile Device</option>
+                        <option value="Network Equipment">Network Equipment</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label for="statusFilter">Status</label>
+                    <select id="statusFilter">
+                        <option value="">All Status</option>
+                        <option value="available">Available</option>
+                        <option value="in_use">In Use</option>
+                        <option value="maintenance">Maintenance</option>
+                        <option value="retired">Retired</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label for="departmentFilter">Department</label>
+                    <select id="departmentFilter">
+                        <option value="">All Departments</option>
+                        <?php foreach ($departments as $dept): ?>
+                            <option value="<?php echo htmlspecialchars($dept); ?>">
+                                <?php echo htmlspecialchars($dept); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <button class="reset-filters-btn" id="resetFilters">
+                    <i class="fas fa-redo"></i> Reset
+                </button>
+            </div>
+
+            <div class="results-info">
+                <span>Showing <span class="results-count" id="resultsCount"><?php echo count($assets); ?></span> of <?php echo count($assets); ?> assets</span>
+                <span id="activeFilters"></span>
+            </div>
+        </div>
+
         <!-- Assets Table Section -->
         <div class="section">
             <div class="section-header">
@@ -985,333 +1345,483 @@ foreach ($assets as $asset) {
             </div>
 
             <?php if (empty($assets)): ?>
-            <div class="empty-state">
-                <div class="empty-state-icon">📦</div>
-                <h3>No Assets Found</h3>
-                <p>No assets found in inventory. Add your first asset to get started!</p>
-            </div>
+                <div class="empty-state">
+                    <div class="empty-state-icon">📦</div>
+                    <h3>No Assets Found</h3>
+                    <p>No assets found in inventory. Add your first asset to get started!</p>
+                </div>
             <?php else: ?>
-            <div class="table-container">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Asset Code</th>
-                            <th>Asset Name</th>
-                            <th>Category</th>
-                            <th>Brand/Model</th>
-                            <th>Assigned To</th>
-                            <th>Department</th>
-                            <th>Status</th>
-                            <th>Purchase Date</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($assets as $asset): ?>
-                        <tr>
-                            <td>
-                                <a href="assetDetails.php?id=<?php echo $asset['id']; ?>" class="asset-code-link">
-                                    <?php echo htmlspecialchars($asset['asset_code']); ?>
-                                </a>
-                            </td>
-                            <td><?php echo htmlspecialchars($asset['asset_name']); ?></td>
-                            <td><?php echo htmlspecialchars($asset['category']); ?></td>
-                            <td>
-                                <?php
-                                $brandModel = trim($asset['brand'] . ' ' . $asset['model']);
-                                echo htmlspecialchars($brandModel ?: '-');
-                                ?>
-                            </td>
-                            <td>
-                                <?php if ($asset['assigned_user_id']): ?>
-                                    <div class="user-info">
-                                        <span class="user-name"><?php echo htmlspecialchars($asset['assigned_user_name']); ?></span>
-                                        <span class="user-email">@<?php echo htmlspecialchars($asset['assigned_username']); ?></span>
-                                    </div>
-                                <?php else: ?>
-                                    <span class="unassigned">Unassigned</span>
-                                <?php endif; ?>
-                            </td>
-                            <td><?php echo htmlspecialchars($asset['department'] ?: '-'); ?></td>
-                            <td>
-                                <span class="status-badge status-<?php echo strtolower(str_replace(' ', '-', $asset['status'])); ?>">
-                                    <?php echo htmlspecialchars($asset['status']); ?>
-                                </span>
-                            </td>
-                            <td><?php echo $asset['purchase_date'] ? date('M j, Y', strtotime($asset['purchase_date'])) : '-'; ?></td>
-                            <td>
-                                <div class="action-buttons">
-                                    <button class="btn btn-success btn-small assign-btn"
-                                        data-asset-id="<?php echo $asset['id']; ?>"
-                                        data-asset-name="<?php echo htmlspecialchars($asset['asset_name']); ?>"
-                                        data-current-user="<?php echo $asset['assigned_user_id'] ?: ''; ?>">
-                                        <i class="fas fa-user-check"></i>
-                                        <?php echo $asset['assigned_user_id'] ? 'Reassign' : 'Assign'; ?>
-                                    </button>
-                                    <a href="assetEdit.php?id=<?php echo $asset['id']; ?>" class="btn btn-primary btn-small">
-                                        <i class="fas fa-edit"></i> Edit
-                                    </a>
-                                    <a href="assetHistory.php?id=<?php echo $asset['id']; ?>" class="btn btn-secondary btn-small">
-                                        <i class="fas fa-history"></i> History
-                                    </a>
-                                </div>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
+                <div class="table-container">
+                    <table class="table" id="assetsTable">
+                        <thead>
+                            <tr>
+                                <th class="sortable" data-column="asset_code">
+                                    Asset Code
+                                    <i class="fas fa-sort sort-icon"></i>
+                                </th>
+                                <th class="sortable" data-column="asset_name">
+                                    Asset Name
+                                    <i class="fas fa-sort sort-icon"></i>
+                                </th>
+                                <th class="sortable" data-column="category">
+                                    Category
+                                    <i class="fas fa-sort sort-icon"></i>
+                                </th>
+                                <th class="sortable" data-column="brand_model">
+                                    Brand/Model
+                                    <i class="fas fa-sort sort-icon"></i>
+                                </th>
+                                <th class="sortable" data-column="assigned_user_name">
+                                    Assigned To
+                                    <i class="fas fa-sort sort-icon"></i>
+                                </th>
+                                <th class="sortable" data-column="department">
+                                    Department
+                                    <i class="fas fa-sort sort-icon"></i>
+                                </th>
+                                <th class="sortable" data-column="status">
+                                    Status
+                                    <i class="fas fa-sort sort-icon"></i>
+                                </th>
+                                <th class="sortable" data-column="purchase_date">
+                                    Purchase Date
+                                    <i class="fas fa-sort sort-icon"></i>
+                                </th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="assetsTableBody">
+                            <?php foreach ($assets as $asset): ?>
+                                <tr data-category="<?php echo htmlspecialchars($asset['category']); ?>"
+                                    data-status="<?php echo htmlspecialchars($asset['status']); ?>"
+                                    data-department="<?php echo htmlspecialchars($asset['department'] ?: ''); ?>"
+                                    data-search="<?php echo htmlspecialchars(strtolower($asset['asset_code'] . ' ' . $asset['asset_name'] . ' ' . $asset['brand'] . ' ' . $asset['model'] . ' ' . $asset['serial_number'] . ' ' . $asset['assigned_user_name'])); ?>">
+                                    <td data-label="Asset Code">
+                                        <a href="assetDetails.php?id=<?php echo $asset['id']; ?>" class="asset-code-link">
+                                            <?php echo htmlspecialchars($asset['asset_code']); ?>
+                                        </a>
+                                    </td>
+                                    <td data-label="Asset Name"><?php echo htmlspecialchars($asset['asset_name']); ?></td>
+                                    <td data-label="Category"><?php echo htmlspecialchars($asset['category']); ?></td>
+                                    <td data-label="Brand/Model">
+                                        <?php
+                                        $brandModel = trim($asset['brand'] . ' ' . $asset['model']);
+                                        echo htmlspecialchars($brandModel ?: '-');
+                                        ?>
+                                    </td>
+                                    <td data-label="Assigned To">
+                                        <?php if ($asset['assigned_user_id']): ?>
+                                            <div class="user-info">
+                                                <span class="user-name"><?php echo htmlspecialchars($asset['assigned_user_name']); ?></span>
+                                                <span class="user-email">@<?php echo htmlspecialchars($asset['assigned_username']); ?></span>
+                                            </div>
+                                        <?php else: ?>
+                                            <span class="unassigned">Unassigned</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td data-label="Department"><?php echo htmlspecialchars($asset['department'] ?: '-'); ?></td>
+                                    <td data-label="Status">
+                                        <span class="status-badge status-<?php echo strtolower(str_replace(' ', '-', $asset['status'])); ?>">
+                                            <?php echo htmlspecialchars($asset['status']); ?>
+                                        </span>
+                                    </td>
+                                    <td data-label="Purchase Date"><?php echo $asset['purchase_date'] ? date('M j, Y', strtotime($asset['purchase_date'])) : '-'; ?></td>
+                                    <td data-label="Actions">
+                                        <div class="action-buttons">
+                                            <button class="btn btn-success btn-small assign-btn"
+                                                data-asset-id="<?php echo $asset['id']; ?>"
+                                                data-asset-name="<?php echo htmlspecialchars($asset['asset_name']); ?>"
+                                                data-current-user="<?php echo $asset['assigned_user_id'] ?: ''; ?>">
+                                                <i class="fas fa-user-check"></i>
+                                                <?php echo $asset['assigned_user_id'] ? 'Reassign' : 'Assign'; ?>
+                                            </button>
+                                            <a href="assetEdit.php?id=<?php echo $asset['id']; ?>" class="btn btn-primary btn-small">
+                                                <i class="fas fa-edit"></i> Edit
+                                            </a>
+                                            <a href="assetHistory.php?id=<?php echo $asset['id']; ?>" class="btn btn-secondary btn-small">
+                                                <i class="fas fa-history"></i> History
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- No Results Message (hidden by default) -->
+                <div class="no-results" id="noResults" style="display: none;">
+                    <div class="no-results-icon">🔍</div>
+                    <h3>No Assets Found</h3>
+                    <p>No assets match your search criteria. Try adjusting your filters.</p>
+                </div>
             <?php endif; ?>
         </div>
-    </div>
 
-    <!-- Assignment Modal -->
-    <div id="assignModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3><i class="fas fa-user-check"></i> Assign Asset to User</h3>
-                <span class="modal-close">&times;</span>
-            </div>
-            <form method="POST" action="">
-                <input type="hidden" id="modal_asset_id" name="asset_id">
-                
-                <div class="form-group">
-                    <label for="modal_asset_name">Asset</label>
-                    <input type="text" id="modal_asset_name" readonly style="background-color: #f8f9fa;">
-                </div>
-                
-                <div class="form-group">
-                    <label for="assign_to_user">Assign To User</label>
-                    <select id="assign_to_user" name="assign_to_user">
-                        <option value="">-- Unassign (Make Available) --</option>
-                        <?php foreach ($users as $user): ?>
-                            <option value="<?php echo $user['user_id']; ?>">
-                                <?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?>
-                                (<?php echo htmlspecialchars($user['email']); ?>)
-                                <?php if ($user['department']): ?>
-                                    - <?php echo htmlspecialchars($user['department']); ?>
-                                <?php endif; ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                    <span class="help-text">Select a user to assign this asset, or leave empty to unassign.</span>
-                </div>
-                
-                <div class="form-actions">
-                    <button type="button" class="btn btn-secondary modal-cancel">
-                        <i class="fas fa-times"></i> Cancel
-                    </button>
-                    <button type="submit" name="assign_asset" class="btn btn-success">
-                        <i class="fas fa-check"></i> Update Assignment
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
 
-    <!-- Delete Confirmation Modal -->
-    <div id="deleteModal" class="modal delete-modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3><i class="fas fa-exclamation-triangle"></i> Delete Asset</h3>
-                <span class="modal-close delete-modal-close">&times;</span>
-            </div>
-            <form method="POST" action="">
-                <input type="hidden" id="delete_asset_id" name="delete_asset_id">
-                
-                <div class="delete-warning">
-                    <p><i class="fas fa-exclamation-triangle"></i> <strong>Warning:</strong> This action cannot be undone!</p>
-                    <p>Are you sure you want to delete this asset?</p>
-                    <div class="asset-details">
-                        <strong>Asset Name:</strong> <span id="delete_asset_name"></span><br>
-                        <strong>Asset Code:</strong> <span id="delete_asset_code"></span>
+        <!-- Assignment Modal -->
+        <div id="assignModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3><i class="fas fa-user-check"></i> Assign Asset to User</h3>
+                    <span class="modal-close">&times;</span>
+                </div>
+                <form method="POST" action="">
+                    <input type="hidden" id="modal_asset_id" name="asset_id">
+
+                    <div class="form-group">
+                        <label for="modal_asset_name">Asset</label>
+                        <input type="text" id="modal_asset_name" readonly style="background-color: #f8f9fa;">
                     </div>
-                </div>
-                
-                <div class="form-actions">
-                    <button type="button" class="btn btn-secondary delete-modal-cancel">
-                        <i class="fas fa-times"></i> Cancel
-                    </button>
-                    <button type="submit" name="delete_asset" class="btn btn-danger">
-                        <i class="fas fa-trash"></i> Delete Asset
-                    </button>
-                </div>
-            </form>
+
+                    <div class="form-group">
+                        <label for="assign_to_user">Assign To User</label>
+                        <select id="assign_to_user" name="assign_to_user">
+                            <option value="">-- Unassign (Make Available) --</option>
+                            <?php foreach ($users as $user): ?>
+                                <option value="<?php echo $user['user_id']; ?>">
+                                    <?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?>
+                                    (<?php echo htmlspecialchars($user['email']); ?>)
+                                    <?php if ($user['department']): ?>
+                                        - <?php echo htmlspecialchars($user['department']); ?>
+                                    <?php endif; ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <span class="help-text">User will receive an email notification if assigned.</span>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary modal-cancel">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                        <button type="submit" name="assign_asset" class="btn btn-success">
+                            <i class="fas fa-check"></i> Update Assignment
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
 
-    <script>
-        // Handle sidebar toggle
-        function updateMainContainer() {
-            const mainContainer = document.getElementById('mainContainer');
+        <script>
+            // Handle sidebar toggle
+            function updateMainContainer() {
+                const mainContainer = document.getElementById('mainContainer');
+                const sidebar = document.querySelector('.sidebar');
+
+                if (sidebar && sidebar.classList.contains('collapsed')) {
+                    mainContainer.classList.add('sidebar-collapsed');
+                } else {
+                    mainContainer.classList.remove('sidebar-collapsed');
+                }
+            }
+
+            // Check on load
+            document.addEventListener('DOMContentLoaded', updateMainContainer);
+
+            // Listen for sidebar changes
+            document.addEventListener('click', function(e) {
+                if (e.target.closest('.toggle-sidebar')) {
+                    setTimeout(updateMainContainer, 50);
+                }
+            });
+
+            // Observe sidebar changes
+            const observer = new MutationObserver(updateMainContainer);
             const sidebar = document.querySelector('.sidebar');
-            
-            if (sidebar && sidebar.classList.contains('collapsed')) {
-                mainContainer.classList.add('sidebar-collapsed');
-            } else {
-                mainContainer.classList.remove('sidebar-collapsed');
+            if (sidebar) {
+                observer.observe(sidebar, {
+                    attributes: true,
+                    attributeFilter: ['class']
+                });
             }
-        }
 
-        // Check on load
-        document.addEventListener('DOMContentLoaded', updateMainContainer);
+            // Toggle form visibility
+            const toggleFormBtn = document.getElementById('toggleFormBtn');
+            const assetForm = document.getElementById('assetForm');
+            const cancelBtn = document.getElementById('cancelBtn');
 
-        // Listen for sidebar changes
-        document.addEventListener('click', function(e) {
-            if (e.target.closest('.toggle-sidebar')) {
-                setTimeout(updateMainContainer, 50);
-            }
-        });
-
-        // Observe sidebar changes
-        const observer = new MutationObserver(updateMainContainer);
-        const sidebar = document.querySelector('.sidebar');
-        if (sidebar) {
-            observer.observe(sidebar, { attributes: true, attributeFilter: ['class'] });
-        }
-
-        // Toggle form visibility
-        const toggleFormBtn = document.getElementById('toggleFormBtn');
-        const assetForm = document.getElementById('assetForm');
-        const cancelBtn = document.getElementById('cancelBtn');
-
-        toggleFormBtn.addEventListener('click', function() {
-            assetForm.classList.toggle('active');
-            if (assetForm.classList.contains('active')) {
-                this.innerHTML = '<i class="fas fa-times"></i> Close Form';
-                assetForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            } else {
-                this.innerHTML = '<i class="fas fa-plus"></i> Add New Asset';
-            }
-        });
-
-        cancelBtn.addEventListener('click', function() {
-            assetForm.classList.remove('active');
-            toggleFormBtn.innerHTML = '<i class="fas fa-plus"></i> Add New Asset';
-            document.querySelector('form').reset();
-        });
-
-        // Auto-generate asset code suggestion
-        const categorySelect = document.getElementById('category');
-        const assetCodeInput = document.getElementById('asset_code');
-
-        categorySelect.addEventListener('change', function() {
-            if (assetCodeInput.value === '') {
-                const prefix = this.value.substring(0, 3).toUpperCase();
-                const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-                assetCodeInput.value = prefix + '-' + random;
-            }
-        });
-
-        // Auto-update status when assigning user
-        const assignedToSelect = document.getElementById('assigned_to');
-        const statusSelect = document.getElementById('status');
-
-        assignedToSelect.addEventListener('change', function() {
-            if (this.value) {
-                statusSelect.value = 'In Use';
-            } else {
-                statusSelect.value = 'Available';
-            }
-        });
-
-        // Assignment Modal
-        const assignModal = document.getElementById('assignModal');
-        const assignButtons = document.querySelectorAll('.assign-btn');
-        const modalClose = document.querySelector('.modal-close');
-        const modalCancel = document.querySelector('.modal-cancel');
-
-        assignButtons.forEach(button => {
-            button.addEventListener('click', function() {
-                const assetId = this.getAttribute('data-asset-id');
-                const assetName = this.getAttribute('data-asset-name');
-                const currentUser = this.getAttribute('data-current-user');
-
-                document.getElementById('modal_asset_id').value = assetId;
-                document.getElementById('modal_asset_name').value = assetName;
-                document.getElementById('assign_to_user').value = currentUser;
-
-                assignModal.classList.add('active');
-                document.body.style.overflow = 'hidden';
+            toggleFormBtn.addEventListener('click', function() {
+                assetForm.classList.toggle('active');
+                if (assetForm.classList.contains('active')) {
+                    this.innerHTML = '<i class="fas fa-times"></i> Close Form';
+                    assetForm.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                } else {
+                    this.innerHTML = '<i class="fas fa-plus"></i> Add New Asset';
+                }
             });
-        });
 
-        function closeModal() {
-            assignModal.classList.remove('active');
-            document.body.style.overflow = 'auto';
-        }
-
-        modalClose.addEventListener('click', closeModal);
-        modalCancel.addEventListener('click', closeModal);
-
-        window.addEventListener('click', function(event) {
-            if (event.target === assignModal) {
-                closeModal();
-            }
-        });
-
-        // Delete Modal
-        const deleteModal = document.getElementById('deleteModal');
-        const deleteButtons = document.querySelectorAll('.delete-btn');
-        const deleteModalClose = document.querySelector('.delete-modal-close');
-        const deleteModalCancel = document.querySelector('.delete-modal-cancel');
-
-        deleteButtons.forEach(button => {
-            button.addEventListener('click', function() {
-                const assetId = this.getAttribute('data-asset-id');
-                const assetName = this.getAttribute('data-asset-name');
-                const assetCode = this.getAttribute('data-asset-code');
-
-                document.getElementById('delete_asset_id').value = assetId;
-                document.getElementById('delete_asset_name').textContent = assetName;
-                document.getElementById('delete_asset_code').textContent = assetCode;
-
-                deleteModal.classList.add('active');
-                document.body.style.overflow = 'hidden';
+            cancelBtn.addEventListener('click', function() {
+                assetForm.classList.remove('active');
+                toggleFormBtn.innerHTML = '<i class="fas fa-plus"></i> Add New Asset';
+                document.querySelector('form').reset();
             });
-        });
 
-        function closeDeleteModal() {
-            deleteModal.classList.remove('active');
-            document.body.style.overflow = 'auto';
-        }
+            // Auto-generate asset code suggestion
+            const categorySelect = document.getElementById('category');
+            const assetCodeInput = document.getElementById('asset_code');
 
-        deleteModalClose.addEventListener('click', closeDeleteModal);
-        deleteModalCancel.addEventListener('click', closeDeleteModal);
+            categorySelect.addEventListener('change', function() {
+                if (assetCodeInput.value === '') {
+                    const prefix = this.value.substring(0, 3).toUpperCase();
+                    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+                    assetCodeInput.value = prefix + '-' + random;
+                }
+            });
 
-        window.addEventListener('click', function(event) {
-            if (event.target === deleteModal) {
-                closeDeleteModal();
+            // Auto-update status when assigning user
+            const assignedToSelect = document.getElementById('assigned_to');
+            const statusSelect = document.getElementById('status');
+
+            assignedToSelect.addEventListener('change', function() {
+                if (this.value) {
+                    statusSelect.value = 'In Use';
+                } else {
+                    statusSelect.value = 'Available';
+                }
+            });
+
+            // Assignment Modal
+            const assignModal = document.getElementById('assignModal');
+            const assignButtons = document.querySelectorAll('.assign-btn');
+            const modalClose = document.querySelector('.modal-close');
+            const modalCancel = document.querySelector('.modal-cancel');
+
+            assignButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const assetId = this.getAttribute('data-asset-id');
+                    const assetName = this.getAttribute('data-asset-name');
+                    const currentUser = this.getAttribute('data-current-user');
+
+                    document.getElementById('modal_asset_id').value = assetId;
+                    document.getElementById('modal_asset_name').value = assetName;
+                    document.getElementById('assign_to_user').value = currentUser;
+
+                    assignModal.classList.add('active');
+                    document.body.style.overflow = 'hidden';
+                });
+            });
+
+            function closeModal() {
+                assignModal.classList.remove('active');
+                document.body.style.overflow = 'auto';
             }
-        });
 
-        // Close modals with Escape key
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                if (assignModal.classList.contains('active')) {
+            modalClose.addEventListener('click', closeModal);
+            modalCancel.addEventListener('click', closeModal);
+
+            window.addEventListener('click', function(event) {
+                if (event.target === assignModal) {
                     closeModal();
                 }
-                if (deleteModal.classList.contains('active')) {
-                    closeDeleteModal();
-                }
-            }
-        });
+            });
 
-        // Auto-hide success/error messages
-        setTimeout(() => {
-            const successMsg = document.querySelector('.success-message');
-            const errorMsg = document.querySelector('.error-message');
-            if (successMsg) {
-                successMsg.style.transition = 'opacity 0.5s';
-                successMsg.style.opacity = '0';
-                setTimeout(() => successMsg.style.display = 'none', 500);
-            }
-            if (errorMsg) {
-                errorMsg.style.transition = 'opacity 0.5s';
-                errorMsg.style.opacity = '0';
-                setTimeout(() => errorMsg.style.display = 'none', 500);
-            }
-        }, 5000);
-    </script>
+            // Close modals with Escape key
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    if (assignModal.classList.contains('active')) {
+                        closeModal();
+                    }
+                }
+            });
+
+            // Auto-hide success/error messages
+            setTimeout(() => {
+                const successMsg = document.querySelector('.success-message');
+                const errorMsg = document.querySelector('.error-message');
+                if (successMsg) {
+                    successMsg.style.transition = 'opacity 0.5s';
+                    successMsg.style.opacity = '0';
+                    setTimeout(() => successMsg.style.display = 'none', 500);
+                }
+                if (errorMsg) {
+                    errorMsg.style.transition = 'opacity 0.5s';
+                    errorMsg.style.opacity = '0';
+                    setTimeout(() => errorMsg.style.display = 'none', 500);
+                }
+            }, 5000);
+            
+            // Search and Filter Functionality
+            (function() {
+                const searchInput = document.getElementById('searchInput');
+                const categoryFilter = document.getElementById('categoryFilter');
+                const statusFilter = document.getElementById('statusFilter');
+                const departmentFilter = document.getElementById('departmentFilter');
+                const resetFiltersBtn = document.getElementById('resetFilters');
+                const tableBody = document.getElementById('assetsTableBody');
+                const resultsCount = document.getElementById('resultsCount');
+                const activeFilters = document.getElementById('activeFilters');
+                const noResults = document.getElementById('noResults');
+                const table = document.getElementById('assetsTable');
+
+                const rows = Array.from(tableBody.querySelectorAll('tr'));
+                const totalAssets = rows.length;
+
+                function filterTable() {
+                    const searchTerm = searchInput.value.toLowerCase().trim();
+                    const categoryValue = categoryFilter.value;
+                    const statusValue = statusFilter.value;
+                    const departmentValue = departmentFilter.value;
+
+                    let visibleCount = 0;
+                    const activeFiltersList = [];
+
+                    rows.forEach(row => {
+                        const searchData = row.getAttribute('data-search');
+                        const category = row.getAttribute('data-category');
+                        const status = row.getAttribute('data-status') ? row.getAttribute('data-status').trim() : '';
+                        const department = row.getAttribute('data-department');
+
+                        const matchesSearch = searchData.includes(searchTerm);
+                        const matchesCategory = !categoryValue || category === categoryValue;
+                        const matchesStatus = !statusValue || status === statusValue;
+                        const matchesDepartment = !departmentValue || department === departmentValue;
+
+                        if (matchesSearch && matchesCategory && matchesStatus && matchesDepartment) {
+                            row.style.display = '';
+                            visibleCount++;
+                        } else {
+                            row.style.display = 'none';
+                        }
+                    });
+
+                    resultsCount.textContent = visibleCount;
+
+                    if (visibleCount === 0) {
+                        noResults.style.display = 'block';
+                        table.style.display = 'none';
+                    } else {
+                        noResults.style.display = 'none';
+                        table.style.display = 'table';
+                    }
+
+                    if (searchTerm) activeFiltersList.push(`Search: "${searchTerm}"`);
+                    if (categoryValue) activeFiltersList.push(`Category: ${categoryValue}`);
+                    if (statusValue) activeFiltersList.push(`Status: ${statusValue}`);
+                    if (departmentValue) activeFiltersList.push(`Department: ${departmentValue}`);
+
+                    if (activeFiltersList.length > 0) {
+                        activeFilters.innerHTML = '<i class="fas fa-filter"></i> Active filters: ' + activeFiltersList.join(', ');
+                    } else {
+                        activeFilters.textContent = '';
+                    }
+                }
+
+                searchInput.addEventListener('input', filterTable);
+                categoryFilter.addEventListener('change', filterTable);
+                statusFilter.addEventListener('change', filterTable);
+                departmentFilter.addEventListener('change', filterTable);
+
+                resetFiltersBtn.addEventListener('click', function() {
+                    searchInput.value = '';
+                    categoryFilter.value = '';
+                    statusFilter.value = '';
+                    departmentFilter.value = '';
+                    filterTable();
+                });
+
+                // Table Sorting
+                let currentSort = {
+                    column: null,
+                    direction: 'asc'
+                };
+
+                const sortableHeaders = document.querySelectorAll('.sortable');
+
+                sortableHeaders.forEach(header => {
+                    header.addEventListener('click', function() {
+                        const column = this.getAttribute('data-column');
+
+                        if (currentSort.column === column) {
+                            currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+                        } else {
+                            currentSort.column = column;
+                            currentSort.direction = 'asc';
+                        }
+
+                        sortableHeaders.forEach(h => {
+                            h.classList.remove('asc', 'desc');
+                            h.querySelector('.sort-icon').className = 'fas fa-sort sort-icon';
+                        });
+
+                        this.classList.add(currentSort.direction);
+                        const icon = this.querySelector('.sort-icon');
+                        icon.className = currentSort.direction === 'asc' ?
+                            'fas fa-sort-up sort-icon' :
+                            'fas fa-sort-down sort-icon';
+
+                        sortTable(column, currentSort.direction);
+                    });
+                });
+
+                function sortTable(column, direction) {
+                    const visibleRows = rows.filter(row => row.style.display !== 'none');
+
+                    visibleRows.sort((a, b) => {
+                        let aValue, bValue;
+
+                        switch (column) {
+                            case 'asset_code':
+                                aValue = a.querySelector('td:nth-child(1)').textContent.trim();
+                                bValue = b.querySelector('td:nth-child(1)').textContent.trim();
+                                break;
+                            case 'asset_name':
+                                aValue = a.querySelector('td:nth-child(2)').textContent.trim();
+                                bValue = b.querySelector('td:nth-child(2)').textContent.trim();
+                                break;
+                            case 'category':
+                                aValue = a.getAttribute('data-category');
+                                bValue = b.getAttribute('data-category');
+                                break;
+                            case 'brand_model':
+                                aValue = a.querySelector('td:nth-child(4)').textContent.trim();
+                                bValue = b.querySelector('td:nth-child(4)').textContent.trim();
+                                break;
+                            case 'assigned_user_name':
+                                aValue = a.querySelector('td:nth-child(5)').textContent.trim().toLowerCase();
+                                bValue = b.querySelector('td:nth-child(5)').textContent.trim().toLowerCase();
+                                break;
+                            case 'department':
+                                aValue = a.getAttribute('data-department') || '';
+                                bValue = b.getAttribute('data-department') || '';
+                                break;
+                            case 'status':
+                                aValue = a.getAttribute('data-status');
+                                bValue = b.getAttribute('data-status');
+                                break;
+                            case 'purchase_date':
+                                aValue = a.querySelector('td:nth-child(8)').textContent.trim();
+                                bValue = b.querySelector('td:nth-child(8)').textContent.trim();
+                                aValue = aValue === '-' ? new Date(0) : new Date(aValue);
+                                bValue = bValue === '-' ? new Date(0) : new Date(bValue);
+                                break;
+                            default:
+                                return 0;
+                        }
+
+                        if (!aValue || aValue === '-') aValue = '';
+                        if (!bValue || bValue === '-') bValue = '';
+
+                        if (column === 'purchase_date') {
+                            return direction === 'asc' ? aValue - bValue : bValue - aValue;
+                        } else {
+                            if (aValue < bValue) return direction === 'asc' ? -1 : 1;
+                            if (aValue > bValue) return direction === 'asc' ? 1 : -1;
+                            return 0;
+                        }
+                    });
+
+                    visibleRows.forEach(row => tableBody.appendChild(row));
+
+                    rows.filter(row => row.style.display === 'none').forEach(row => {
+                        tableBody.appendChild(row);
+                    });
+                }
+            })();
+        </script>
 </body>
 </html>

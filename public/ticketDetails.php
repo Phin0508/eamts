@@ -11,6 +11,7 @@ $user_id = $_SESSION['user_id'];
 $user_role = $_SESSION['role'] ?? 'employee';
 $ticket_id = $_GET['id'] ?? 0;
 
+// Fetch ticket details with rejection info
 $ticket_query = "
     SELECT 
         t.*,
@@ -18,8 +19,10 @@ $ticket_query = "
         requester.email as requester_email,
         requester.phone as requester_phone,
         CONCAT(assigned.first_name, ' ', assigned.last_name) as assigned_to_name,
+        assigned.email as assigned_to_email,
         CONCAT(resolver.first_name, ' ', resolver.last_name) as resolved_by_name,
         CONCAT(approver.first_name, ' ', approver.last_name) as approver_name,
+        CONCAT(rejected.first_name, ' ', rejected.last_name) as rejected_by_name,
         a.asset_name,
         a.asset_code,
         a.category as asset_category,
@@ -30,28 +33,7 @@ $ticket_query = "
     LEFT JOIN users assigned ON t.assigned_to = assigned.user_id
     LEFT JOIN users resolver ON t.resolved_by = resolver.user_id
     LEFT JOIN users approver ON t.approved_by = approver.user_id
-    LEFT JOIN assets a ON t.asset_id = a.id
-    WHERE t.ticket_id = ?
-";
-
-// Fetch ticket details
-$ticket_query = "
-    SELECT 
-        t.*,
-        CONCAT(requester.first_name, ' ', requester.last_name) as requester_name,
-        requester.email as requester_email,
-        requester.phone as requester_phone,
-        CONCAT(assigned.first_name, ' ', assigned.last_name) as assigned_to_name,
-        CONCAT(resolver.first_name, ' ', resolver.last_name) as resolved_by_name,
-        a.asset_name,
-        a.asset_code,
-        a.category as asset_category,
-        a.brand as asset_brand,
-        a.model as asset_model
-    FROM tickets t
-    JOIN users requester ON t.requester_id = requester.user_id
-    LEFT JOIN users assigned ON t.assigned_to = assigned.user_id
-    LEFT JOIN users resolver ON t.resolved_by = resolver.user_id
+    LEFT JOIN users rejected ON t.rejected_by = rejected.user_id
     LEFT JOIN assets a ON t.asset_id = a.id
     WHERE t.ticket_id = ?
 ";
@@ -120,7 +102,7 @@ $history = $history_stmt->fetchAll(PDO::FETCH_ASSOC);
 // Fetch assignable users (for admins and managers)
 $assignable_users = [];
 if ($user_role !== 'employee') {
-    $users_query = "SELECT user_id, CONCAT(first_name, ' ', last_name) as name, role FROM users WHERE is_active = 1 AND role IN ('admin', 'manager') ORDER BY first_name";
+    $users_query = "SELECT user_id, CONCAT(first_name, ' ', last_name) as name, email, department, role FROM users WHERE is_active = 1 AND role IN ('admin', 'manager', 'employee') ORDER BY role, first_name";
     $users_stmt = $pdo->prepare($users_query);
     $users_stmt->execute();
     $assignable_users = $users_stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -144,6 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $log_stmt = $pdo->prepare($log_history);
                 $log_stmt->execute([$ticket_id, $user_id, $comment]);
 
+                $_SESSION['success_message'] = "Comment added successfully!";
                 header("Location: ticketDetails.php?id=$ticket_id");
                 exit();
             }
@@ -179,12 +162,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $log_stmt = $pdo->prepare($log_history);
             $log_stmt->execute([$ticket_id, $new_status, $user_id]);
 
-            header("Location: ticketDetails.php?id=$ticket_id&updated=1");
+            $_SESSION['success_message'] = "Ticket status updated successfully!";
+            header("Location: ticketDetails.php?id=$ticket_id");
             exit();
         }
 
-        // Assign ticket
-        if (isset($_POST['action']) && $_POST['action'] === 'assign_ticket' && $user_role !== 'employee') {
+        // Assign ticket - WITH APPROVAL CHECK
+        if (isset($_POST['action']) && $_POST['action'] === 'assign_ticket' && in_array($user_role, ['admin', 'superadmin'])) {
+            
+            // CHECK IF TICKET IS APPROVED
+            if ($ticket['approval_status'] !== 'approved') {
+                $_SESSION['error_message'] = "Cannot assign ticket. This ticket must be approved by a manager first. Current status: " . ucfirst($ticket['approval_status']);
+                header("Location: ticketDetails.php?id=$ticket_id");
+                exit();
+            }
+            
             $assigned_to = $_POST['assigned_to'];
 
             $assign_query = "UPDATE tickets SET assigned_to = ?, assigned_at = NOW(), status = 'in_progress', updated_at = NOW() WHERE ticket_id = ?";
@@ -196,18 +188,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $log_stmt = $pdo->prepare($log_history);
             $log_stmt->execute([$ticket_id, $assigned_to, $user_id]);
 
-            header("Location: ticketDetails.php?id=$ticket_id&assigned=1");
+            $_SESSION['success_message'] = "Ticket assigned successfully!";
+            header("Location: ticketDetails.php?id=$ticket_id");
             exit();
         }
     } catch (PDOException $e) {
-        $error_message = "Error: " . $e->getMessage();
+        $_SESSION['error_message'] = "Error: " . $e->getMessage();
     }
 }
-
-$success_message = '';
-if (isset($_GET['created'])) $success_message = "Ticket created successfully!";
-if (isset($_GET['updated'])) $success_message = "Ticket updated successfully!";
-if (isset($_GET['assigned'])) $success_message = "Ticket assigned successfully!";
 ?>
 
 <!DOCTYPE html>
@@ -322,6 +310,93 @@ if (isset($_GET['assigned'])) $success_message = "Ticket assigned successfully!"
             color: white;
         }
 
+        /* Alert Styles */
+        .alert {
+            padding: 1.25rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+
+        .alert i.fas {
+            font-size: 1.5rem;
+            margin-top: 0.25rem;
+        }
+
+        .alert-content {
+            flex: 1;
+        }
+
+        .alert strong {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 1.1rem;
+        }
+
+        .alert p {
+            margin: 0.5rem 0;
+            line-height: 1.5;
+        }
+
+        .alert-warning {
+            background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+            border-left: 4px solid #ffc107;
+            color: #856404;
+        }
+
+        .alert-danger {
+            background: linear-gradient(135deg, #f8d7da 0%, #ffcccb 100%);
+            border-left: 4px solid #dc3545;
+            color: #721c24;
+        }
+
+        .alert-success {
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+
+        .error-message {
+            background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+            padding: 1rem 1.25rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Current Assignment Box */
+        .current-assignment {
+            padding: 0.75rem 1rem;
+            background: linear-gradient(135deg, #e7f3ff 0%, #cfe9ff 100%);
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            border-left: 3px solid #2196F3;
+        }
+
+        .current-assignment strong {
+            color: #1976d2;
+            display: block;
+            margin-bottom: 0.25rem;
+        }
+
         .ticket-detail-container {
             display: grid;
             grid-template-columns: 2fr 1fr;
@@ -364,6 +439,9 @@ if (isset($_GET['assigned'])) $success_message = "Ticket assigned successfully!"
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.5px;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
         }
 
         .badge-status {
@@ -392,8 +470,8 @@ if (isset($_GET['assigned'])) $success_message = "Ticket assigned successfully!"
         }
 
         .badge-pending {
-            background: #fff9c4;
-            color: #f57f17;
+            background: #fff3cd;
+            color: #856404;
         }
 
         .badge-resolved {
@@ -424,6 +502,16 @@ if (isset($_GET['assigned'])) $success_message = "Ticket assigned successfully!"
         .badge-urgent {
             background: #f3e5f5;
             color: #7b1fa2;
+        }
+
+        .badge-approved {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .badge-rejected {
+            background: #f8d7da;
+            color: #721c24;
         }
 
         .info-section {
@@ -721,18 +809,6 @@ if (isset($_GET['assigned'])) $success_message = "Ticket assigned successfully!"
             color: #718096;
         }
 
-        .alert-success {
-            background: #f0fdf4;
-            color: #065f46;
-            border: 1px solid #10b981;
-            padding: 12px 16px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
         .asset-info-box {
             background: #f7fafc;
             border: 1px solid #e2e8f0;
@@ -788,21 +864,6 @@ if (isset($_GET['assigned'])) $success_message = "Ticket assigned successfully!"
                 grid-template-columns: 1fr;
             }
         }
-
-        .badge-pending {
-            background: #fff3cd;
-            color: #856404;
-        }
-
-        .badge-approved {
-            background: #d4edda;
-            color: #155724;
-        }
-
-        .badge-rejected {
-            background: #f8d7da;
-            color: #721c24;
-        }
     </style>
 </head>
 
@@ -831,11 +892,18 @@ if (isset($_GET['assigned'])) $success_message = "Ticket assigned successfully!"
                 </div>
             </header>
 
-            <?php if (!empty($success_message)): ?>
-                <div class="alert-success">
-                    <i class="fas fa-check-circle"></i>
-                    <?php echo $success_message; ?>
-                </div>
+            <?php if (isset($_SESSION['success_message'])): ?>
+            <div class="alert-success">
+                <i class="fas fa-check-circle"></i>
+                <span><?php echo htmlspecialchars($_SESSION['success_message']); unset($_SESSION['success_message']); ?></span>
+            </div>
+            <?php endif; ?>
+
+            <?php if (isset($_SESSION['error_message'])): ?>
+            <div class="error-message">
+                <i class="fas fa-exclamation-circle"></i>
+                <span><?php echo htmlspecialchars($_SESSION['error_message']); unset($_SESSION['error_message']); ?></span>
+            </div>
             <?php endif; ?>
 
             <div class="ticket-detail-container">
@@ -862,318 +930,418 @@ if (isset($_GET['assigned'])) $success_message = "Ticket assigned successfully!"
                                     <?php endif; ?>
                                 </div>
                             </div>
+                            <div style="text-align: right;">
+                                <strong style="font-size: 18px; color: #667eea;">
+                                    <?php echo htmlspecialchars($ticket['ticket_number']); ?>
+                                </strong>
+                            </div>
                         </div>
-                        <div style="text-align: right;">
-                            <strong style="font-size: 18px; color: #667eea;">
-                                <?php echo htmlspecialchars($ticket['ticket_number']); ?>
-                            </strong>
+
+                        <div class="info-section">
+                            <h3>Ticket Information</h3>
+                            <div class="info-grid">
+                                <div class="info-item">
+                                    <span class="info-label">Requester</span>
+                                    <span class="info-value"><?php echo htmlspecialchars($ticket['requester_name']); ?></span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">Department</span>
+                                    <span class="info-value"><?php echo htmlspecialchars($ticket['requester_department']); ?></span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">Created</span>
+                                    <span class="info-value"><?php echo date('M d, Y h:i A', strtotime($ticket['created_at'])); ?></span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">Last Updated</span>
+                                    <span class="info-value"><?php echo date('M d, Y h:i A', strtotime($ticket['updated_at'])); ?></span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">Assigned To</span>
+                                    <span class="info-value">
+                                        <?php echo $ticket['assigned_to_name'] ? htmlspecialchars($ticket['assigned_to_name']) : 'Unassigned'; ?>
+                                    </span>
+                                </div>
+                                <?php if ($ticket['status'] === 'resolved' || $ticket['status'] === 'closed'): ?>
+                                    <div class="info-item">
+                                        <span class="info-label">Resolved By</span>
+                                        <span class="info-value">
+                                            <?php echo $ticket['resolved_by_name'] ? htmlspecialchars($ticket['resolved_by_name']) : 'N/A'; ?>
+                                        </span>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
                         </div>
+
+                        <?php if ($ticket['asset_id']): ?>
+                            <div class="info-section">
+                                <h3>Related Asset</h3>
+                                <div class="asset-info-box">
+                                    <div class="info-row">
+                                        <span class="label">Asset Code</span>
+                                        <span class="value"><?php echo htmlspecialchars($ticket['asset_code']); ?></span>
+                                    </div>
+                                    <div class="info-row">
+                                        <span class="label">Asset Name</span>
+                                        <span class="value"><?php echo htmlspecialchars($ticket['asset_name']); ?></span>
+                                    </div>
+                                    <div class="info-row">
+                                        <span class="label">Category</span>
+                                        <span class="value"><?php echo htmlspecialchars($ticket['asset_category']); ?></span>
+                                    </div>
+                                    <?php if ($ticket['asset_brand']): ?>
+                                        <div class="info-row">
+                                            <span class="label">Brand/Model</span>
+                                            <span class="value"><?php echo htmlspecialchars($ticket['asset_brand'] . ' ' . $ticket['asset_model']); ?></span>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+
+                        <div class="info-section">
+                            <h3>Description</h3>
+                            <div class="description-box">
+                                <?php echo nl2br(htmlspecialchars($ticket['description'])); ?>
+                            </div>
+                        </div>
+
+                        <?php if (!empty($ticket['resolution']) && ($ticket['status'] === 'resolved' || $ticket['status'] === 'closed')): ?>
+                            <div class="info-section">
+                                <h3>Resolution</h3>
+                                <div class="resolution-box">
+                                    <?php echo nl2br(htmlspecialchars($ticket['resolution'])); ?>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+
+                        <?php if (!empty($attachments)): ?>
+                            <div class="info-section">
+                                <h3>Attachments (<?php echo count($attachments); ?>)</h3>
+                                <div class="attachments-list">
+                                    <?php foreach ($attachments as $attachment): ?>
+                                        <div class="attachment-item">
+                                            <div class="attachment-icon">
+                                                <i class="fas fa-file"></i>
+                                            </div>
+                                            <div class="attachment-info">
+                                                <div class="attachment-name">
+                                                    <?php echo htmlspecialchars($attachment['file_name']); ?>
+                                                </div>
+                                                <div class="attachment-meta">
+                                                    <?php echo round($attachment['file_size'] / 1024, 2); ?> KB •
+                                                    Uploaded by <?php echo htmlspecialchars($attachment['uploaded_by_name']); ?> on
+                                                    <?php echo date('M d, Y', strtotime($attachment['created_at'])); ?>
+                                                </div>
+                                            </div>
+                                            <a href="<?php echo htmlspecialchars($attachment['file_path']); ?>" class="btn-icon" download title="Download">
+                                                <i class="fas fa-download"></i>
+                                            </a>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                        <?php endif; ?>
                     </div>
 
-                    <div class="info-section">
-                        <h3>Ticket Information</h3>
-                        <div class="info-grid">
+                    <!-- Comments Section -->
+                    <div class="detail-card comments-section">
+                        <h3>Comments (<?php echo count($comments); ?>)</h3>
+
+                        <?php if (empty($comments)): ?>
+                            <p style="color: #718096; font-size: 14px; padding: 20px; text-align: center;">
+                                No comments yet. Be the first to comment!
+                            </p>
+                        <?php else: ?>
+                            <div style="margin-top: 20px;">
+                                <?php foreach ($comments as $comment): ?>
+                                    <?php if ($comment['is_internal'] && $user_role === 'employee') continue; ?>
+                                    <div class="comment <?php echo $comment['is_internal'] ? 'internal' : ''; ?>">
+                                        <div class="comment-avatar">
+                                            <?php echo strtoupper(substr($comment['user_name'], 0, 1)); ?>
+                                        </div>
+                                        <div class="comment-content">
+                                            <div class="comment-header">
+                                                <span class="comment-author">
+                                                    <?php echo htmlspecialchars($comment['user_name']); ?>
+                                                    <span style="color: #718096; font-weight: normal; font-size: 12px;">
+                                                        (<?php echo ucfirst($comment['user_role']); ?>)
+                                                    </span>
+                                                    <?php if ($comment['is_internal']): ?>
+                                                        <span class="internal-badge">INTERNAL</span>
+                                                    <?php endif; ?>
+                                                </span>
+                                                <span class="comment-time">
+                                                    <?php echo date('M d, Y h:i A', strtotime($comment['created_at'])); ?>
+                                                </span>
+                                            </div>
+                                            <div class="comment-text">
+                                                <?php echo nl2br(htmlspecialchars($comment['comment'])); ?>
+                                            </div>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+
+                        <!-- Add Comment Form -->
+                        <div class="add-comment-form">
+                            <form method="POST" action="">
+                                <input type="hidden" name="action" value="add_comment">
+                                <textarea name="comment" placeholder="Add a comment..." required></textarea>
+                                <div class="form-actions">
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-comment"></i> Add Comment
+                                    </button>
+                                    <?php if ($user_role !== 'employee'): ?>
+                                        <label class="checkbox-label">
+                                            <input type="checkbox" name="is_internal" value="1">
+                                            <span>Internal comment (not visible to requester)</span>
+                                        </label>
+                                    <?php endif; ?>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column - Actions & History -->
+                <div>
+                    <!-- Assignment Section with Approval Check -->
+                    <?php if (in_array($user_role, ['admin', 'superadmin'])): ?>
+                    <div class="detail-card sidebar-section">
+                        <h3>Assignment</h3>
+                        
+                        <?php if ($ticket['approval_status'] === 'approved'): ?>
+                            <!-- Show assignment form when approved -->
+                            <form method="POST" action="" class="action-form">
+                                <input type="hidden" name="action" value="assign_ticket">
+                                <select name="assigned_to" required>
+                                    <option value="">-- Select User to Assign --</option>
+                                    <?php
+                                    $current_role = '';
+                                    foreach ($assignable_users as $user):
+                                        // Add optgroup headers for each role
+                                        if ($current_role !== $user['role']) {
+                                            if ($current_role !== '') echo '</optgroup>';
+                                            echo '<optgroup label="' . ucfirst($user['role']) . 's">';
+                                            $current_role = $user['role'];
+                                        }
+                                    ?>
+                                        <option value="<?php echo $user['user_id']; ?>" 
+                                                <?php echo ($ticket['assigned_to'] == $user['user_id']) ? 'selected' : ''; ?>>
+                                            <?php echo htmlspecialchars($user['name']); ?> 
+                                            (<?php echo htmlspecialchars($user['email']); ?>) 
+                                            - <?php echo htmlspecialchars($user['department']); ?>
+                                        </option>
+                                    <?php 
+                                    endforeach; 
+                                    if ($current_role !== '') echo '</optgroup>';
+                                    ?>
+                                </select>
+                                <small style="color: #6c757d; display: block; margin-top: 0.5rem; font-size: 12px;">
+                                    <i class="fas fa-info-circle"></i> Select a user to assign this ticket to. The ticket status will be updated to "In Progress".
+                                </small>
+                                
+                                <?php if ($ticket['assigned_to']): ?>
+                                <div class="current-assignment">
+                                    <strong><i class="fas fa-user-check"></i> Currently Assigned To:</strong>
+                                    <div style="margin-top: 0.25rem;">
+                                        <?php echo htmlspecialchars($ticket['assigned_to_name']); ?>
+                                        <span style="color: #6c757d; font-size: 0.9rem;">
+                                            (<?php echo htmlspecialchars($ticket['assigned_to_email'] ?? ''); ?>)
+                                        </span>
+                                    </div>
+                                    <?php if ($ticket['assigned_at']): ?>
+                                    <small style="color: #1976d2; display: block; margin-top: 0.5rem; font-size: 11px;">
+                                        <i class="fas fa-clock"></i> Assigned on: <?php echo date('M d, Y h:i A', strtotime($ticket['assigned_at'])); ?>
+                                    </small>
+                                    <?php endif; ?>
+                                </div>
+                                <?php endif; ?>
+                                
+                                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                                    <i class="fas fa-user-check"></i> <?php echo $ticket['assigned_to'] ? 'Reassign Ticket' : 'Assign Ticket'; ?>
+                                </button>
+                            </form>
+                            
+                        <?php elseif ($ticket['approval_status'] === 'pending'): ?>
+                            <!-- Pending approval message -->
+                            <div class="alert alert-warning">
+                                <i class="fas fa-clock"></i>
+                                <div class="alert-content">
+                                    <strong>Awaiting Manager Approval</strong>
+                                    <p>This ticket is pending approval from a manager. Assignment will be available once the ticket has been reviewed and approved.</p>
+                                    <p style="margin-top: 0.75rem;">
+                                        Current approval status: 
+                                        <span class="badge badge-pending">
+                                            <i class="fas fa-clock"></i> Pending Approval
+                                        </span>
+                                    </p>
+                                    <p style="margin-top: 0.5rem; font-size: 0.9rem;">
+                                        <i class="fas fa-info-circle"></i> Submitted on <?php echo date('M d, Y h:i A', strtotime($ticket['created_at'])); ?>
+                                    </p>
+                                </div>
+                            </div>
+                            
+                        <?php elseif ($ticket['approval_status'] === 'rejected'): ?>
+                            <!-- Rejected message -->
+                            <div class="alert alert-danger">
+                                <i class="fas fa-times-circle"></i>
+                                <div class="alert-content">
+                                    <strong>Ticket Rejected</strong>
+                                    <p>This ticket has been rejected by a manager and cannot be assigned for work.</p>
+                                    
+                                    <?php if (!empty($ticket['rejection_reason'])): ?>
+                                    <div style="background: rgba(255,255,255,0.7); padding: 0.75rem; border-radius: 6px; margin-top: 0.75rem;">
+                                        <strong><i class="fas fa-comment"></i> Rejection Reason:</strong>
+                                        <p style="margin-top: 0.5rem; margin-bottom: 0;">
+                                            <?php echo nl2br(htmlspecialchars($ticket['rejection_reason'])); ?>
+                                        </p>
+                                    </div>
+                                    <?php endif; ?>
+                                    
+                                    <?php if (!empty($ticket['rejected_by_name'])): ?>
+                                    <p style="margin-top: 0.75rem; font-size: 0.9rem;">
+                                        <i class="fas fa-user"></i> Rejected by: 
+                                        <strong><?php echo htmlspecialchars($ticket['rejected_by_name']); ?></strong>
+                                    </p>
+                                    <?php endif; ?>
+                                    
+                                    <?php if (!empty($ticket['rejected_at'])): ?>
+                                    <p style="margin-top: 0.25rem; font-size: 0.9rem;">
+                                        <i class="fas fa-calendar"></i> Rejected on: 
+                                        <?php echo date('M d, Y h:i A', strtotime($ticket['rejected_at'])); ?>
+                                    </p>
+                                    <?php endif; ?>
+                                    
+                                    <p style="margin-top: 0.75rem;">
+                                        Current status: 
+                                        <span class="badge badge-rejected">
+                                            <i class="fas fa-times-circle"></i> Rejected
+                                        </span>
+                                    </p>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                    <?php endif; ?>
+
+                    <!-- Status Update -->
+                    <?php if ($user_role !== 'employee'): ?>
+                        <div class="detail-card sidebar-section">
+                            <h3>Update Status</h3>
+                            <form method="POST" action="" class="action-form">
+                                <input type="hidden" name="action" value="update_status">
+                                <select name="status" required>
+                                    <option value="open" <?php echo $ticket['status'] === 'open' ? 'selected' : ''; ?>>Open</option>
+                                    <option value="in_progress" <?php echo $ticket['status'] === 'in_progress' ? 'selected' : ''; ?>>In Progress</option>
+                                    <option value="pending" <?php echo $ticket['status'] === 'pending' ? 'selected' : ''; ?>>Pending</option>
+                                    <option value="resolved" <?php echo $ticket['status'] === 'resolved' ? 'selected' : ''; ?>>Resolved</option>
+                                    <option value="closed" <?php echo $ticket['status'] === 'closed' ? 'selected' : ''; ?>>Closed</option>
+                                </select>
+                                <textarea name="resolution" placeholder="Resolution notes (required for resolved status)"></textarea>
+                                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                                    <i class="fas fa-save"></i> Update Status
+                                </button>
+                            </form>
+                        </div>
+                    <?php endif; ?>
+
+                    <!-- Contact Information -->
+                    <div class="detail-card sidebar-section">
+                        <h3>Requester Contact</h3>
+                        <div style="display: flex; flex-direction: column; gap: 12px;">
                             <div class="info-item">
-                                <span class="info-label">Requester</span>
+                                <span class="info-label">Name</span>
                                 <span class="info-value"><?php echo htmlspecialchars($ticket['requester_name']); ?></span>
                             </div>
                             <div class="info-item">
-                                <span class="info-label">Department</span>
-                                <span class="info-value"><?php echo htmlspecialchars($ticket['requester_department']); ?></span>
-                            </div>
-                            <div class="info-item">
-                                <span class="info-label">Created</span>
-                                <span class="info-value"><?php echo date('M d, Y h:i A', strtotime($ticket['created_at'])); ?></span>
-                            </div>
-                            <div class="info-item">
-                                <span class="info-label">Last Updated</span>
-                                <span class="info-value"><?php echo date('M d, Y h:i A', strtotime($ticket['updated_at'])); ?></span>
-                            </div>
-                            <div class="info-item">
-                                <span class="info-label">Assigned To</span>
+                                <span class="info-label">Email</span>
                                 <span class="info-value">
-                                    <?php echo $ticket['assigned_to_name'] ? htmlspecialchars($ticket['assigned_to_name']) : 'Unassigned'; ?>
+                                    <a href="mailto:<?php echo htmlspecialchars($ticket['requester_email']); ?>"
+                                        style="color: #667eea; text-decoration: none;">
+                                        <?php echo htmlspecialchars($ticket['requester_email']); ?>
+                                    </a>
                                 </span>
                             </div>
-                            <?php if ($ticket['status'] === 'resolved' || $ticket['status'] === 'closed'): ?>
+                            <?php if ($ticket['requester_phone']): ?>
                                 <div class="info-item">
-                                    <span class="info-label">Resolved By</span>
+                                    <span class="info-label">Phone</span>
                                     <span class="info-value">
-                                        <?php echo $ticket['resolved_by_name'] ? htmlspecialchars($ticket['resolved_by_name']) : 'N/A'; ?>
+                                        <a href="tel:<?php echo htmlspecialchars($ticket['requester_phone']); ?>"
+                                            style="color: #667eea; text-decoration: none;">
+                                            <?php echo htmlspecialchars($ticket['requester_phone']); ?>
+                                        </a>
                                     </span>
                                 </div>
                             <?php endif; ?>
                         </div>
                     </div>
 
-                    <?php if ($ticket['asset_id']): ?>
-                        <div class="info-section">
-                            <h3>Related Asset</h3>
-                            <div class="asset-info-box">
-                                <div class="info-row">
-                                    <span class="label">Asset Code</span>
-                                    <span class="value"><?php echo htmlspecialchars($ticket['asset_code']); ?></span>
-                                </div>
-                                <div class="info-row">
-                                    <span class="label">Asset Name</span>
-                                    <span class="value"><?php echo htmlspecialchars($ticket['asset_name']); ?></span>
-                                </div>
-                                <div class="info-row">
-                                    <span class="label">Category</span>
-                                    <span class="value"><?php echo htmlspecialchars($ticket['asset_category']); ?></span>
-                                </div>
-                                <?php if ($ticket['asset_brand']): ?>
-                                    <div class="info-row">
-                                        <span class="label">Brand/Model</span>
-                                        <span class="value"><?php echo htmlspecialchars($ticket['asset_brand'] . ' ' . $ticket['asset_model']); ?></span>
-                                    </div>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    <?php endif; ?>
-
-                    <div class="info-section">
-                        <h3>Description</h3>
-                        <div class="description-box">
-                            <?php echo nl2br(htmlspecialchars($ticket['description'])); ?>
-                        </div>
-                    </div>
-
-                    <?php if (!empty($ticket['resolution']) && ($ticket['status'] === 'resolved' || $ticket['status'] === 'closed')): ?>
-                        <div class="info-section">
-                            <h3>Resolution</h3>
-                            <div class="resolution-box">
-                                <?php echo nl2br(htmlspecialchars($ticket['resolution'])); ?>
-                            </div>
-                        </div>
-                    <?php endif; ?>
-
-                    <?php if (!empty($attachments)): ?>
-                        <div class="info-section">
-                            <h3>Attachments (<?php echo count($attachments); ?>)</h3>
-                            <div class="attachments-list">
-                                <?php foreach ($attachments as $attachment): ?>
-                                    <div class="attachment-item">
-                                        <div class="attachment-icon">
-                                            <i class="fas fa-file"></i>
+                    <!-- Activity History -->
+                    <div class="detail-card">
+                        <h3 style="margin-bottom: 16px;">Activity History</h3>
+                        <?php if (empty($history)): ?>
+                            <p style="color: #718096; font-size: 14px; text-align: center;">
+                                No activity recorded yet.
+                            </p>
+                        <?php else: ?>
+                            <div class="history-timeline">
+                                <?php foreach ($history as $item): ?>
+                                    <div class="history-item">
+                                        <div class="history-action">
+                                            <?php
+                                            $action_text = '';
+                                            switch ($item['action_type']) {
+                                                case 'created':
+                                                    $action_text = 'Ticket created';
+                                                    break;
+                                                case 'status_changed':
+                                                    $action_text = 'Status changed to ' . ucfirst(str_replace('_', ' ', $item['new_value']));
+                                                    break;
+                                                case 'assigned':
+                                                    $action_text = 'Ticket assigned';
+                                                    break;
+                                                case 'commented':
+                                                    $action_text = 'Added a comment';
+                                                    break;
+                                                case 'updated':
+                                                    $action_text = 'Ticket updated';
+                                                    break;
+                                                default:
+                                                    $action_text = ucfirst($item['action_type']);
+                                            }
+                                            echo $action_text;
+                                            ?>
                                         </div>
-                                        <div class="attachment-info">
-                                            <div class="attachment-name">
-                                                <?php echo htmlspecialchars($attachment['file_name']); ?>
-                                            </div>
-                                            <div class="attachment-meta">
-                                                <?php echo round($attachment['file_size'] / 1024, 2); ?> KB •
-                                                Uploaded by <?php echo htmlspecialchars($attachment['uploaded_by_name']); ?> on
-                                                <?php echo date('M d, Y', strtotime($attachment['created_at'])); ?>
-                                            </div>
+                                        <div class="history-user">
+                                            <?php echo htmlspecialchars($item['performed_by_name']); ?> •
+                                            <?php echo date('M d, Y h:i A', strtotime($item['created_at'])); ?>
                                         </div>
-                                        <a href="<?php echo htmlspecialchars($attachment['file_path']); ?>" class="btn-icon" download title="Download">
-                                            <i class="fas fa-download"></i>
-                                        </a>
+                                        <?php if (!empty($item['notes'])): ?>
+                                            <div style="font-size: 12px; color: #4a5568; margin-top: 4px; font-style: italic;">
+                                                "<?php echo htmlspecialchars(substr($item['notes'], 0, 50)) . (strlen($item['notes']) > 50 ? '...' : ''); ?>"
+                                            </div>
+                                        <?php endif; ?>
                                     </div>
                                 <?php endforeach; ?>
-                            </div>
-                        </div>
-                    <?php endif; ?>
-                </div>
-
-                <!-- Comments Section -->
-                <div class="detail-card comments-section">
-                    <h3>Comments (<?php echo count($comments); ?>)</h3>
-
-                    <?php if (empty($comments)): ?>
-                        <p style="color: #718096; font-size: 14px; padding: 20px; text-align: center;">
-                            No comments yet. Be the first to comment!
-                        </p>
-                    <?php else: ?>
-                        <div style="margin-top: 20px;">
-                            <?php foreach ($comments as $comment): ?>
-                                <?php if ($comment['is_internal'] && $user_role === 'employee') continue; ?>
-                                <div class="comment <?php echo $comment['is_internal'] ? 'internal' : ''; ?>">
-                                    <div class="comment-avatar">
-                                        <?php echo strtoupper(substr($comment['user_name'], 0, 1)); ?>
-                                    </div>
-                                    <div class="comment-content">
-                                        <div class="comment-header">
-                                            <span class="comment-author">
-                                                <?php echo htmlspecialchars($comment['user_name']); ?>
-                                                <span style="color: #718096; font-weight: normal; font-size: 12px;">
-                                                    (<?php echo ucfirst($comment['user_role']); ?>)
-                                                </span>
-                                                <?php if ($comment['is_internal']): ?>
-                                                    <span class="internal-badge">INTERNAL</span>
-                                                <?php endif; ?>
-                                            </span>
-                                            <span class="comment-time">
-                                                <?php echo date('M d, Y h:i A', strtotime($comment['created_at'])); ?>
-                                            </span>
-                                        </div>
-                                        <div class="comment-text">
-                                            <?php echo nl2br(htmlspecialchars($comment['comment'])); ?>
-                                        </div>
-                                    </div>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    <?php endif; ?>
-
-                    <!-- Add Comment Form -->
-                    <div class="add-comment-form">
-                        <form method="POST" action="">
-                            <input type="hidden" name="action" value="add_comment">
-                            <textarea name="comment" placeholder="Add a comment..." required></textarea>
-                            <div class="form-actions">
-                                <button type="submit" class="btn btn-primary">
-                                    <i class="fas fa-comment"></i> Add Comment
-                                </button>
-                                <?php if ($user_role !== 'employee'): ?>
-                                    <label class="checkbox-label">
-                                        <input type="checkbox" name="is_internal" value="1">
-                                        <span>Internal comment (not visible to requester)</span>
-                                    </label>
-                                <?php endif; ?>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Right Column - Actions & History -->
-            <div>
-                <!-- Status Update -->
-                <?php if ($user_role !== 'employee'): ?>
-                    <div class="detail-card sidebar-section">
-                        <h3>Update Status</h3>
-                        <form method="POST" action="" class="action-form">
-                            <input type="hidden" name="action" value="update_status">
-                            <select name="status" required>
-                                <option value="open" <?php echo $ticket['status'] === 'open' ? 'selected' : ''; ?>>Open</option>
-                                <option value="in_progress" <?php echo $ticket['status'] === 'in_progress' ? 'selected' : ''; ?>>In Progress</option>
-                                <option value="pending" <?php echo $ticket['status'] === 'pending' ? 'selected' : ''; ?>>Pending</option>
-                                <option value="resolved" <?php echo $ticket['status'] === 'resolved' ? 'selected' : ''; ?>>Resolved</option>
-                                <option value="closed" <?php echo $ticket['status'] === 'closed' ? 'selected' : ''; ?>>Closed</option>
-                            </select>
-                            <textarea name="resolution" placeholder="Resolution notes (required for resolved status)"></textarea>
-                            <button type="submit" class="btn btn-primary" style="width: 100%;">
-                                <i class="fas fa-save"></i> Update Status
-                            </button>
-                        </form>
-                    </div>
-
-                    <!-- Assign Ticket -->
-                    <div class="detail-card sidebar-section">
-                        <h3>Assign Ticket</h3>
-                        <form method="POST" action="" class="action-form">
-                            <input type="hidden" name="action" value="assign_ticket">
-                            <select name="assigned_to" required>
-                                <option value="">Select User</option>
-                                <?php foreach ($assignable_users as $user): ?>
-                                    <option value="<?php echo $user['user_id']; ?>"
-                                        <?php echo $ticket['assigned_to'] == $user['user_id'] ? 'selected' : ''; ?>>
-                                        <?php echo htmlspecialchars($user['name']); ?> (<?php echo ucfirst($user['role']); ?>)
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                            <button type="submit" class="btn btn-secondary" style="width: 100%;">
-                                <i class="fas fa-user-check"></i> Assign
-                            </button>
-                        </form>
-                    </div>
-                <?php endif; ?>
-
-                <!-- Contact Information -->
-                <div class="detail-card sidebar-section">
-                    <h3>Requester Contact</h3>
-                    <div style="display: flex; flex-direction: column; gap: 12px;">
-                        <div class="info-item">
-                            <span class="info-label">Name</span>
-                            <span class="info-value"><?php echo htmlspecialchars($ticket['requester_name']); ?></span>
-                        </div>
-                        <div class="info-item">
-                            <span class="info-label">Email</span>
-                            <span class="info-value">
-                                <a href="mailto:<?php echo htmlspecialchars($ticket['requester_email']); ?>"
-                                    style="color: #667eea; text-decoration: none;">
-                                    <?php echo htmlspecialchars($ticket['requester_email']); ?>
-                                </a>
-                            </span>
-                        </div>
-                        <?php if ($ticket['requester_phone']): ?>
-                            <div class="info-item">
-                                <span class="info-label">Phone</span>
-                                <span class="info-value">
-                                    <a href="tel:<?php echo htmlspecialchars($ticket['requester_phone']); ?>"
-                                        style="color: #667eea; text-decoration: none;">
-                                        <?php echo htmlspecialchars($ticket['requester_phone']); ?>
-                                    </a>
-                                </span>
                             </div>
                         <?php endif; ?>
                     </div>
                 </div>
-
-                <!-- Activity History -->
-                <div class="detail-card">
-                    <h3 style="margin-bottom: 16px;">Activity History</h3>
-                    <?php if (empty($history)): ?>
-                        <p style="color: #718096; font-size: 14px; text-align: center;">
-                            No activity recorded yet.
-                        </p>
-                    <?php else: ?>
-                        <div class="history-timeline">
-                            <?php foreach ($history as $item): ?>
-                                <div class="history-item">
-                                    <div class="history-action">
-                                        <?php
-                                        $action_text = '';
-                                        switch ($item['action_type']) {
-                                            case 'created':
-                                                $action_text = 'Ticket created';
-                                                break;
-                                            case 'status_changed':
-                                                $action_text = 'Status changed to ' . ucfirst(str_replace('_', ' ', $item['new_value']));
-                                                break;
-                                            case 'assigned':
-                                                $action_text = 'Ticket assigned';
-                                                break;
-                                            case 'commented':
-                                                $action_text = 'Added a comment';
-                                                break;
-                                            case 'updated':
-                                                $action_text = 'Ticket updated';
-                                                break;
-                                            default:
-                                                $action_text = ucfirst($item['action_type']);
-                                        }
-                                        echo $action_text;
-                                        ?>
-                                    </div>
-                                    <div class="history-user">
-                                        <?php echo htmlspecialchars($item['performed_by_name']); ?> •
-                                        <?php echo date('M d, Y h:i A', strtotime($item['created_at'])); ?>
-                                    </div>
-                                    <?php if (!empty($item['notes'])): ?>
-                                        <div style="font-size: 12px; color: #4a5568; margin-top: 4px; font-style: italic;">
-                                            "<?php echo htmlspecialchars(substr($item['notes'], 0, 50)) . (strlen($item['notes']) > 50 ? '...' : ''); ?>"
-                                        </div>
-                                    <?php endif; ?>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    <?php endif; ?>
-                </div>
             </div>
-        </div>
         </div>
     </main>
 
     <script>
-        // Auto-hide success messages after 5 seconds
+        // Auto-hide success/error messages after 5 seconds
         setTimeout(function() {
-            const alerts = document.querySelectorAll('.alert-success');
+            const alerts = document.querySelectorAll('.alert-success, .error-message');
             alerts.forEach(alert => {
-                alert.style.transition = 'opacity 0.5s ease';
+                alert.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
                 alert.style.opacity = '0';
+                alert.style.transform = 'translateY(-10px)';
                 setTimeout(() => alert.remove(), 500);
             });
         }, 5000);

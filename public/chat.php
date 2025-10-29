@@ -590,6 +590,7 @@ try {
             margin-bottom: 1.5rem;
             opacity: 0.4;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
@@ -618,8 +619,6 @@ try {
 
         /* Responsive */
         @media (max-width: 1024px) {
-            body:not(.sidebar-collapsed) .chat-wrapper,
-            body.sidebar-collapsed .chat-wrapper,
             .chat-wrapper {
                 left: 0 !important;
             }
