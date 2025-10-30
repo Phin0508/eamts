@@ -179,24 +179,73 @@ try {
 
 // Get employee asset distribution
 try {
-    $employee_assets = $pdo->prepare("
-        SELECT 
-            u.user_id,
-            CONCAT(u.first_name, ' ', u.last_name) as employee_name,
-            COUNT(DISTINCT a.id) as asset_count,
-            COALESCE(SUM(a.purchase_cost), 0) as total_value
-        FROM users u
-        INNER JOIN assets a ON u.user_id = a.assigned_to
-        WHERE u.department = ? 
-            AND u.is_active = 1 
-            AND a.department = ?
-            AND a.status != 'retired'
-        GROUP BY u.user_id, u.first_name, u.last_name
-        ORDER BY asset_count DESC, total_value DESC
-        LIMIT 10
-    ");
-    $employee_assets->execute([$manager_dept, $manager_dept]);
-    $employee_asset_distribution = $employee_assets->fetchAll(PDO::FETCH_ASSOC);
+    // Get the dept_id for the manager's department first
+    $dept_id_query = "SELECT dept_id FROM departments WHERE dept_name = ? LIMIT 1";
+    $dept_id_stmt = $pdo->prepare($dept_id_query);
+    $dept_id_stmt->execute([$manager_dept]);
+    $dept_id = $dept_id_stmt->fetchColumn();
+    
+    if ($dept_id) {
+        // Now query using dept_id if assets table uses dept_id
+        $employee_assets = $pdo->prepare("
+            SELECT 
+                u.user_id,
+                CONCAT(u.first_name, ' ', u.last_name) as employee_name,
+                COUNT(DISTINCT a.id) as asset_count,
+                COALESCE(SUM(a.purchase_cost), 0) as total_value
+            FROM users u
+            INNER JOIN assets a ON u.user_id = a.assigned_to
+            WHERE u.department = ? 
+                AND a.status != 'retired'
+            GROUP BY u.user_id, u.first_name, u.last_name
+            HAVING asset_count > 0
+            ORDER BY asset_count DESC, total_value DESC
+            LIMIT 10
+        ");
+        $employee_assets->execute([$manager_dept]);
+        $employee_asset_distribution = $employee_assets->fetchAll(PDO::FETCH_ASSOC);
+        
+        // If no results, try with dept_id in assets table
+        if (empty($employee_asset_distribution)) {
+            $employee_assets = $pdo->prepare("
+                SELECT 
+                    u.user_id,
+                    CONCAT(u.first_name, ' ', u.last_name) as employee_name,
+                    COUNT(DISTINCT a.id) as asset_count,
+                    COALESCE(SUM(a.purchase_cost), 0) as total_value
+                FROM users u
+                INNER JOIN assets a ON u.user_id = a.assigned_to
+                INNER JOIN departments d ON u.department = d.dept_name
+                WHERE d.dept_id = ? 
+                    AND a.status != 'retired'
+                GROUP BY u.user_id, u.first_name, u.last_name
+                HAVING asset_count > 0
+                ORDER BY asset_count DESC, total_value DESC
+                LIMIT 10
+            ");
+            $employee_assets->execute([$dept_id]);
+            $employee_asset_distribution = $employee_assets->fetchAll(PDO::FETCH_ASSOC);
+        }
+    } else {
+        // Fallback: just match by department name without filter on assets.department
+        $employee_assets = $pdo->prepare("
+            SELECT 
+                u.user_id,
+                CONCAT(u.first_name, ' ', u.last_name) as employee_name,
+                COUNT(DISTINCT a.id) as asset_count,
+                COALESCE(SUM(a.purchase_cost), 0) as total_value
+            FROM users u
+            INNER JOIN assets a ON u.user_id = a.assigned_to
+            WHERE u.department = ? 
+                AND a.status != 'retired'
+            GROUP BY u.user_id, u.first_name, u.last_name
+            HAVING asset_count > 0
+            ORDER BY asset_count DESC, total_value DESC
+            LIMIT 10
+        ");
+        $employee_assets->execute([$manager_dept]);
+        $employee_asset_distribution = $employee_assets->fetchAll(PDO::FETCH_ASSOC);
+    }
 } catch (PDOException $e) {
     error_log("Employee assets error: " . $e->getMessage());
 }

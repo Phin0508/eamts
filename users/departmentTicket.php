@@ -119,12 +119,41 @@ if ($filter_type !== 'all') {
 }
 
 if (!empty($search)) {
-    $where_clauses[] = "(t.ticket_number LIKE ? OR t.subject LIKE ? OR requester.first_name LIKE ? OR requester.last_name LIKE ?)";
-    $search_param = "%$search%";
-    $params[] = $search_param;
-    $params[] = $search_param;
-    $params[] = $search_param;
-    $params[] = $search_param;
+    // Enhanced search - check if numeric for user_id search
+    if (is_numeric($search)) {
+        $where_clauses[] = "(t.ticket_number LIKE ? OR t.subject LIKE ? OR t.description LIKE ? OR 
+                           requester.first_name LIKE ? OR requester.last_name LIKE ? OR 
+                           CONCAT(requester.first_name, ' ', requester.last_name) LIKE ? OR 
+                           requester.user_id = ? OR t.requester_id = ? OR 
+                           a.asset_code LIKE ? OR a.asset_name LIKE ?)";
+        $search_param = "%$search%";
+        $params[] = $search_param;
+        $params[] = $search_param;
+        $params[] = $search_param;
+        $params[] = $search_param;
+        $params[] = $search_param;
+        $params[] = $search_param;
+        $params[] = intval($search);
+        $params[] = intval($search);
+        $params[] = $search_param;
+        $params[] = $search_param;
+    } else {
+        $where_clauses[] = "(t.ticket_number LIKE ? OR t.subject LIKE ? OR t.description LIKE ? OR 
+                           requester.first_name LIKE ? OR requester.last_name LIKE ? OR 
+                           CONCAT(requester.first_name, ' ', requester.last_name) LIKE ? OR 
+                           requester.email LIKE ? OR 
+                           a.asset_code LIKE ? OR a.asset_name LIKE ?)";
+        $search_param = "%$search%";
+        $params[] = $search_param;
+        $params[] = $search_param;
+        $params[] = $search_param;
+        $params[] = $search_param;
+        $params[] = $search_param;
+        $params[] = $search_param;
+        $params[] = $search_param;
+        $params[] = $search_param;
+        $params[] = $search_param;
+    }
 }
 
 $where_sql = "WHERE " . implode(" AND ", $where_clauses);
@@ -189,50 +218,476 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
     <title>Department Tickets - E-Asset System</title>
     
     <link rel="stylesheet" href="../auth/inc/navigation.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="../style/ticket.css">
     
     <style>
-        .approval-badge {
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 0.85rem;
-            font-weight: 500;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-        .approval-pending {
-            background: #fff3cd;
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8f9fc;
+            color: #2d3748;
+            min-height: 100vh;
+        }
+
+        /* Main Container */
+        .container {
+            margin-left: 260px;
+            padding: 30px;
+            transition: margin-left 0.3s ease;
+            min-height: 100vh;
+        }
+
+        .container.sidebar-collapsed {
+            margin-left: 80px;
+        }
+
+        /* Header */
+        .header {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .header-content h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1a202c;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-content h1 i {
+            color: #7c3aed;
+        }
+
+        .header-content p {
+            color: #718096;
+            font-size: 15px;
+        }
+
+        /* Alert Messages */
+        .alert {
+            padding: 16px 20px;
+            margin-bottom: 24px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 14px;
+            font-weight: 500;
+            animation: slideIn 0.3s ease;
+        }
+
+        .alert-success {
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+
+        .alert-error {
+            background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateY(-10px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            transition: all 0.3s;
+            border-left: 4px solid #7c3aed;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 20px rgba(124, 58, 237, 0.15);
+        }
+
+        .stat-card.total { border-left-color: #7c3aed; }
+        .stat-card.pending { border-left-color: #f59e0b; }
+        .stat-card.approved { border-left-color: #10b981; }
+        .stat-card.urgent { border-left-color: #ef4444; }
+
+        .stat-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: white;
+        }
+
+        .stat-card.total .stat-icon { background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); }
+        .stat-card.pending .stat-icon { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
+        .stat-card.approved .stat-icon { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
+        .stat-card.urgent .stat-icon { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
+
+        .stat-info h3 {
+            font-size: 32px;
+            font-weight: 700;
+            color: #1a202c;
+            margin-bottom: 4px;
+        }
+
+        .stat-info p {
+            color: #718096;
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Filters Section */
+        .filters-section {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+
+        .filters-form {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .search-box {
+            position: relative;
+            flex: 1;
+            min-width: 250px;
+        }
+
+        .search-box i {
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #718096;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 12px 16px 12px 44px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: #7c3aed;
+            box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.1);
+        }
+
+        .filters-form select {
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: all 0.3s;
+            cursor: pointer;
+            background: white;
+        }
+
+        .filters-form select:focus {
+            outline: none;
+            border-color: #7c3aed;
+            box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.1);
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+        }
+
+        .btn-secondary {
+            background: white;
+            color: #718096;
+            border: 2px solid #e2e8f0;
+        }
+
+        .btn-secondary:hover {
+            background: #f7fafc;
+            border-color: #cbd5e0;
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: #718096;
+            border: 2px solid #e2e8f0;
+        }
+
+        .btn-outline:hover {
+            background: #f7fafc;
+            border-color: #cbd5e0;
+        }
+
+        /* Section */
+        .section {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+
+        /* Table */
+        .table-container {
+            overflow-x: auto;
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table thead {
+            background: linear-gradient(135deg, #f7f4fe 0%, #ede9fe 100%);
+        }
+
+        .table thead th {
+            padding: 16px;
+            text-align: left;
+            font-weight: 700;
+            font-size: 13px;
+            color: #6d28d9;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .table tbody tr {
+            border-bottom: 1px solid #e2e8f0;
+            transition: all 0.2s;
+        }
+
+        .table tbody tr:hover {
+            background: #fafbfc;
+        }
+
+        .table tbody td {
+            padding: 16px;
+            font-size: 14px;
+            color: #2d3748;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 60px 20px;
+            color: #718096;
+            font-size: 15px;
+        }
+
+        /* Ticket Subject */
+        .ticket-subject {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .asset-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+            border-radius: 6px;
+            font-size: 12px;
+            color: #4b5563;
+            font-weight: 600;
+        }
+
+        .asset-tag i {
+            font-size: 10px;
+        }
+
+        /* Badges */
+        .badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .badge-type {
+            background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+            color: #3730a3;
+        }
+
+        /* Priority Badges */
+        .badge-urgent {
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            color: #991b1b;
+        }
+
+        .badge-high {
+            background: linear-gradient(135deg, #fed7aa 0%, #fdba74 100%);
+            color: #9a3412;
+        }
+
+        .badge-medium {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            color: #92400e;
+        }
+
+        .badge-low {
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+            color: #1e40af;
+        }
+
+        /* Status Badges */
+        .badge-open {
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+            color: #1e40af;
+        }
+
+        .badge-in_progress {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            color: #92400e;
+        }
+
+        .badge-resolved {
+            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+            color: #065f46;
+        }
+
+        .badge-closed {
+            background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+            color: #374151;
+        }
+
+        /* Approval Badges */
+        .badge-pending {
+            background: linear-gradient(135deg, #fff3cd 0%, #fff3cd 100%);
             color: #856404;
         }
-        .approval-approved {
-            background: #d4edda;
+
+        .badge-approved {
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
             color: #155724;
         }
-        .approval-rejected {
-            background: #f8d7da;
+
+        .badge-rejected {
+            background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
             color: #721c24;
         }
-        .approval-actions {
+
+        .text-muted {
+            color: #718096;
+            font-style: italic;
+        }
+
+        .date-time {
+            color: #718096;
+            font-size: 13px;
+        }
+
+        /* Action Buttons */
+        .action-buttons {
             display: flex;
             gap: 8px;
         }
+
+        .btn-icon {
+            width: 36px;
+            height: 36px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            background: white;
+            border: 2px solid #e2e8f0;
+            color: #718096;
+            transition: all 0.2s;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .btn-icon:hover {
+            background: #7c3aed;
+            border-color: #7c3aed;
+            color: white;
+            transform: translateY(-2px);
+        }
+
         .btn-approve {
-            background: #28a745;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
             color: white;
-            padding: 6px 12px;
             border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.875rem;
         }
+
+        .btn-approve:hover {
+            background: linear-gradient(135deg, #059669 0%, #047857 100%);
+        }
+
         .btn-reject {
-            background: #dc3545;
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
             color: white;
-            padding: 6px 12px;
             border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.875rem;
         }
+
+        .btn-reject:hover {
+            background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+        }
+
+        /* Modal */
         .modal {
             display: none;
             position: fixed;
@@ -241,239 +696,355 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             top: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.5);
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            animation: fadeIn 0.3s ease;
         }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
         .modal-content {
             background: white;
             margin: 10% auto;
-            padding: 30px;
+            padding: 40px;
             width: 90%;
             max-width: 500px;
-            border-radius: 8px;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: slideUp 0.3s ease;
         }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(30px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-content h2 {
+            font-size: 24px;
+            color: #1a202c;
+            margin-bottom: 8px;
+        }
+
+        .modal-content p {
+            color: #718096;
+            margin-bottom: 24px;
+        }
+
+        .modal-content label {
+            display: block;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
         .modal textarea {
             width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            margin: 15px 0;
-            min-height: 100px;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            margin-bottom: 24px;
+            min-height: 120px;
+            font-family: inherit;
+            font-size: 14px;
+            transition: all 0.3s;
+            resize: vertical;
         }
-        .alert {
-            padding: 15px;
+
+        .modal textarea:focus {
+            outline: none;
+            border-color: #7c3aed;
+            box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.1);
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .empty-state-icon {
+            font-size: 64px;
             margin-bottom: 20px;
-            border-radius: 4px;
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
         }
-        
-        /* Type Badge Styling */
-        .badge-type {
-            display: inline-block;
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-            background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
-            color: #3730a3;
+
+        .empty-state h3 {
+            font-size: 20px;
+            color: #1a202c;
+            margin-bottom: 10px;
+        }
+
+        .empty-state p {
+            color: #718096;
+            font-size: 15px;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1024px) {
+            .container {
+                margin-left: 80px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin-left: 0;
+                padding: 20px;
+            }
+
+            .header {
+                padding: 20px;
+            }
+
+            .header-content h1 {
+                font-size: 22px;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .filters-form {
+                flex-direction: column;
+            }
+
+            .search-box {
+                width: 100%;
+            }
+
+            .filters-form select,
+            .filters-form .btn {
+                width: 100%;
+            }
+
+            .table-container {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .table {
+                min-width: 1200px;
+            }
+
+            .section {
+                padding: 20px;
+            }
+
+            .modal-content {
+                width: 95%;
+                padding: 24px;
+                margin: 20% auto;
+            }
         }
     </style>
 </head>
 <body>
     <?php include("../auth/inc/Msidebar.php"); ?>
 
-    <main class="main-content">
-        <div class="dashboard-content">
-            <header class="page-header">
-                <div class="header-left">
-                    <h1>Department Tickets</h1>
-                    <p>Review and approve tickets from your department</p>
-                </div>
-            </header>
-
-            <?php if (isset($success_message) && !empty($success_message)): ?>
-            <div class="alert">
-                <i class="fas fa-check-circle"></i> <?php echo htmlspecialchars($success_message); ?>
+    <div class="container" id="mainContainer">
+        <div class="header">
+            <div class="header-content">
+                <h1><i class="fas fa-building"></i> Department Tickets</h1>
+                <p>Review and approve tickets from your department</p>
             </div>
-            <?php endif; ?>
-            
-            <?php if (isset($error_message) && !empty($error_message)): ?>
-            <div class="alert" style="background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb;">
-                <i class="fas fa-exclamation-circle"></i> <?php echo htmlspecialchars($error_message); ?>
-            </div>
-            <?php endif; ?>
+        </div>
 
-            <!-- Statistics Cards -->
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-icon total">
-                        <i class="fas fa-ticket-alt"></i>
-                    </div>
-                    <div class="stat-info">
-                        <h3><?php echo $stats['total']; ?></h3>
-                        <p>Total Department Tickets</p>
-                    </div>
+        <?php if (!empty($success_message)): ?>
+        <div class="alert alert-success">
+            <i class="fas fa-check-circle"></i> <?php echo htmlspecialchars($success_message); ?>
+        </div>
+        <?php endif; ?>
+        
+        <?php if (!empty($error_message)): ?>
+        <div class="alert alert-error">
+            <i class="fas fa-exclamation-circle"></i> <?php echo htmlspecialchars($error_message); ?>
+        </div>
+        <?php endif; ?>
+
+        <!-- Statistics Cards -->
+        <div class="stats-grid">
+            <div class="stat-card total">
+                <div class="stat-icon">
+                    <i class="fas fa-ticket-alt"></i>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-icon" style="background: #fff3cd; color: #856404;">
-                        <i class="fas fa-clock"></i>
-                    </div>
-                    <div class="stat-info">
-                        <h3><?php echo $stats['pending_approval']; ?></h3>
-                        <p>Pending Approval</p>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon" style="background: #d4edda; color: #155724;">
-                        <i class="fas fa-check-circle"></i>
-                    </div>
-                    <div class="stat-info">
-                        <h3><?php echo $stats['approved']; ?></h3>
-                        <p>Approved</p>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon urgent">
-                        <i class="fas fa-exclamation-triangle"></i>
-                    </div>
-                    <div class="stat-info">
-                        <h3><?php echo $stats['urgent_pending']; ?></h3>
-                        <p>Urgent Pending</p>
-                    </div>
+                <div class="stat-info">
+                    <h3><?php echo $stats['total']; ?></h3>
+                    <p>Total Department Tickets</p>
                 </div>
             </div>
-
-            <!-- Filters -->
-            <div class="filters-section">
-                <form method="GET" action="" class="filters-form">
-                    <div class="search-box">
-                        <i class="fas fa-search"></i>
-                        <input type="text" name="search" placeholder="Search tickets..." value="<?php echo htmlspecialchars($search); ?>">
-                    </div>
-                    
-                    <select name="approval" onchange="this.form.submit()">
-                        <option value="all" <?php echo $filter_approval === 'all' ? 'selected' : ''; ?>>All Approval Status</option>
-                        <option value="pending" <?php echo $filter_approval === 'pending' ? 'selected' : ''; ?>>Pending</option>
-                        <option value="approved" <?php echo $filter_approval === 'approved' ? 'selected' : ''; ?>>Approved</option>
-                        <option value="rejected" <?php echo $filter_approval === 'rejected' ? 'selected' : ''; ?>>Rejected</option>
-                    </select>
-
-                    <select name="status" onchange="this.form.submit()">
-                        <option value="all" <?php echo $filter_status === 'all' ? 'selected' : ''; ?>>All Status</option>
-                        <option value="open" <?php echo $filter_status === 'open' ? 'selected' : ''; ?>>Open</option>
-                        <option value="in_progress" <?php echo $filter_status === 'in_progress' ? 'selected' : ''; ?>>In Progress</option>
-                        <option value="resolved" <?php echo $filter_status === 'resolved' ? 'selected' : ''; ?>>Resolved</option>
-                        <option value="closed" <?php echo $filter_status === 'closed' ? 'selected' : ''; ?>>Closed</option>
-                    </select>
-
-                    <select name="type" onchange="this.form.submit()">
-                        <option value="all" <?php echo $filter_type === 'all' ? 'selected' : ''; ?>>All Types</option>
-                        <option value="repair" <?php echo $filter_type === 'repair' ? 'selected' : ''; ?>>Repair</option>
-                        <option value="maintenance" <?php echo $filter_type === 'maintenance' ? 'selected' : ''; ?>>Maintenance</option>
-                        <option value="request_item" <?php echo $filter_type === 'request_item' ? 'selected' : ''; ?>>Request Item</option>
-                        <option value="request_replacement" <?php echo $filter_type === 'request_replacement' ? 'selected' : ''; ?>>Request Replacement</option>
-                        <option value="inquiry" <?php echo $filter_type === 'inquiry' ? 'selected' : ''; ?>>Inquiry</option>
-                        <option value="other" <?php echo $filter_type === 'other' ? 'selected' : ''; ?>>Other</option>
-                    </select>
-
-                    <button type="submit" class="btn btn-secondary">
-                        <i class="fas fa-filter"></i> Filter
-                    </button>
-                    <a href="departmentTicket.php" class="btn btn-outline">
-                        <i class="fas fa-redo"></i> Reset
-                    </a>
-                </form>
+            <div class="stat-card pending">
+                <div class="stat-icon">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div class="stat-info">
+                    <h3><?php echo $stats['pending_approval']; ?></h3>
+                    <p>Pending Approval</p>
+                </div>
             </div>
-
-            <!-- Tickets Table -->
-            <div class="content-card">
-                <div class="table-responsive">
-                    <table class="tickets-table">
-                        <thead>
-                            <tr>
-                                <th>Ticket #</th>
-                                <th>Subject</th>
-                                <th>Type</th>
-                                <th>Requester</th>
-                                <th>Priority</th>
-                                <th>Status</th>
-                                <th>Approval Status</th>
-                                <th>Created</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (empty($tickets)): ?>
-                            <tr>
-                                <td colspan="9" class="no-data">No tickets found</td>
-                            </tr>
-                            <?php else: ?>
-                            <?php foreach ($tickets as $ticket): ?>
-                            <tr>
-                                <td>
-                                    <strong><?php echo htmlspecialchars($ticket['ticket_number']); ?></strong>
-                                </td>
-                                <td>
-                                    <div class="ticket-subject">
-                                        <?php echo htmlspecialchars($ticket['subject']); ?>
-                                        <?php if ($ticket['asset_code']): ?>
-                                        <small class="asset-tag">
-                                            <i class="fas fa-laptop"></i> <?php echo htmlspecialchars($ticket['asset_code']); ?>
-                                        </small>
-                                        <?php endif; ?>
-                                    </div>
-                                </td>
-                                <td>
-                                    <span class="badge badge-type"><?php echo ucfirst(str_replace('_', ' ', $ticket['ticket_type'])); ?></span>
-                                </td>
-                                <td><?php echo htmlspecialchars($ticket['requester_name']); ?></td>
-                                <td>
-                                    <span class="badge badge-priority badge-<?php echo $ticket['priority']; ?>">
-                                        <?php echo ucfirst($ticket['priority']); ?>
-                                    </span>
-                                </td>
-                                <td>
-                                    <span class="badge badge-status badge-<?php echo $ticket['status']; ?>">
-                                        <?php echo ucfirst(str_replace('_', ' ', $ticket['status'])); ?>
-                                    </span>
-                                </td>
-                                <td>
-                                    <span class="approval-badge approval-<?php echo $ticket['approval_status']; ?>">
-                                        <?php echo ucfirst($ticket['approval_status']); ?>
-                                    </span>
-                                </td>
-                                <td>
-                                    <span class="date-time"><?php echo date('M d, Y', strtotime($ticket['created_at'])); ?></span>
-                                </td>
-                                <td>
-                                    <div class="action-buttons">
-                                        <a href="departmentTicketDetails.php?id=<?php echo $ticket['ticket_id']; ?>" class="btn-icon" title="View Details">
-                                            <i class="fas fa-eye"></i>
-                                        </a>
-                                        <?php if ($ticket['approval_status'] === 'pending'): ?>
-                                        <button onclick="openApprovalModal(<?php echo $ticket['ticket_id']; ?>, 'approve', '<?php echo htmlspecialchars($ticket['ticket_number']); ?>')" 
-                                                class="btn-approve" title="Approve">
-                                            <i class="fas fa-check"></i>
-                                        </button>
-                                        <button onclick="openApprovalModal(<?php echo $ticket['ticket_id']; ?>, 'reject', '<?php echo htmlspecialchars($ticket['ticket_number']); ?>')" 
-                                                class="btn-reject" title="Reject">
-                                            <i class="fas fa-times"></i>
-                                        </button>
-                                        <?php endif; ?>
-                                    </div>
-                                </td>
-                            </tr>
-                            <?php endforeach; ?>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
+            <div class="stat-card approved">
+                <div class="stat-icon">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <div class="stat-info">
+                    <h3><?php echo $stats['approved']; ?></h3>
+                    <p>Approved</p>
+                </div>
+            </div>
+            <div class="stat-card urgent">
+                <div class="stat-icon">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <div class="stat-info">
+                    <h3><?php echo $stats['urgent_pending']; ?></h3>
+                    <p>Urgent Pending</p>
                 </div>
             </div>
         </div>
-    </main>
+
+        <!-- Filters -->
+        <div class="filters-section">
+            <form method="GET" action="" class="filters-form">
+                <div class="search-box">
+                    <i class="fas fa-search"></i>
+                    <input type="text" name="search" placeholder="Search by ticket, subject, requester, asset..." value="<?php echo htmlspecialchars($search); ?>">
+                </div>
+                
+                <select name="approval" onchange="this.form.submit()">
+                    <option value="all" <?php echo $filter_approval === 'all' ? 'selected' : ''; ?>>All Approval Status</option>
+                    <option value="pending" <?php echo $filter_approval === 'pending' ? 'selected' : ''; ?>>Pending</option>
+                    <option value="approved" <?php echo $filter_approval === 'approved' ? 'selected' : ''; ?>>Approved</option>
+                    <option value="rejected" <?php echo $filter_approval === 'rejected' ? 'selected' : ''; ?>>Rejected</option>
+                </select>
+
+                <select name="status" onchange="this.form.submit()">
+                    <option value="all" <?php echo $filter_status === 'all' ? 'selected' : ''; ?>>All Status</option>
+                    <option value="open" <?php echo $filter_status === 'open' ? 'selected' : ''; ?>>Open</option>
+                    <option value="in_progress" <?php echo $filter_status === 'in_progress' ? 'selected' : ''; ?>>In Progress</option>
+                    <option value="resolved" <?php echo $filter_status === 'resolved' ? 'selected' : ''; ?>>Resolved</option>
+                    <option value="closed" <?php echo $filter_status === 'closed' ? 'selected' : ''; ?>>Closed</option>
+                </select>
+
+                <select name="type" onchange="this.form.submit()">
+                    <option value="all" <?php echo $filter_type === 'all' ? 'selected' : ''; ?>>All Types</option>
+                    <option value="repair" <?php echo $filter_type === 'repair' ? 'selected' : ''; ?>>Repair</option>
+                    <option value="maintenance" <?php echo $filter_type === 'maintenance' ? 'selected' : ''; ?>>Maintenance</option>
+                    <option value="request_item" <?php echo $filter_type === 'request_item' ? 'selected' : ''; ?>>Request Item</option>
+                    <option value="request_replacement" <?php echo $filter_type === 'request_replacement' ? 'selected' : ''; ?>>Request Replacement</option>
+                    <option value="inquiry" <?php echo $filter_type === 'inquiry' ? 'selected' : ''; ?>>Inquiry</option>
+                    <option value="other" <?php echo $filter_type === 'other' ? 'selected' : ''; ?>>Other</option>
+                </select>
+
+                <button type="submit" class="btn btn-secondary">
+                    <i class="fas fa-filter"></i> Filter
+                </button>
+                <a href="departmentTicket.php" class="btn btn-outline">
+                    <i class="fas fa-redo"></i> Reset
+                </a>
+            </form>
+        </div>
+
+        <!-- Tickets Table -->
+        <div class="section">
+            <?php if (empty($tickets)): ?>
+            <div class="empty-state">
+                <div class="empty-state-icon">🎫</div>
+                <h3>No Tickets Found</h3>
+                <p>No department tickets match your current filters.</p>
+            </div>
+            <?php else: ?>
+            <div class="table-container">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Ticket #</th>
+                            <th>Subject</th>
+                            <th>Type</th>
+                            <th>Requester</th>
+                            <th>Priority</th>
+                            <th>Status</th>
+                            <th>Approval Status</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($tickets as $ticket): ?>
+                        <tr>
+                            <td>
+                                <strong><?php echo htmlspecialchars($ticket['ticket_number']); ?></strong>
+                            </td>
+                            <td>
+                                <div class="ticket-subject">
+                                    <span><?php echo htmlspecialchars($ticket['subject']); ?></span>
+                                    <?php if ($ticket['asset_code']): ?>
+                                    <span class="asset-tag">
+                                        <i class="fas fa-laptop"></i> <?php echo htmlspecialchars($ticket['asset_code']); ?>
+                                    </span>
+                                    <?php endif; ?>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge badge-type"><?php echo ucfirst(str_replace('_', ' ', $ticket['ticket_type'])); ?></span>
+                            </td>
+                            <td><?php echo htmlspecialchars($ticket['requester_name']); ?></td>
+                            <td>
+                                <span class="badge badge-<?php echo $ticket['priority']; ?>">
+                                    <?php echo ucfirst($ticket['priority']); ?>
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge badge-<?php echo $ticket['status']; ?>">
+                                    <?php echo ucfirst(str_replace('_', ' ', $ticket['status'])); ?>
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge badge-<?php echo $ticket['approval_status']; ?>">
+                                    <?php echo ucfirst($ticket['approval_status']); ?>
+                                </span>
+                            </td>
+                            <td>
+                                <span class="date-time"><?php echo date('M d, Y', strtotime($ticket['created_at'])); ?></span>
+                            </td>
+                            <td>
+                                <div class="action-buttons">
+                                    <a href="departmentTicketDetails.php?id=<?php echo $ticket['ticket_id']; ?>" class="btn-icon" title="View Details">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <?php if ($ticket['approval_status'] === 'pending'): ?>
+                                    <button onclick="openApprovalModal(<?php echo $ticket['ticket_id']; ?>, 'approve', '<?php echo htmlspecialchars($ticket['ticket_number']); ?>')" 
+                                            class="btn-icon btn-approve" title="Approve">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                    <button onclick="openApprovalModal(<?php echo $ticket['ticket_id']; ?>, 'reject', '<?php echo htmlspecialchars($ticket['ticket_number']); ?>')" 
+                                            class="btn-icon btn-reject" title="Reject">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                    <?php endif; ?>
+                                </div>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <?php endif; ?>
+        </div>
+    </div>
 
     <!-- Approval Modal -->
     <div id="approvalModal" class="modal">
@@ -484,34 +1055,72 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                 <input type="hidden" name="ticket_id" id="modalTicketId">
                 <input type="hidden" name="action" id="modalAction">
                 
-                <label for="manager_notes">Notes (Optional):</label>
+                <label for="manager_notes">Notes:</label>
                 <textarea name="manager_notes" id="manager_notes" placeholder="Add any notes or comments..."></textarea>
                 
-                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <div class="modal-buttons">
                     <button type="button" onclick="closeModal()" class="btn btn-outline">Cancel</button>
-                    <button type="submit" id="modalSubmitBtn" class="btn btn-primary">Confirm</button>
+                    <button type="submit" id="modalSubmitBtn" class="btn btn-secondary">Confirm</button>
                 </div>
             </form>
         </div>
     </div>
 
     <script>
+        // Sidebar toggle functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebar = document.getElementById('sidebar');
+            const mainContainer = document.getElementById('mainContainer');
+            const toggleBtn = document.querySelector('.sidebar-toggle');
+            
+            if (toggleBtn && sidebar && mainContainer) {
+                toggleBtn.addEventListener('click', function() {
+                    sidebar.classList.toggle('collapsed');
+                    mainContainer.classList.toggle('sidebar-collapsed');
+                });
+            }
+
+            // Mobile menu toggle
+            const mobileMenuBtn = document.querySelector('.mobile-menu-btn');
+            if (mobileMenuBtn && sidebar) {
+                mobileMenuBtn.addEventListener('click', function() {
+                    sidebar.classList.toggle('mobile-open');
+                });
+            }
+
+            // Close mobile sidebar when clicking outside
+            document.addEventListener('click', function(event) {
+                if (window.innerWidth <= 768) {
+                    if (sidebar && mobileMenuBtn && !sidebar.contains(event.target) && !mobileMenuBtn.contains(event.target)) {
+                        sidebar.classList.remove('mobile-open');
+                    }
+                }
+            });
+        });
+
         function openApprovalModal(ticketId, action, ticketNumber) {
             document.getElementById('approvalModal').style.display = 'block';
             document.getElementById('modalTicketId').value = ticketId;
             document.getElementById('modalAction').value = action;
             document.getElementById('modalTicketNumber').textContent = ticketNumber;
             
+            const submitBtn = document.getElementById('modalSubmitBtn');
+            const notesField = document.getElementById('manager_notes');
+            
             if (action === 'approve') {
                 document.getElementById('modalTitle').textContent = 'Approve Ticket';
-                document.getElementById('modalSubmitBtn').textContent = 'Approve';
-                document.getElementById('modalSubmitBtn').className = 'btn-approve';
-                document.getElementById('manager_notes').placeholder = 'Add approval notes (optional)...';
+                submitBtn.textContent = 'Approve';
+                submitBtn.className = 'btn-icon btn-approve';
+                submitBtn.style.width = 'auto';
+                submitBtn.style.padding = '12px 24px';
+                notesField.placeholder = 'Add approval notes (optional)...';
             } else {
                 document.getElementById('modalTitle').textContent = 'Reject Ticket';
-                document.getElementById('modalSubmitBtn').textContent = 'Reject';
-                document.getElementById('modalSubmitBtn').className = 'btn-reject';
-                document.getElementById('manager_notes').placeholder = 'Please provide reason for rejection...';
+                submitBtn.textContent = 'Reject';
+                submitBtn.className = 'btn-icon btn-reject';
+                submitBtn.style.width = 'auto';
+                submitBtn.style.padding = '12px 24px';
+                notesField.placeholder = 'Please provide reason for rejection...';
             }
         }
 
@@ -542,6 +1151,39 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             if (event.key === 'Escape') {
                 closeModal();
             }
+        });
+
+        // Enhanced search functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchInput = document.querySelector('input[name="search"]');
+            if (searchInput) {
+                // Clear search when escape key is pressed
+                searchInput.addEventListener('keydown', function(e) {
+                    if (e.key === 'Escape') {
+                        this.value = '';
+                        this.form.submit();
+                    }
+                });
+            }
+        });
+
+        // Table row click functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const tableRows = document.querySelectorAll('.table tbody tr');
+            tableRows.forEach(row => {
+                row.addEventListener('click', function(e) {
+                    // Don't trigger if clicking on action buttons
+                    if (!e.target.closest('.action-buttons')) {
+                        const viewLink = this.querySelector('a[href*="departmentTicketDetails.php"]');
+                        if (viewLink) {
+                            window.location.href = viewLink.href;
+                        }
+                    }
+                });
+                
+                // Add hover effect
+                row.style.cursor = 'pointer';
+            });
         });
     </script>
 </body>

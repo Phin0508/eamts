@@ -33,7 +33,7 @@ if ($user_role === 'employee') {
     // Admins only see approved tickets
     $where_clauses[] = "t.approval_status = 'approved'";
 }
-// If role is something else (e.g., 'superadmin'), see all tickets (no filter)
+// If role is something else see all tickets
 
 if ($filter_status !== 'all') {
     $where_clauses[] = "t.status = ?";
@@ -53,7 +53,8 @@ if ($filter_priority !== 'all') {
 if (!empty($search)) {
     // Check if search is numeric (could be user_id)
     if (is_numeric($search)) {
-        $where_clauses[] = "(t.ticket_number LIKE ? OR t.subject LIKE ? OR t.description LIKE ? OR t.requester_id = ? OR requester.user_id = ? OR CONCAT(requester.first_name, ' ', requester.last_name) LIKE ? OR a.asset_code LIKE ?)";
+        $where_clauses[] = "(t.ticket_number LIKE ? OR t.subject LIKE ? OR t.description LIKE ? OR t.requester_id = 
+        ? OR requester.user_id = ? OR CONCAT(requester.first_name, ' ', requester.last_name) LIKE ? OR a.asset_code LIKE ?)";
         $search_param = "%$search%";
         $params[] = $search_param;
         $params[] = $search_param;
@@ -63,7 +64,8 @@ if (!empty($search)) {
         $params[] = $search_param;
         $params[] = $search_param; // for asset_code
     } else {
-        $where_clauses[] = "(t.ticket_number LIKE ? OR t.subject LIKE ? OR t.description LIKE ? OR CONCAT(requester.first_name, ' ', requester.last_name) LIKE ? OR requester.email LIKE ? OR a.asset_code LIKE ? OR a.asset_name LIKE ?)";
+        $where_clauses[] = "(t.ticket_number LIKE ? OR t.subject LIKE ? OR t.description LIKE ? OR CONCAT(requester.first_name, ' '
+        , requester.last_name) LIKE ? OR requester.email LIKE ? OR a.asset_code LIKE ? OR a.asset_name LIKE ?)";
         $search_param = "%$search%";
         $params[] = $search_param;
         $params[] = $search_param;
@@ -639,6 +641,9 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                 <h1><i class="fas fa-ticket-alt"></i> Ticket Management</h1>
                 <p>Manage and track all support tickets</p>
             </div>
+             <a href="create_ticket.php" class="btn btn-secondary">
+                 Create Ticket
+            </a>
             <a href="ticketHistory.php" class="btn btn-secondary">
                 <i class="fas fa-history"></i> Ticket History
             </a>

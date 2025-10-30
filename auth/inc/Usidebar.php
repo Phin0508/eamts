@@ -89,11 +89,12 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
                 </a>
             </li>
             <li class="nav-item">
-                <a href="../settings/index.php" class="nav-link">
-                    <i class="nav-icon"></i>
-                    <span class="nav-text">Settings</span>
-                </a>
-            </li>
+                    <a href="#" class="nav-link coming-soon-link" onclick="showComingSoon(event)">
+                        <i class="nav-icon icon-settings"></i>
+                        <span class="nav-text">System Settings</span>
+                        <span class="badge-coming-soon">Soon</span>
+                    </a>
+                </li>
         </ul>
     </nav>
 
@@ -128,12 +129,195 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
         </a>
     </div>
 </div>
+<!-- Coming Soon Modal -->
+<div class="coming-soon-modal" id="comingSoonModal">
+    <div class="coming-soon-content">
+        <div class="coming-soon-icon">
+            <i class="fas fa-rocket"></i>
+        </div>
+        <h2>Coming Soon!</h2>
+        <p>This feature is currently under development and will be available in a future update.</p>
+        <p class="coming-soon-detail">We're working hard to bring you the best experience possible.</p>
+        <button class="btn-close-modal" onclick="closeComingSoon()">
+            <i class="fas fa-times"></i> Got it
+        </button>
+    </div>
+</div>
 
 <!-- Sidebar Overlay for Mobile -->
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
+<style>
+/* Coming Soon Badge */
+.badge-coming-soon {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: white;
+    padding: 3px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-left: auto;
+    animation: pulse-coming-soon 2s infinite;
+}
 
+@keyframes pulse-coming-soon {
+    0%, 100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.05);
+        opacity: 0.9;
+    }
+}
+
+.coming-soon-link {
+    opacity: 0.7;
+    cursor: pointer;
+}
+
+.coming-soon-link:hover {
+    opacity: 1;
+}
+
+/* Coming Soon Modal */
+.coming-soon-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    z-index: 10000;
+    animation: fadeIn 0.3s ease;
+    align-items: center;
+    justify-content: center;
+}
+
+.coming-soon-modal.show {
+    display: flex;
+}
+
+.coming-soon-content {
+    background: white;
+    border-radius: 20px;
+    padding: 40px;
+    max-width: 450px;
+    width: 90%;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.coming-soon-icon {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 40px;
+    color: white;
+    animation: rocket-bounce 1s ease-in-out infinite;
+}
+
+@keyframes rocket-bounce {
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-10px);
+    }
+}
+
+.coming-soon-content h2 {
+    font-size: 28px;
+    font-weight: 700;
+    color: #1a202c;
+    margin-bottom: 12px;
+}
+
+.coming-soon-content p {
+    color: #4a5568;
+    font-size: 15px;
+    line-height: 1.6;
+    margin-bottom: 12px;
+}
+
+.coming-soon-detail {
+    color: #718096;
+    font-size: 14px;
+    margin-bottom: 24px;
+}
+
+.btn-close-modal {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 12px 32px;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.btn-close-modal:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.btn-close-modal i {
+    margin-right: 8px;
+}
+</style>
 <script>
     console.log('Employee Sidebar Loaded');
+    // Coming Soon Modal Functions
+    function showComingSoon(event) {
+        event.preventDefault();
+        const modal = document.getElementById('comingSoonModal');
+        modal.classList.add('show');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeComingSoon() {
+        const modal = document.getElementById('comingSoonModal');
+        modal.classList.remove('show');
+        document.body.style.overflow = 'auto';
+    }
+
+    // Close modal when clicking outside
+    document.addEventListener('click', function(event) {
+        const modal = document.getElementById('comingSoonModal');
+        if (event.target === modal) {
+            closeComingSoon();
+        }
+    });
+
+    // Close modal with Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeComingSoon();
+        }
+    });
 
     function initializeSidebar() {
         const sidebar = document.getElementById('sidebar');

@@ -678,15 +678,6 @@ if ($user_role === 'admin') {
                         <?php endif; ?>
                     </p>
                 </div>
-                <div class="header-actions">
-                    <?php if ($user_role === 'manager'): ?>
-                    <a href="assetHistory.php?department=<?php echo urlencode($department); ?>" class="btn btn-secondary">
-                        <i class="fas fa-history"></i> View History
-                    </a>
-                    <a href="assetReg.php" class="btn btn-primary">
-                        <i class="fas fa-plus"></i> Register New Asset
-                    </a>
-                    <?php endif; ?>
                 </div>
             </div>
 
@@ -792,7 +783,7 @@ if ($user_role === 'admin') {
                         <i class="fas fa-filter"></i> Filter
                     </button>
                     
-                    <a href="managerAsset.php" class="btn btn-outline">
+                    <a href="departmentAsset.php" class="btn btn-outline">
                         <i class="fas fa-redo"></i> Reset
                     </a>
                 </form>
@@ -905,7 +896,7 @@ if ($user_role === 'admin') {
                     <i class="fas fa-box-open"></i>
                     <h3>No Assets Found</h3>
                     <p>No assets match your current filters. Try adjusting your search criteria.</p>
-                    <a href="managerAsset.php" class="btn btn-primary" style="margin-top: 1rem;">
+                    <a href="departmentAsset.php" class="btn btn-primary" style="margin-top: 1rem;">
                         <i class="fas fa-redo"></i> Reset Filters
                     </a>
                 </div>

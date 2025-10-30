@@ -506,7 +506,7 @@ echo "<!-- DEBUG: Asset table ID: " . $asset['id'] . " -->";
                             <p>This asset has no recorded history yet.<br>
                             History will appear here when assignments or changes are made.</p>
                         </div>
-                    <?php endif; ?>
+                    <?php endif; ?> 
                 </div>
             </div>
         </div>

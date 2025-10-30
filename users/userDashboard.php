@@ -395,7 +395,7 @@ $ticket_priority_values = json_encode(array_column($my_ticket_priority_data, 'co
             <div class="cta-section">
                 <h2>Need Help or Support?</h2>
                 <p>Create a ticket for repairs, maintenance, new requests, or any inquiries</p>
-                <a href="../public/createTicket.php" class="btn-create-ticket">
+                <a href="../users/userCreateticket.php" class="btn-create-ticket">
                     <i class="fas fa-plus-circle"></i> Create New Ticket
                 </a>
             </div>
