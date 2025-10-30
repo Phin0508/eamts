@@ -97,6 +97,7 @@ if (isset($_SESSION['dept_ticket_error'])) {
 // Fetch department tickets
 $filter_approval = $_GET['approval'] ?? 'all';
 $filter_status = $_GET['status'] ?? 'all';
+$filter_type = $_GET['type'] ?? 'all';
 $search = $_GET['search'] ?? '';
 
 $where_clauses = ["t.requester_department = ?"];
@@ -110,6 +111,11 @@ if ($filter_approval !== 'all') {
 if ($filter_status !== 'all') {
     $where_clauses[] = "t.status = ?";
     $params[] = $filter_status;
+}
+
+if ($filter_type !== 'all') {
+    $where_clauses[] = "t.ticket_type = ?";
+    $params[] = $filter_type;
 }
 
 if (!empty($search)) {
@@ -261,6 +267,19 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             color: #155724;
             border: 1px solid #c3e6cb;
         }
+        
+        /* Type Badge Styling */
+        .badge-type {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+            color: #3730a3;
+        }
     </style>
 </head>
 <body>
@@ -350,6 +369,16 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                         <option value="closed" <?php echo $filter_status === 'closed' ? 'selected' : ''; ?>>Closed</option>
                     </select>
 
+                    <select name="type" onchange="this.form.submit()">
+                        <option value="all" <?php echo $filter_type === 'all' ? 'selected' : ''; ?>>All Types</option>
+                        <option value="repair" <?php echo $filter_type === 'repair' ? 'selected' : ''; ?>>Repair</option>
+                        <option value="maintenance" <?php echo $filter_type === 'maintenance' ? 'selected' : ''; ?>>Maintenance</option>
+                        <option value="request_item" <?php echo $filter_type === 'request_item' ? 'selected' : ''; ?>>Request Item</option>
+                        <option value="request_replacement" <?php echo $filter_type === 'request_replacement' ? 'selected' : ''; ?>>Request Replacement</option>
+                        <option value="inquiry" <?php echo $filter_type === 'inquiry' ? 'selected' : ''; ?>>Inquiry</option>
+                        <option value="other" <?php echo $filter_type === 'other' ? 'selected' : ''; ?>>Other</option>
+                    </select>
+
                     <button type="submit" class="btn btn-secondary">
                         <i class="fas fa-filter"></i> Filter
                     </button>
@@ -367,6 +396,7 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                             <tr>
                                 <th>Ticket #</th>
                                 <th>Subject</th>
+                                <th>Type</th>
                                 <th>Requester</th>
                                 <th>Priority</th>
                                 <th>Status</th>
@@ -378,7 +408,7 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                         <tbody>
                             <?php if (empty($tickets)): ?>
                             <tr>
-                                <td colspan="8" class="no-data">No tickets found</td>
+                                <td colspan="9" class="no-data">No tickets found</td>
                             </tr>
                             <?php else: ?>
                             <?php foreach ($tickets as $ticket): ?>
@@ -395,6 +425,9 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                                         </small>
                                         <?php endif; ?>
                                     </div>
+                                </td>
+                                <td>
+                                    <span class="badge badge-type"><?php echo ucfirst(str_replace('_', ' ', $ticket['ticket_type'])); ?></span>
                                 </td>
                                 <td><?php echo htmlspecialchars($ticket['requester_name']); ?></td>
                                 <td>
@@ -417,7 +450,7 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                                 </td>
                                 <td>
                                     <div class="action-buttons">
-                                        <a href="ticketDetails.php?id=<?php echo $ticket['ticket_id']; ?>" class="btn-icon" title="View Details">
+                                        <a href="departmentTicketDetails.php?id=<?php echo $ticket['ticket_id']; ?>" class="btn-icon" title="View Details">
                                             <i class="fas fa-eye"></i>
                                         </a>
                                         <?php if ($ticket['approval_status'] === 'pending'): ?>

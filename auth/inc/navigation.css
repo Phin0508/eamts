@@ -1603,3 +1603,276 @@ body.employee-view .nav-menu > .nav-item:nth-of-type(1) .nav-icon::before {
     left: 50%;
     transform: translate(-50%, -50%);
 }
+/* ===========================================
+   IMPROVED NAVIGATION ICONS WITH CLASSES
+   =========================================== */
+
+/* Dashboard Icon - Grid */
+.icon-dashboard::before {
+    content: '';
+    width: 16px;
+    height: 16px;
+    background: 
+        linear-gradient(currentColor 0 0) 0 0/6px 6px,
+        linear-gradient(currentColor 0 0) 10px 0/6px 6px,
+        linear-gradient(currentColor 0 0) 0 10px/6px 6px,
+        linear-gradient(currentColor 0 0) 10px 10px/6px 6px;
+    background-repeat: no-repeat;
+}
+
+/* Assets Icon - Box/Package */
+.icon-assets::before {
+    content: '';
+    width: 16px;
+    height: 16px;
+    border: 2px solid currentColor;
+    border-radius: 3px;
+    box-sizing: border-box;
+    position: relative;
+}
+
+.icon-assets::after {
+    content: '';
+    position: absolute;
+    width: 12px;
+    height: 2px;
+    background: currentColor;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 -4px 0 currentColor;
+}
+
+/* Requests Icon - Document with Lines */
+.icon-requests::before {
+    content: '';
+    width: 14px;
+    height: 18px;
+    border: 2px solid currentColor;
+    border-radius: 2px;
+    box-sizing: border-box;
+    position: relative;
+}
+
+.icon-requests::after {
+    content: '';
+    position: absolute;
+    width: 8px;
+    height: 2px;
+    background: currentColor;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 -4px 0 currentColor, 0 4px 0 currentColor;
+}
+
+/* Tickets Icon - Tag */
+.icon-tickets::before {
+    content: '';
+    width: 14px;
+    height: 14px;
+    border: 2px solid currentColor;
+    border-radius: 2px;
+    transform: rotate(45deg);
+    box-sizing: border-box;
+}
+
+.icon-tickets::after {
+    content: '';
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    background: currentColor;
+    border-radius: 50%;
+    top: 4px;
+    left: 4px;
+}
+
+/* UA Tracking Icon - Location Pin */
+.icon-tracking::before {
+    content: '';
+    width: 12px;
+    height: 16px;
+    border: 2px solid currentColor;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    box-sizing: border-box;
+}
+
+.icon-tracking::after {
+    content: '';
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    background: currentColor;
+    border-radius: 50%;
+    top: 5px;
+    left: 5px;
+}
+
+/* Chat Icon - Message Bubble */
+.icon-chat::before {
+    content: '';
+    width: 16px;
+    height: 12px;
+    border: 2px solid currentColor;
+    border-radius: 3px;
+    box-sizing: border-box;
+}
+
+.icon-chat::after {
+    content: '';
+    position: absolute;
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 4px solid currentColor;
+    bottom: 2px;
+    left: 3px;
+}
+
+/* Users Icon - Multiple People (IMPROVED) */
+.icon-users::before {
+    content: '';
+    width: 9px;
+    height: 9px;
+    border: 2px solid currentColor;
+    border-radius: 50%;
+    box-sizing: border-box;
+    position: absolute;
+    left: 1px;
+    top: 1px;
+}
+
+.icon-users::after {
+    content: '';
+    width: 16px;
+    height: 8px;
+    border: 2px solid currentColor;
+    border-radius: 0 0 8px 8px;
+    border-top: none;
+    box-sizing: border-box;
+    position: absolute;
+    bottom: 1px;
+    left: 2px;
+}
+
+/* Departments Icon - Building (IMPROVED) */
+.icon-departments::before {
+    content: '';
+    width: 16px;
+    height: 16px;
+    border: 2px solid currentColor;
+    border-radius: 2px 2px 0 0;
+    box-sizing: border-box;
+    position: relative;
+}
+
+.icon-departments::after {
+    content: '';
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    top: 4px;
+    left: 5px;
+    background: 
+        linear-gradient(currentColor 0 0) 0 0/2px 3px,
+        linear-gradient(currentColor 0 0) 4px 0/2px 3px,
+        linear-gradient(currentColor 0 0) 0 5px/2px 3px,
+        linear-gradient(currentColor 0 0) 4px 5px/2px 3px;
+    background-repeat: no-repeat;
+}
+
+/* Settings Icon - Gear (IMPROVED) */
+.icon-settings::before {
+    content: '';
+    width: 16px;
+    height: 16px;
+    border: 2px solid currentColor;
+    border-radius: 50%;
+    box-sizing: border-box;
+    position: relative;
+}
+
+.icon-settings::after {
+    content: '';
+    position: absolute;
+    width: 8px;
+    height: 2px;
+    background: currentColor;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 
+        0 -3px 0 currentColor,
+        0 3px 0 currentColor,
+        -3px 0 0 currentColor,
+        3px 0 0 currentColor;
+}
+
+/* Reports Icon - Chart/Analytics (IMPROVED) */
+.icon-reports::before {
+    content: '';
+    width: 16px;
+    height: 14px;
+    border-left: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    box-sizing: border-box;
+    position: relative;
+}
+
+.icon-reports::after {
+    content: '';
+    position: absolute;
+    width: 12px;
+    height: 10px;
+    bottom: 2px;
+    left: 2px;
+    background: 
+        linear-gradient(currentColor 0 0) 0 6px/2px 4px,
+        linear-gradient(currentColor 0 0) 4px 4px/2px 6px,
+        linear-gradient(currentColor 0 0) 8px 0/2px 10px;
+    background-repeat: no-repeat;
+}
+
+/* Profile Icon - User */
+.icon-profile::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border: 2px solid currentColor;
+    border-radius: 50%;
+    box-sizing: border-box;
+    position: absolute;
+    top: 2px;
+}
+
+.icon-profile::after {
+    content: '';
+    width: 14px;
+    height: 8px;
+    border: 2px solid currentColor;
+    border-radius: 8px 8px 0 0;
+    border-top: 2px solid currentColor;
+    box-sizing: border-box;
+    position: absolute;
+    bottom: 2px;
+}
+
+/* General icon container setup */
+.nav-icon {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+/* Collapsed sidebar - hide coming soon badge */
+.sidebar.collapsed .badge-coming-soon {
+    display: none;
+}
+

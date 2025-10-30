@@ -89,7 +89,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_asset'])) {
                     updated_at = NOW() 
                     WHERE id = ?");
 
-                if ($stmt->execute([$asset_name, $asset_code, $category, $brand, $model, $serial_number, $purchase_date, $purchase_cost, $supplier, $warranty_expiry, $location, $department, $status, $description, $assigned_to, $asset_id])) {
+                if ($stmt->execute([$asset_name, $asset_code, $category, $brand, $model, $serial_number, 
+                $purchase_date, $purchase_cost, $supplier, $warranty_expiry, $location, $department, $status, $description, $assigned_to, $asset_id])) {
 
                     // Log assignment change if it changed
                     if ($current_asset['assigned_to'] != $assigned_to) {

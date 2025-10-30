@@ -893,14 +893,9 @@ if ($user_role === 'admin') {
                             <?php endif; ?>
 
                             <div class="asset-actions">
-                                <a href="assetDetails.php?id=<?php echo $asset['id']; ?>" class="btn-sm btn-view">
+                                <a href="departmentAssetDetails.php?id=<?php echo $asset['id']; ?>" class="btn-sm btn-view">
                                     <i class="fas fa-eye"></i> View
                                 </a>
-                                <?php if ($user_role === 'manager' || $user_role === 'admin'): ?>
-                                <a href="assetEdit.php?id=<?php echo $asset['id']; ?>" class="btn-sm btn-edit">
-                                    <i class="fas fa-edit"></i> Edit
-                                </a>
-                                <?php endif; ?>
                             </div>
                         </div>
                     <?php endforeach; ?>

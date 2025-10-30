@@ -86,13 +86,13 @@ try {
     $stats['department_tickets'] = $stmt->fetchColumn();
 
     // Get pending tickets
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets WHERE (requester_department = ? OR assigned_to = ?) AND status IN ('open', 'pending')");
-    $stmt->execute([$department, $user_id]);
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets WHERE requester_department = ? AND approval_status = 'pending'");
+    $stmt->execute([$department]);
     $stats['pending_tickets'] = $stmt->fetchColumn();
 
     // Get urgent tickets
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets WHERE (requester_department = ? OR assigned_to = ?) AND priority = 'urgent' AND status NOT IN ('resolved', 'closed')");
-    $stmt->execute([$department, $user_id]);
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets WHERE requester_department = ? AND priority = 'urgent' AND approval_status = 'pending'");
+    $stmt->execute([$department]);
     $stats['urgent_tickets'] = $stmt->fetchColumn();
 
     // Get department ticket status distribution
@@ -582,21 +582,21 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
                     <div class="stat-number-small">Total: <?php echo $stats['department_employees']; ?></div>
                 </div>
 
-                <div class="stat-card" onclick="window.location.href='../public/asset.php'">
+                <div class="stat-card" onclick="window.location.href='../users/departmentAsset.php'">
                     <span class="stat-icon">📦</span>
                     <div class="stat-number"><?php echo $stats['department_assets']; ?></div>
                     <div class="stat-label">Department Assets</div>
                     <div class="stat-number-small">My Assets: <?php echo $stats['my_assets']; ?></div>
                 </div>
 
-                <div class="stat-card" onclick="window.location.href='../public/ticket.php'">
+                <div class="stat-card" onclick="window.location.href='../users/departmentTicket.php'">
                     <span class="stat-icon">🎫</span>
                     <div class="stat-number"><?php echo $stats['department_tickets']; ?></div>
                     <div class="stat-label">Department Tickets</div>
                     <div class="stat-number-small">Pending: <?php echo $stats['pending_tickets']; ?></div>
                 </div>
 
-                <div class="stat-card" onclick="window.location.href='../public/ticket.php?filter=urgent'">
+                <div class="stat-card" onclick="window.location.href='../users/departmentTicket.php?filter=urgent'">
                     <span class="stat-icon">⚡</span>
                     <div class="stat-number"><?php echo $stats['urgent_tickets']; ?></div>
                     <div class="stat-label">Urgent Tickets</div>

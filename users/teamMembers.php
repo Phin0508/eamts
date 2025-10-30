@@ -694,11 +694,11 @@ $dept_stats = $dept_stats_stmt->fetch(PDO::FETCH_ASSOC);
                     </div>
 
                     <div class="member-actions">
-                        <a href="../assets/assets.php?user_id=<?php echo $member['user_id']; ?>" 
+                        <a href="../users/employeeOwned.php?user_id=<?php echo $member['user_id']; ?>" 
                            class="btn btn-sm btn-outline" title="View Assets">
                             <i class="fas fa-laptop"></i> Assets
                         </a>
-                        <a href="../tickets/tickets.php?user_id=<?php echo $member['user_id']; ?>" 
+                        <a href="../users/employeeTicket.php?user_id=<?php echo $member['user_id']; ?>" 
                            class="btn btn-sm btn-outline" title="View Tickets">
                             <i class="fas fa-ticket-alt"></i> Tickets
                         </a>
