@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once '../auth/config/database.php';
+require_once '../auth/helpers/EmailHelper.php'; // ADD THIS LINE
 
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
@@ -10,6 +11,9 @@ if (!isset($_SESSION['user_id'])) {
 $user_id = $_SESSION['user_id'];
 $user_role = $_SESSION['role'] ?? 'employee';
 $ticket_id = $_GET['id'] ?? 0;
+
+// Initialize EmailHelper
+$emailHelper = new EmailHelper();
 
 // Fetch ticket details with rejection info
 $ticket_query = "
@@ -111,7 +115,7 @@ if ($user_role !== 'employee') {
 // Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
-        // Add comment
+        // Add comment - WITH EMAIL NOTIFICATION
         if (isset($_POST['action']) && $_POST['action'] === 'add_comment') {
             $comment = trim($_POST['comment']);
             $is_internal = isset($_POST['is_internal']) && $user_role !== 'employee' ? 1 : 0;
@@ -126,16 +130,80 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $log_stmt = $pdo->prepare($log_history);
                 $log_stmt->execute([$ticket_id, $user_id, $comment]);
 
+                // ==================== EMAIL NOTIFICATION - START ====================
+                // Only send email if comment is NOT internal
+                if (!$is_internal) {
+                    try {
+                        // Get commenter details
+                        $commenter_query = $pdo->prepare("SELECT first_name, last_name, role FROM users WHERE user_id = ?");
+                        $commenter_query->execute([$user_id]);
+                        $commenter = $commenter_query->fetch(PDO::FETCH_ASSOC);
+                        $commenter_name = $commenter['first_name'] . ' ' . $commenter['last_name'];
+                        $commenter_role = ucfirst($commenter['role']);
+                        
+                        // Don't email the person who made the comment
+                        $recipients = [];
+                        
+                        // Email requester if they're not the commenter
+                        if ($ticket['requester_id'] != $user_id) {
+                            $recipients[] = [
+                                'email' => $ticket['requester_email'],
+                                'name' => $ticket['requester_name']
+                            ];
+                        }
+                        
+                        // Email assigned technician if exists and not the commenter
+                        if ($ticket['assigned_to'] && $ticket['assigned_to'] != $user_id) {
+                            $assigned_query = $pdo->prepare("SELECT email, first_name, last_name FROM users WHERE user_id = ?");
+                            $assigned_query->execute([$ticket['assigned_to']]);
+                            $assigned = $assigned_query->fetch(PDO::FETCH_ASSOC);
+                            if ($assigned) {
+                                $recipients[] = [
+                                    'email' => $assigned['email'],
+                                    'name' => $assigned['first_name'] . ' ' . $assigned['last_name']
+                                ];
+                            }
+                        }
+                        
+                        // Send email to all recipients
+                        foreach ($recipients as $recipient) {
+                            $reply_subject = "New Comment on Ticket - " . $ticket['ticket_number'];
+                            $reply_body = "
+                            <h2>New Comment on Your Ticket</h2>
+                            <p>Hello {$recipient['name']},</p>
+                            <p>{$commenter_name} ({$commenter_role}) has added a new comment to ticket {$ticket['ticket_number']}.</p>
+                            <hr>
+                            <p><strong>Ticket Number:</strong> {$ticket['ticket_number']}</p>
+                            <p><strong>Subject:</strong> {$ticket['subject']}</p>
+                            <hr>
+                            <p><strong>Comment:</strong></p>
+                            <blockquote style='background:#f7fafc; padding:15px; border-left:4px solid #667eea; margin:15px 0;'>
+                                " . nl2br(htmlspecialchars($comment)) . "
+                            </blockquote>
+                            <hr>
+                            <p><a href='" . SYSTEM_URL . "/tickets/ticketDetails.php?id={$ticket_id}' style='display:inline-block; padding:10px 20px; background:#667eea; color:white; text-decoration:none; border-radius:5px;'>View Full Conversation</a></p>
+                            ";
+                            
+                            $emailHelper->sendEmail($recipient['email'], $reply_subject, $reply_body);
+                        }
+                        
+                    } catch (Exception $e) {
+                        error_log("Failed to send comment notification email: " . $e->getMessage());
+                    }
+                }
+                // ==================== EMAIL NOTIFICATION - END ====================
+
                 $_SESSION['success_message'] = "Comment added successfully!";
                 header("Location: ticketDetails.php?id=$ticket_id");
                 exit();
             }
         }
 
-        // Update status
+        // Update status - WITH EMAIL NOTIFICATION
         if (isset($_POST['action']) && $_POST['action'] === 'update_status' && $user_role !== 'employee') {
             $new_status = $_POST['status'];
             $resolution = trim($_POST['resolution'] ?? '');
+            $old_status = $ticket['status'];
 
             $update_query = "UPDATE tickets SET status = ?, updated_at = NOW()";
             $params = [$new_status];
@@ -162,12 +230,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $log_stmt = $pdo->prepare($log_history);
             $log_stmt->execute([$ticket_id, $new_status, $user_id]);
 
+            // ==================== EMAIL NOTIFICATION - START ====================
+            try {
+                // Get updater details
+                $updater_query = $pdo->prepare("SELECT first_name, last_name FROM users WHERE user_id = ?");
+                $updater_query->execute([$user_id]);
+                $updater = $updater_query->fetch(PDO::FETCH_ASSOC);
+                $updater_name = $updater['first_name'] . ' ' . $updater['last_name'];
+                
+                // Basic status update email
+                $status_subject = "Ticket Status Updated - " . $ticket['ticket_number'];
+                $status_body = "
+                <h2>Ticket Status Updated</h2>
+                <p>Hello {$ticket['requester_name']},</p>
+                <p>The status of your ticket has been updated by {$updater_name}.</p>
+                <hr>
+                <p><strong>Ticket Number:</strong> {$ticket['ticket_number']}</p>
+                <p><strong>Subject:</strong> {$ticket['subject']}</p>
+                <p><strong>Previous Status:</strong> " . ucfirst(str_replace('_', ' ', $old_status)) . "</p>
+                <p><strong>New Status:</strong> " . ucfirst(str_replace('_', ' ', $new_status)) . "</p>
+                <hr>
+                <p><a href='" . SYSTEM_URL . "/users/userTicket.php?id={$ticket_id}' style='display:inline-block; padding:10px 20px; background:#667eea; color:white; text-decoration:none; border-radius:5px;'>View Ticket Details</a></p>
+                ";
+                
+                $emailHelper->sendEmail($ticket['requester_email'], $status_subject, $status_body);
+                
+                // If resolved or closed, send additional detailed email with resolution
+                if (($new_status === 'resolved' || $new_status === 'closed') && !empty($resolution)) {
+                    $resolution_subject = "Ticket " . ucfirst($new_status) . " - " . $ticket['ticket_number'];
+                    $resolution_body = "
+                    <h2>Your Ticket Has Been " . ucfirst($new_status) . "</h2>
+                    <p>Hello {$ticket['requester_name']},</p>
+                    <p>Your ticket has been marked as <strong>" . ucfirst($new_status) . "</strong> by {$updater_name}.</p>
+                    <hr>
+                    <p><strong>Ticket Number:</strong> {$ticket['ticket_number']}</p>
+                    <p><strong>Subject:</strong> {$ticket['subject']}</p>
+                    <p><strong>Status:</strong> " . ucfirst($new_status) . "</p>
+                    <hr>
+                    <p><strong>Resolution:</strong></p>
+                    <p style='background:#f0fdf4; padding:15px; border-left:4px solid #10b981; border-radius:8px;'>" . nl2br(htmlspecialchars($resolution)) . "</p>
+                    <hr>
+                    <p>If you have any questions or if the issue persists, please contact us or create a new ticket.</p>
+                    <p><a href='" . SYSTEM_URL . "/users/userTicket.php?id={$ticket_id}' style='display:inline-block; padding:10px 20px; background:#10b981; color:white; text-decoration:none; border-radius:5px;'>View Ticket Details</a></p>
+                    ";
+                    
+                    $emailHelper->sendEmail($ticket['requester_email'], $resolution_subject, $resolution_body);
+                }
+                
+            } catch (Exception $e) {
+                error_log("Failed to send status update email: " . $e->getMessage());
+            }
+            // ==================== EMAIL NOTIFICATION - END ====================
+
             $_SESSION['success_message'] = "Ticket status updated successfully!";
             header("Location: ticketDetails.php?id=$ticket_id");
             exit();
         }
 
-        // Assign ticket - WITH APPROVAL CHECK
+        // Assign ticket - WITH APPROVAL CHECK AND EMAIL NOTIFICATION
         if (isset($_POST['action']) && $_POST['action'] === 'assign_ticket' && in_array($user_role, ['admin', 'superadmin'])) {
             
             // CHECK IF TICKET IS APPROVED
@@ -187,6 +307,70 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $log_history = "INSERT INTO ticket_history (ticket_id, action_type, new_value, performed_by, created_at) VALUES (?, 'assigned', ?, ?, NOW())";
             $log_stmt = $pdo->prepare($log_history);
             $log_stmt->execute([$ticket_id, $assigned_to, $user_id]);
+
+            // ==================== EMAIL NOTIFICATION - START ====================
+            try {
+                // Get assigned user details
+                $assigned_user_query = $pdo->prepare("SELECT email, first_name, last_name FROM users WHERE user_id = ?");
+                $assigned_user_query->execute([$assigned_to]);
+                $assigned_user = $assigned_user_query->fetch(PDO::FETCH_ASSOC);
+                
+                // Get assigner details
+                $assigner_query = $pdo->prepare("SELECT first_name, last_name FROM users WHERE user_id = ?");
+                $assigner_query->execute([$user_id]);
+                $assigner = $assigner_query->fetch(PDO::FETCH_ASSOC);
+                $assigner_name = $assigner['first_name'] . ' ' . $assigner['last_name'];
+                
+                if ($assigned_user) {
+                    $assigned_user_name = $assigned_user['first_name'] . ' ' . $assigned_user['last_name'];
+                    $assigned_user_email = $assigned_user['email'];
+                    
+                    // Email to assigned technician
+                    $tech_subject = "New Ticket Assigned to You - " . $ticket['ticket_number'];
+                    $tech_body = "
+                    <h2>You Have Been Assigned a New Ticket</h2>
+                    <p>Hello {$assigned_user_name},</p>
+                    <p>A ticket has been assigned to you by {$assigner_name}.</p>
+                    <hr>
+                    <p><strong>Ticket Number:</strong> {$ticket['ticket_number']}</p>
+                    <p><strong>Subject:</strong> {$ticket['subject']}</p>
+                    <p><strong>Priority:</strong> " . ucfirst($ticket['priority']) . "</p>
+                    <p><strong>Type:</strong> " . ucfirst(str_replace('_', ' ', $ticket['ticket_type'])) . "</p>
+                    <p><strong>Requester:</strong> {$ticket['requester_name']}</p>
+                    <p><strong>Department:</strong> {$ticket['requester_department']}</p>
+                    <hr>
+                    <p><strong>Description:</strong></p>
+                    <p style='background:#f7fafc; padding:15px; border-radius:8px;'>" . nl2br(htmlspecialchars($ticket['description'])) . "</p>
+                    <hr>
+                    <p>Please review this ticket and begin working on it as soon as possible.</p>
+                    <p><a href='" . SYSTEM_URL . "/tickets/ticketDetails.php?id={$ticket_id}' style='display:inline-block; padding:10px 20px; background:#667eea; color:white; text-decoration:none; border-radius:5px;'>View Ticket Details</a></p>
+                    ";
+                    
+                    $emailHelper->sendEmail($assigned_user_email, $tech_subject, $tech_body);
+                    
+                    // Email to requester about assignment
+                    $requester_subject = "Your Ticket Has Been Assigned - " . $ticket['ticket_number'];
+                    $requester_body = "
+                    <h2>Your Ticket Has Been Assigned</h2>
+                    <p>Hello {$ticket['requester_name']},</p>
+                    <p>Good news! Your ticket has been assigned to {$assigned_user_name} who will work on resolving your request.</p>
+                    <hr>
+                    <p><strong>Ticket Number:</strong> {$ticket['ticket_number']}</p>
+                    <p><strong>Subject:</strong> {$ticket['subject']}</p>
+                    <p><strong>Assigned To:</strong> {$assigned_user_name}</p>
+                    <p><strong>Status:</strong> In Progress</p>
+                    <hr>
+                    <p>You will receive updates as progress is made on your ticket.</p>
+                    <p><a href='" . SYSTEM_URL . "/users/userTicket.php?id={$ticket_id}' style='display:inline-block; padding:10px 20px; background:#667eea; color:white; text-decoration:none; border-radius:5px;'>View Ticket Details</a></p>
+                    ";
+                    
+                    $emailHelper->sendEmail($ticket['requester_email'], $requester_subject, $requester_body);
+                }
+                
+            } catch (Exception $e) {
+                error_log("Failed to send assignment email: " . $e->getMessage());
+            }
+            // ==================== EMAIL NOTIFICATION - END ====================
 
             $_SESSION['success_message'] = "Ticket assigned successfully!";
             header("Location: ticketDetails.php?id=$ticket_id");

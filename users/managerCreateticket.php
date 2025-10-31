@@ -1,7 +1,6 @@
-=<?php
+<?php
 session_start();
 require_once '../auth/config/database.php';
-require_once '../auth/helpers/EmailHelper.php';
 
 // Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
@@ -12,34 +11,72 @@ if (!isset($_SESSION['user_id'])) {
 $user_id = $_SESSION['user_id'];
 $user_role = $_SESSION['role'];
 
-// SECURITY: Only employees should use this page
-// Managers and admins should use the admin create ticket page
-if ($user_role !== 'employee') {
-    header("Location: ../tickets/create_ticket.php");
+// SECURITY: Only managers and admins should use this page
+if (!in_array($user_role, ['manager', 'admin'])) {
+    header("Location: ../users/userCreateTicket.php");
     exit();
 }
 
-// Get user department
-$user_query = $pdo->prepare("SELECT department, first_name, last_name FROM users WHERE user_id = ?");
-$user_query->execute([$user_id]);
-$user_data = $user_query->fetch(PDO::FETCH_ASSOC);
-$user_department = $user_data['department'];
-$user_name = $user_data['first_name'] . ' ' . $user_data['last_name'];
+// Get manager's information
+$manager_query = $pdo->prepare("SELECT department, first_name, last_name FROM users WHERE user_id = ?");
+$manager_query->execute([$user_id]);
+$manager_data = $manager_query->fetch(PDO::FETCH_ASSOC);
+$manager_department = $manager_data['department'];
+$manager_name = $manager_data['first_name'] . ' ' . $manager_data['last_name'];
 
-$emailHelper = new EmailHelper();
-
-// Fetch ONLY user's assets (employees can only create tickets for their own assets)
-$assets_query = $pdo->prepare("
-    SELECT id, asset_name, asset_code, category 
-    FROM assets 
-    WHERE assigned_to = ? AND status = 'in_use' 
-    ORDER BY asset_name
-");
-$assets_query->execute([$user_id]);
-$user_assets = $assets_query->fetchAll(PDO::FETCH_ASSOC);
+// Fetch employees based on role
+if ($user_role === 'admin') {
+    // Admins can create tickets for anyone
+    $employees_query = $pdo->prepare("
+        SELECT user_id, first_name, last_name, email, department 
+        FROM users 
+        WHERE status = 'active' 
+        ORDER BY first_name, last_name
+    ");
+    $employees_query->execute();
+} else {
+    // Managers can create tickets for employees in their department
+    $employees_query = $pdo->prepare("
+        SELECT user_id, first_name, last_name, email, department 
+        FROM users 
+        WHERE department = ? AND status = 'active' AND role = 'employee'
+        ORDER BY first_name, last_name
+    ");
+    $employees_query->execute([$manager_department]);
+}
+$employees = $employees_query->fetchAll(PDO::FETCH_ASSOC);
 
 $error_message = '';
 $success_message = '';
+
+// Handle AJAX request for employee assets
+if (isset($_GET['action']) && $_GET['action'] === 'get_assets' && isset($_GET['employee_id'])) {
+    header('Content-Type: application/json');
+    
+    $employee_id = $_GET['employee_id'];
+    
+    // Verify manager has access to this employee
+    if ($user_role === 'manager') {
+        $access_check = $pdo->prepare("SELECT user_id FROM users WHERE user_id = ? AND department = ?");
+        $access_check->execute([$employee_id, $manager_department]);
+        if (!$access_check->fetch()) {
+            echo json_encode(['success' => false, 'message' => 'Access denied']);
+            exit();
+        }
+    }
+    
+    $assets_query = $pdo->prepare("
+        SELECT id, asset_name, asset_code, category 
+        FROM assets 
+        WHERE assigned_to = ? AND status = 'in_use' 
+        ORDER BY asset_name
+    ");
+    $assets_query->execute([$employee_id]);
+    $assets = $assets_query->fetchAll(PDO::FETCH_ASSOC);
+    
+    echo json_encode(['success' => true, 'assets' => $assets]);
+    exit();
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
@@ -47,14 +84,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $subject = trim($_POST['subject']);
         $description = trim($_POST['description']);
         $priority = $_POST['priority'];
+        $requester_id = $_POST['requester_id']; // The employee for whom the ticket is created
         $asset_id = !empty($_POST['asset_id']) ? $_POST['asset_id'] : null;
+        $create_on_behalf = isset($_POST['create_on_behalf']) ? true : false;
         
-        // SECURITY: Verify asset belongs to user if asset_id is provided
+        // If creating on behalf, use selected employee; otherwise use manager as requester
+        if (!$create_on_behalf) {
+            $requester_id = $user_id;
+        }
+        
+        // SECURITY: Verify manager has access to create ticket for this employee
+        if ($user_role === 'manager' && $requester_id != $user_id) {
+            $access_check = $pdo->prepare("SELECT department FROM users WHERE user_id = ?");
+            $access_check->execute([$requester_id]);
+            $employee = $access_check->fetch(PDO::FETCH_ASSOC);
+            if (!$employee || $employee['department'] !== $manager_department) {
+                throw new Exception("You can only create tickets for employees in your department.");
+            }
+        }
+        
+        // Get requester's department
+        $requester_query = $pdo->prepare("SELECT department FROM users WHERE user_id = ?");
+        $requester_query->execute([$requester_id]);
+        $requester_data = $requester_query->fetch(PDO::FETCH_ASSOC);
+        $requester_department = $requester_data['department'];
+        
+        // SECURITY: Verify asset belongs to requester if asset_id is provided
         if ($asset_id) {
             $asset_check = $pdo->prepare("SELECT id FROM assets WHERE id = ? AND assigned_to = ?");
-            $asset_check->execute([$asset_id, $user_id]);
+            $asset_check->execute([$asset_id, $requester_id]);
             if (!$asset_check->fetch()) {
-                throw new Exception("Invalid asset selected. You can only create tickets for your own assets.");
+                throw new Exception("Invalid asset selected. Asset must be assigned to the selected employee.");
             }
         }
         
@@ -65,6 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (strlen($description) < 10) $errors[] = "Description must be at least 10 characters";
         if (strlen($subject) > 255) $errors[] = "Subject is too long (max 255 characters)";
         if (strlen($description) > 2000) $errors[] = "Description is too long (max 2000 characters)";
+        if ($create_on_behalf && empty($requester_id)) $errors[] = "Please select an employee";
         
         if (empty($errors)) {
             // Generate ticket number
@@ -77,13 +138,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             $ticket_number = sprintf("TKT-%s%s-%05d", $year, $month, $count);
             
-            // Insert ticket (requester_id is always the current user)
+            // Insert ticket
             $insert_query = "
                 INSERT INTO tickets (
                     ticket_number, ticket_type, subject, description, 
                     priority, status, approval_status, requester_id, 
-                    requester_department, asset_id, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, 'open', 'pending', ?, ?, ?, NOW(), NOW())
+                    requester_department, asset_id, created_by, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, 'open', 'pending', ?, ?, ?, ?, NOW(), NOW())
             ";
             
             $stmt = $pdo->prepare($insert_query);
@@ -93,17 +154,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $subject,
                 $description,
                 $priority,
-                $user_id,
-                $user_department,
-                $asset_id
+                $requester_id,
+                $requester_department,
+                $asset_id,
+                $user_id // Track who actually created the ticket
             ]);
             
             $ticket_id = $pdo->lastInsertId();
             
             // Log history
+            $history_action = $create_on_behalf ? "Ticket created by manager on behalf of employee" : "Ticket created by manager";
             $history_query = "INSERT INTO ticket_history (ticket_id, action_type, new_value, performed_by, created_at) VALUES (?, 'created', ?, ?, NOW())";
             $history_stmt = $pdo->prepare($history_query);
-            $history_stmt->execute([$ticket_id, "Ticket created: $ticket_number", $user_id]);
+            $history_stmt->execute([$ticket_id, "$history_action: $ticket_number", $user_id]);
             
             // Handle file uploads
             if (!empty($_FILES['attachments']['name'][0])) {
@@ -127,75 +190,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $new_file_name = $ticket_id . '_' . time() . '_' . uniqid() . '.' . $file_ext;
                             $file_path = $upload_dir . $new_file_name;
 
-                               if (move_uploaded_file($file_tmp, $file_path)) {
-                                 // Store ONLY the filename, not the full server path
-                                 $attach_query = "INSERT INTO ticket_attachments (ticket_id, uploaded_by, file_name, file_path, file_type, file_size, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())";
-                                  $attach_stmt = $pdo->prepare($attach_query);
-                                 $attach_stmt->execute([
-                                  $ticket_id,
+                            if (move_uploaded_file($file_tmp, $file_path)) {
+                                $attach_query = "INSERT INTO ticket_attachments (ticket_id, uploaded_by, file_name, file_path, file_type, file_size, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())";
+                                $attach_stmt = $pdo->prepare($attach_query);
+                                $attach_stmt->execute([
+                                    $ticket_id,
                                     $user_id,
-                                  $file_name,        // Original filename (e.g., "screenshot.png")
-                                  $new_file_name,    // Renamed filename only (e.g., "7_1234567890_abc123.png")
-                                 $file_type,
-                                  $file_size
-                                  ]);
-                                   $uploaded_files++;
-                                }
+                                    $file_name,
+                                    $new_file_name,
+                                    $file_type,
+                                    $file_size
+                                ]);
+                                $uploaded_files++;
+                            }
                         }
                     }
                 }
             }
-          // ==================== EMAIL NOTIFICATION - START ====================
-            try {
-                // Prepare ticket data for email
-                $ticket_data = [
-                    'id' => $ticket_id,
-                    'ticket_number' => $ticket_number,
-                    'subject' => $subject,
-                    'priority' => $priority,
-                    'status' => 'open'
-                ];
-                
-                // Send confirmation email to requester
-                $emailHelper->sendTicketCreatedEmail($user_email, $user_name, $ticket_data);
-                
-                // Optional: Notify department manager about pending approval
-                $manager_query = $pdo->prepare("
-                    SELECT email, first_name, last_name 
-                    FROM users 
-                    WHERE department = ? AND role = 'manager' AND is_active = 1
-                    LIMIT 1
-                ");
-                $manager_query->execute([$user_department]);
-                $manager = $manager_query->fetch(PDO::FETCH_ASSOC);
-                
-                if ($manager) {
-                    $manager_name = $manager['first_name'] . ' ' . $manager['last_name'];
-                    $manager_email = $manager['email'];
-                    
-                    // Send notification to manager about pending approval
-                    $subject_manager = "New Ticket Requires Approval - " . $ticket_number;
-                    $body_manager = "
-                    <h2>New Ticket Pending Approval</h2>
-                    <p>Hello {$manager_name},</p>
-                    <p>A new ticket has been submitted by {$user_name} from your department and requires your approval.</p>
-                    <p><strong>Ticket Number:</strong> {$ticket_number}</p>
-                    <p><strong>Subject:</strong> {$subject}</p>
-                    <p><strong>Priority:</strong> " . ucfirst($priority) . "</p>
-                    <p><a href='" . SYSTEM_URL . "/managers/departmentTicket.php?id={$ticket_id}' style='display:inline-block; padding:10px 20px; background:#667eea; color:white; text-decoration:none; border-radius:5px;'>Review Ticket</a></p>
-                    ";
-                    
-                    $emailHelper->sendEmail($manager_email, $subject_manager, $body_manager);
-                }
-                
-            } catch (Exception $e) {
-                // Log email error but don't fail the ticket creation
-                error_log("Failed to send ticket creation email: " . $e->getMessage());
-            }
-            // ==================== EMAIL NOTIFICATION - END ====================   
             
             $_SESSION['ticket_created'] = true;
-            header("Location: ../users/userTicket.php?id=$ticket_id");
+            header("Location: ../tickets/view_ticket.php?id=$ticket_id");
             exit();
         } else {
             $error_message = implode("<br>", $errors);
@@ -328,6 +342,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             opacity: 0.9;
             font-size: 0.9rem;
         }
+
+        .role-badge {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            display: inline-block;
+            margin-top: 5px;
+        }
         
         .form-group {
             margin-bottom: 24px;
@@ -374,6 +397,86 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
             gap: 20px;
+        }
+
+        .on-behalf-section {
+            background: #f0f3ff;
+            border: 2px solid #667eea;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+
+        .on-behalf-section .section-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .on-behalf-section .section-header h3 {
+            margin: 0;
+            color: #667eea;
+            font-size: 1rem;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .checkbox-group label {
+            margin: 0;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .employee-select-wrapper {
+            display: none;
+        }
+
+        .employee-select-wrapper.active {
+            display: block;
+        }
+
+        .employee-info {
+            background: white;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 10px;
+            display: none;
+        }
+
+        .employee-info.active {
+            display: block;
+        }
+
+        .employee-info-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .employee-info-item:last-child {
+            border-bottom: none;
+        }
+
+        .employee-info-label {
+            font-weight: 500;
+            color: #4a5568;
+        }
+
+        .employee-info-value {
+            color: #2d3748;
         }
         
         .file-upload-area {
@@ -543,8 +646,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </style>
 </head>
 <body>
-    <!-- Include Sidebar -->
-    <?php include("../auth/inc/Usidebar.php"); ?>
+    <!-- Include Sidebar (Manager/Admin) -->
+    <?php include("../auth/inc/Msidebar.php"); ?>
 
     <!-- Main Content -->
     <main class="main-content">
@@ -552,21 +655,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <header class="page-header">
                 <div class="header-left">
                     <h1><i class="fas fa-plus-circle"></i> Create Support Ticket</h1>
-                    <p>Submit a request for assistance or report an issue</p>
+                    <p><?php echo $user_role === 'admin' ? 'Create tickets for any employee' : 'Create tickets for your team'; ?></p>
                 </div>
-                <div class="header-right">
-                    <a href="userTicket.php" class="btn btn-outline">
-                        <i class="fas fa-arrow-left"></i> Back to My Tickets
-                    </a>
-                </div>
+                
             </header>
 
             <div class="form-container">
                 <div class="info-banner">
-                    <i class="fas fa-info-circle"></i>
+                    <i class="fas fa-user-tie"></i>
                     <div class="info-banner-content">
-                        <h3>Welcome, <?php echo htmlspecialchars($user_name); ?>!</h3>
-                        <p>Please provide detailed information about your request. This helps us resolve your issue faster.</p>
+                        <h3>Welcome, <?php echo htmlspecialchars($manager_name); ?>!</h3>
+                        <p>You can create tickets for yourself or on behalf of your team members.</p>
+                        <span class="role-badge"><?php echo strtoupper($user_role); ?></span>
                     </div>
                 </div>
 
@@ -579,6 +679,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 <div class="form-card">
                     <form method="POST" action="" enctype="multipart/form-data" id="ticketForm">
+                        <!-- On Behalf Section -->
+                        <div class="on-behalf-section">
+                            <div class="section-header">
+                                <i class="fas fa-users"></i>
+                                <h3>Ticket For</h3>
+                            </div>
+                            
+                            <div class="checkbox-group">
+                                <input type="checkbox" id="create_on_behalf" name="create_on_behalf" onchange="toggleEmployeeSelect()">
+                                <label for="create_on_behalf">Create ticket on behalf of an employee</label>
+                            </div>
+
+                            <div class="employee-select-wrapper" id="employeeSelectWrapper">
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label for="requester_id">
+                                        <i class="fas fa-user"></i> Select Employee <span class="required">*</span>
+                                    </label>
+                                    <select id="requester_id" name="requester_id" onchange="loadEmployeeAssets()">
+                                        <option value="">Choose an employee...</option>
+                                        <?php foreach ($employees as $emp): ?>
+                                        <option value="<?php echo $emp['user_id']; ?>" 
+                                                data-name="<?php echo htmlspecialchars($emp['first_name'] . ' ' . $emp['last_name']); ?>"
+                                                data-email="<?php echo htmlspecialchars($emp['email']); ?>"
+                                                data-dept="<?php echo htmlspecialchars($emp['department']); ?>">
+                                            <?php echo htmlspecialchars($emp['first_name'] . ' ' . $emp['last_name'] . ' - ' . $emp['department']); ?>
+                                        </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+
+                                <div class="employee-info" id="employeeInfo">
+                                    <div class="employee-info-item">
+                                        <span class="employee-info-label">Name:</span>
+                                        <span class="employee-info-value" id="empName">-</span>
+                                    </div>
+                                    <div class="employee-info-item">
+                                        <span class="employee-info-label">Email:</span>
+                                        <span class="employee-info-value" id="empEmail">-</span>
+                                    </div>
+                                    <div class="employee-info-item">
+                                        <span class="employee-info-label">Department:</span>
+                                        <span class="employee-info-value" id="empDept">-</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="help-text" style="margin-top: 10px;">
+                                <i class="fas fa-info-circle"></i> 
+                                <span id="ticketForHelp">This ticket will be created for you</span>
+                            </div>
+                        </div>
+
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="ticket_type">
@@ -593,9 +745,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <option value="inquiry">❓ Inquiry</option>
                                     <option value="other">📝 Other</option>
                                 </select>
-                                <div class="help-text">
-                                    <i class="fas fa-lightbulb"></i> Choose the type that best describes your request
-                                </div>
                             </div>
 
                             <div class="form-group">
@@ -623,18 +772,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </label>
                             <select id="asset_id" name="asset_id">
                                 <option value="">No specific asset</option>
-                                <?php if (empty($user_assets)): ?>
-                                <option value="" disabled>You have no assets assigned</option>
-                                <?php else: ?>
-                                <?php foreach ($user_assets as $asset): ?>
-                                <option value="<?php echo $asset['id']; ?>">
-                                    <?php echo htmlspecialchars($asset['asset_code'] . ' - ' . $asset['asset_name'] . ' (' . $asset['category'] . ')'); ?>
-                                </option>
-                                <?php endforeach; ?>
-                                <?php endif; ?>
                             </select>
                             <div class="help-text">
-                                <i class="fas fa-info-circle"></i> Select an asset only if this request is about a specific item you have
+                                <i class="fas fa-info-circle"></i> Select an employee first to see their assets
                             </div>
                         </div>
 
@@ -646,7 +786,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 type="text" 
                                 id="subject" 
                                 name="subject" 
-                                placeholder="Brief summary of your request (e.g., 'Laptop keyboard not working')" 
+                                placeholder="Brief summary of the request" 
                                 required 
                                 maxlength="255"
                                 oninput="updateCharCount('subject', 255)">
@@ -660,7 +800,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <textarea 
                                 id="description" 
                                 name="description" 
-                                placeholder="Please provide detailed information:&#10;- What is the problem?&#10;- When did it start?&#10;- What have you tried?&#10;- Any error messages?" 
+                                placeholder="Detailed description of the request or issue..." 
                                 required
                                 maxlength="2000"
                                 oninput="updateCharCount('description', 2000)"></textarea>
@@ -681,7 +821,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
 
                         <div class="form-actions">
-                            <a href="userTickets.php" class="btn btn-outline">
+                            <a href="../tickets/tickets.php" class="btn btn-outline">
                                 <i class="fas fa-times"></i> Cancel
                             </a>
                             <button type="submit" class="btn btn-primary">
@@ -695,6 +835,86 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </main>
 
     <script>
+        // Toggle employee select
+        function toggleEmployeeSelect() {
+            const checkbox = document.getElementById('create_on_behalf');
+            const wrapper = document.getElementById('employeeSelectWrapper');
+            const helpText = document.getElementById('ticketForHelp');
+            const requesterSelect = document.getElementById('requester_id');
+            const assetSelect = document.getElementById('asset_id');
+            
+            if (checkbox.checked) {
+                wrapper.classList.add('active');
+                helpText.textContent = 'Select an employee to create the ticket on their behalf';
+                requesterSelect.required = true;
+            } else {
+                wrapper.classList.remove('active');
+                helpText.textContent = 'This ticket will be created for you';
+                requesterSelect.required = false;
+                requesterSelect.value = '';
+                document.getElementById('employeeInfo').classList.remove('active');
+                
+                // Clear assets
+                assetSelect.innerHTML = '<option value="">No specific asset</option>';
+            }
+        }
+
+        // Load employee assets when employee is selected
+        function loadEmployeeAssets() {
+            const select = document.getElementById('requester_id');
+            const selectedOption = select.options[select.selectedIndex];
+            const employeeId = select.value;
+            const assetSelect = document.getElementById('asset_id');
+            const employeeInfo = document.getElementById('employeeInfo');
+            
+            if (employeeId) {
+                // Show employee info
+                document.getElementById('empName').textContent = selectedOption.dataset.name;
+                document.getElementById('empEmail').textContent = selectedOption.dataset.email;
+                document.getElementById('empDept').textContent = selectedOption.dataset.dept;
+                employeeInfo.classList.add('active');
+                
+                // Fetch assets
+                assetSelect.innerHTML = '<option value="">Loading assets...</option>';
+                assetSelect.disabled = true;
+                
+                fetch(`?action=get_assets&employee_id=${employeeId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        assetSelect.disabled = false;
+                        
+                        if (data.success) {
+                            assetSelect.innerHTML = '<option value="">No specific asset</option>';
+                            
+                            if (data.assets.length === 0) {
+                                const option = document.createElement('option');
+                                option.value = '';
+                                option.textContent = 'No assets assigned to this employee';
+                                option.disabled = true;
+                                assetSelect.appendChild(option);
+                            } else {
+                                data.assets.forEach(asset => {
+                                    const option = document.createElement('option');
+                                    option.value = asset.id;
+                                    option.textContent = `${asset.asset_code} - ${asset.asset_name} (${asset.category})`;
+                                    assetSelect.appendChild(option);
+                                });
+                            }
+                        } else {
+                            assetSelect.innerHTML = '<option value="">Error loading assets</option>';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        assetSelect.disabled = false;
+                        assetSelect.innerHTML = '<option value="">Error loading assets</option>';
+                    });
+            } else {
+                employeeInfo.classList.remove('active');
+                assetSelect.innerHTML = '<option value="">No specific asset</option>';
+            }
+        }
+
         // Character counter
         function updateCharCount(fieldId, maxLength) {
             const field = document.getElementById(fieldId);
@@ -796,10 +1016,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         document.getElementById('ticketForm').addEventListener('submit', function(e) {
             const description = document.getElementById('description').value;
             const subject = document.getElementById('subject').value;
+            const createOnBehalf = document.getElementById('create_on_behalf').checked;
+            const requesterId = document.getElementById('requester_id').value;
             
             if (description.length < 10) {
                 e.preventDefault();
-                alert('Description must be at least 10 characters long. Please provide more details about your request.');
+                alert('Description must be at least 10 characters long. Please provide more details.');
                 document.getElementById('description').focus();
                 return false;
             }
@@ -808,6 +1030,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 e.preventDefault();
                 alert('Subject is too short. Please provide a brief but descriptive subject.');
                 document.getElementById('subject').focus();
+                return false;
+            }
+            
+            if (createOnBehalf && !requesterId) {
+                e.preventDefault();
+                alert('Please select an employee for whom you are creating this ticket.');
+                document.getElementById('requester_id').focus();
                 return false;
             }
             

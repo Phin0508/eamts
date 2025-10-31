@@ -300,7 +300,7 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                 <h3><i class="fas fa-question-circle"></i> Need Help?</h3>
                 <p>If you have any questions about your tickets or need assistance, please contact your department manager or IT support.</p>
                 <div style="margin-top: 1rem;">
-                    <a href="../public/createTicket.php" class="btn btn-primary">
+                    <a href="../users/userCreateticket.php" class="btn btn-primary">
                         <i class="fas fa-plus"></i> Create New Ticket
                     </a>
                     <a href="../users/userDashboard.php" class="btn btn-outline">

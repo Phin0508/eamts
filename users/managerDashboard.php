@@ -692,10 +692,10 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
                                         <td><?php echo date('M d, Y', strtotime($employee['created_at'])); ?></td>
                                         <td>
                                             <div class="action-buttons">
-                                                <a href="../public/asset.php?user=<?php echo $employee['user_id']; ?>" class="btn-sm btn-view" title="View Assets">
+                                                <a href="../users/departmentAsset.php?user=<?php echo $employee['user_id']; ?>" class="btn-sm btn-view" title="View Assets">
                                                     <i class="fas fa-box"></i>
                                                 </a>
-                                                <a href="../public/ticket.php?user=<?php echo $employee['user_id']; ?>" class="btn-sm btn-view" title="View Tickets">
+                                                <a href="../users/departmentUserTicket.php?user=<?php echo $employee['user_id']; ?>" class="btn-sm btn-view" title="View Tickets">
                                                     <i class="fas fa-ticket-alt"></i>
                                                 </a>
                                             </div>
@@ -706,7 +706,7 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
                         </table>
                     </div>
                     <div class="quick-actions" style="margin-top: 1rem;">
-                        <a href="../public/users.php?department=<?php echo urlencode($department); ?>" class="action-btn btn-primary">
+                        <a href="../users/teamMembers.php?department=<?php echo urlencode($department); ?>" class="action-btn btn-primary">
                             View All Employees
                         </a>
                     </div>
@@ -725,7 +725,7 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
                     <?php if (count($recent_tickets) > 0): ?>
                         <ul class="ticket-list">
                             <?php foreach ($recent_tickets as $ticket): ?>
-                                <li class="ticket-item" onclick="window.location.href='../public/ticketDetails.php?id=<?php echo $ticket['ticket_id']; ?>'">
+                                <li class="ticket-item" onclick="window.location.href='../users/departmentTicketDetails.php?id=<?php echo $ticket['ticket_id']; ?>'">
                                     <div class="ticket-info">
                                         <h4><?php echo htmlspecialchars($ticket['ticket_number']); ?></h4>
                                         <p>
@@ -746,7 +746,7 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
                             <?php endforeach; ?>
                         </ul>
                         <div class="quick-actions">
-                            <a href="../public/ticket.php" class="action-btn btn-primary">View All Tickets</a>
+                            <a href="../users/departmentTicket.php" class="action-btn btn-primary">View All Tickets</a>
                         </div>
                     <?php else: ?>
                         <div class="empty-state">
@@ -778,9 +778,6 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
                                 </li>
                             <?php endforeach; ?>
                         </ul>
-                        <div class="quick-actions">
-                            <a href="../public/asset.php?status=maintenance,damaged" class="action-btn btn-primary">View All</a>
-                        </div>
                     <?php else: ?>
                         <div class="empty-state">
                             <i class="fas fa-check-circle"></i>
@@ -794,17 +791,17 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
             <div class="card">
                 <h2>⚡ Quick Actions</h2>
                 <div class="quick-actions">
-                    <a href="../public/asset.php?department=<?php echo urlencode($department); ?>" class="action-btn btn-primary">
+                    <a href="../users/departmentAsset.php?department=<?php echo urlencode($department); ?>" class="action-btn btn-primary">
                         <i class="fas fa-box"></i> Manage Department Assets
                     </a>
-                    <a href="../public/ticket.php?department=<?php echo urlencode($department); ?>" class="action-btn btn-primary">
+                    <a href="../users/departmentTicket.php?department=<?php echo urlencode($department); ?>" class="action-btn btn-primary">
                         <i class="fas fa-ticket-alt"></i> Manage Department Tickets
                     </a>
-                    <a href="../public/createTicket.php" class="action-btn btn-primary">
+                    <a href="../users/managerCreateticket.php" class="action-btn btn-primary">
                         <i class="fas fa-plus"></i> Create New Ticket
                     </a>
-                    <a href="../public/assetHistory.php?department=<?php echo urlencode($department); ?>" class="action-btn btn-secondary">
-                        <i class="fas fa-history"></i> View Department History
+                    <a href="../users/departmentReport.php?department=<?php echo urlencode($department); ?>" class="action-btn btn-secondary">
+                        <i class="fas fa-history"></i> View Department report
                     </a>
                 </div>
             </div>

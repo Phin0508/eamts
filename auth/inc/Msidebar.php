@@ -60,6 +60,18 @@ $user_initial = strtoupper(substr($_SESSION['first_name'], 0, 1));
                     <span class="nav-text">My Assets</span>
                 </a>
             </li>
+            <li class="nav-item">
+                <a href="managerCreateticket.php" class="nav-link">
+                    <i class="nav-icon"></i>
+                    <span class="nav-text">Create Ticket</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="managerTicket.php" class="nav-link">
+                    <i class="nav-icon"></i>
+                    <span class="nav-text">My Ticket</span>
+                </a>
+            </li>
             
             <!-- DEPARTMENT MANAGEMENT SECTION -->
             <li class="nav-divider"></li>

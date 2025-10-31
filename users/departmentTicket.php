@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once '../auth/config/database.php';
+require_once '../auth/helpers/EmailHelper.php'; // ADD THIS LINE
 
 // Check if user is logged in and is a manager
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'manager') {
@@ -10,9 +11,13 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'manager') {
 
 $user_id = $_SESSION['user_id'];
 
+// Initialize EmailHelper
+$emailHelper = new EmailHelper();
+
 // Get manager's department
 $dept_query = "SELECT department FROM users WHERE user_id = ?";
 $dept_stmt = $pdo->prepare($dept_query);
+$manager_data = $dept_stmt->fetch(PDO::FETCH_ASSOC);
 $dept_stmt->execute([$user_id]);
 $manager_dept = $dept_stmt->fetchColumn();
 
@@ -22,14 +27,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $action = $_POST['action'];
     $manager_notes = trim($_POST['manager_notes'] ?? '');
     
+    // Get manager's name for email
+    $manager_query = "SELECT first_name, last_name FROM users WHERE user_id = ?";
+    $manager_stmt = $pdo->prepare($manager_query);
+    $manager_stmt->execute([$user_id]);
+    $manager_data = $manager_stmt->fetch(PDO::FETCH_ASSOC);
+    $manager_name = $manager_data['first_name'] . ' ' . $manager_data['last_name'];
+    
     // Verify ticket belongs to manager's department and is pending
-    $verify_query = "SELECT ticket_id, approval_status FROM tickets 
-                     WHERE ticket_id = ? AND requester_department = ? AND approval_status = 'pending'";
+    // IMPORTANT: Fetch ticket data here including requester info
+    $verify_query = "
+        SELECT t.*, 
+               CONCAT(u.first_name, ' ', u.last_name) as requester_name,
+               u.email as requester_email
+        FROM tickets t
+        JOIN users u ON t.requester_id = u.user_id
+        WHERE t.ticket_id = ? AND t.requester_department = ? AND t.approval_status = 'pending'
+    ";
     $verify_stmt = $pdo->prepare($verify_query);
     $verify_stmt->execute([$ticket_id, $manager_dept]);
-    $verify_ticket = $verify_stmt->fetch(PDO::FETCH_ASSOC);
+    $ticket = $verify_stmt->fetch(PDO::FETCH_ASSOC);
     
-    if ($verify_ticket) {
+    if ($ticket) {
         if ($action === 'approve') {
             $update_query = "UPDATE tickets SET 
                             approval_status = 'approved', 
@@ -46,8 +65,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                             VALUES (?, 'approval_status_changed', 'approved', ?, ?, NOW())";
             $history_stmt = $pdo->prepare($history_query);
             $history_stmt->execute([$ticket_id, $user_id, "Manager approved: " . $manager_notes]);
+
+            // ==================== EMAIL NOTIFICATION - START ====================
+            try {
+                // Send approval email to requester
+                $email_subject = "Ticket Approved - " . $ticket['ticket_number'];
+                $email_body = "
+                <h2>Your Ticket Has Been Approved</h2>
+                <p>Hello {$ticket['requester_name']},</p>
+                <p>Good news! Your ticket has been approved by {$manager_name}.</p>
+                <hr>
+                <p><strong>Ticket Number:</strong> {$ticket['ticket_number']}</p>
+                <p><strong>Subject:</strong> {$ticket['subject']}</p>
+                <p><strong>Approved By:</strong> {$manager_name}</p>
+                <p><strong>Approval Date:</strong> " . date('F j, Y g:i A') . "</p>
+                " . (!empty($manager_notes) ? "<p><strong>Manager's Notes:</strong> {$manager_notes}</p>" : "") . "
+                <hr>
+                <p>Your ticket is now pending assignment to a technician who will work on resolving your request.</p>
+                <p><a href='" . SYSTEM_URL . "/users/userTicket.php?id={$ticket_id}' style='display:inline-block; padding:10px 20px; background:#10b981; color:white; text-decoration:none; border-radius:5px;'>View Ticket Details</a></p>
+                ";
+                
+                $emailHelper->sendEmail($ticket['requester_email'], $email_subject, $email_body);
+                
+                // Optional: Notify admins that ticket is ready for assignment
+                $admin_query = $pdo->prepare("SELECT email, first_name, last_name FROM users WHERE role IN ('admin', 'superadmin') AND is_active = 1");
+                $admin_query->execute();
+                $admins = $admin_query->fetchAll(PDO::FETCH_ASSOC);
+                
+                foreach ($admins as $admin) {
+                    $admin_name = $admin['first_name'] . ' ' . $admin['last_name'];
+                    $admin_email = $admin['email'];
+                    
+                    $admin_subject = "Ticket Approved - Ready for Assignment - " . $ticket['ticket_number'];
+                    $admin_body = "
+                    <h2>Ticket Approved - Ready for Assignment</h2>
+                    <p>Hello {$admin_name},</p>
+                    <p>A ticket has been approved and is ready to be assigned to a technician.</p>
+                    <p><strong>Ticket Number:</strong> {$ticket['ticket_number']}</p>
+                    <p><strong>Subject:</strong> {$ticket['subject']}</p>
+                    <p><strong>Priority:</strong> " . ucfirst($ticket['priority']) . "</p>
+                    <p><strong>Approved By:</strong> {$manager_name}</p>
+                    <p><a href='" . SYSTEM_URL . "/tickets/ticketDetails.php?id={$ticket_id}' style='display:inline-block; padding:10px 20px; background:#667eea; color:white; text-decoration:none; border-radius:5px;'>Assign Ticket</a></p>
+                    ";
+                    
+                    $emailHelper->sendEmail($admin_email, $admin_subject, $admin_body);
+                }
+                
+            } catch (Exception $e) {
+                error_log("Failed to send approval email: " . $e->getMessage());
+            }
+            // ==================== EMAIL NOTIFICATION - END ====================
             
             $success_message = "Ticket approved successfully!";
+            
         } elseif ($action === 'reject') {
             $update_query = "UPDATE tickets SET 
                             approval_status = 'rejected', 
@@ -65,6 +135,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                             VALUES (?, 'approval_status_changed', 'rejected', ?, ?, NOW())";
             $history_stmt = $pdo->prepare($history_query);
             $history_stmt->execute([$ticket_id, $user_id, "Manager rejected: " . $manager_notes]);
+            
+            // ==================== EMAIL NOTIFICATION - START ====================
+            try {
+                // Send rejection email to requester
+                $email_subject = "Ticket Rejected - " . $ticket['ticket_number'];
+                $email_body = "
+                <h2>Your Ticket Has Been Rejected</h2>
+                <p>Hello {$ticket['requester_name']},</p>
+                <p>Unfortunately, your ticket has been rejected by {$manager_name}.</p>
+                <hr>
+                <p><strong>Ticket Number:</strong> {$ticket['ticket_number']}</p>
+                <p><strong>Subject:</strong> {$ticket['subject']}</p>
+                <p><strong>Rejected By:</strong> {$manager_name}</p>
+                <p><strong>Rejection Date:</strong> " . date('F j, Y g:i A') . "</p>
+                " . (!empty($manager_notes) ? "<p><strong>Reason for Rejection:</strong><br>{$manager_notes}</p>" : "") . "
+                <hr>
+                <p>If you believe this rejection was made in error or if you have additional information to provide, please contact your manager or create a new ticket with more details.</p>
+                <p><a href='" . SYSTEM_URL . "/users/userTicket.php?id={$ticket_id}' style='display:inline-block; padding:10px 20px; background:#ef4444; color:white; text-decoration:none; border-radius:5px;'>View Ticket Details</a></p>
+                ";
+                
+                $emailHelper->sendEmail($ticket['requester_email'], $email_subject, $email_body);
+                
+            } catch (Exception $e) {
+                error_log("Failed to send rejection email: " . $e->getMessage());
+            }
+            // ==================== EMAIL NOTIFICATION - END ====================
             
             $success_message = "Ticket rejected.";
         }
@@ -94,11 +190,16 @@ if (isset($_SESSION['dept_ticket_error'])) {
     unset($_SESSION['dept_ticket_error']);
 }
 
+// Check if there's a newly created ticket to highlight
+$highlight_ticket_id = $_SESSION['highlight_ticket_id'] ?? null;
+
 // Fetch department tickets
 $filter_approval = $_GET['approval'] ?? 'all';
 $filter_status = $_GET['status'] ?? 'all';
 $filter_type = $_GET['type'] ?? 'all';
 $search = $_GET['search'] ?? '';
+$sort_by = $_GET['sort'] ?? 'default';
+$sort_order = $_GET['order'] ?? 'desc';
 
 $where_clauses = ["t.requester_department = ?"];
 $params = [$manager_dept];
@@ -119,7 +220,6 @@ if ($filter_type !== 'all') {
 }
 
 if (!empty($search)) {
-    // Enhanced search - check if numeric for user_id search
     if (is_numeric($search)) {
         $where_clauses[] = "(t.ticket_number LIKE ? OR t.subject LIKE ? OR t.description LIKE ? OR 
                            requester.first_name LIKE ? OR requester.last_name LIKE ? OR 
@@ -158,6 +258,62 @@ if (!empty($search)) {
 
 $where_sql = "WHERE " . implode(" AND ", $where_clauses);
 
+// Build ORDER BY clause based on sort selection
+$order_by_sql = "";
+switch ($sort_by) {
+    case 'ticket_number':
+        $order_by_sql = "ORDER BY t.ticket_number " . ($sort_order === 'asc' ? 'ASC' : 'DESC');
+        break;
+    case 'subject':
+        $order_by_sql = "ORDER BY t.subject " . ($sort_order === 'asc' ? 'ASC' : 'DESC');
+        break;
+    case 'requester':
+        $order_by_sql = "ORDER BY requester.first_name " . ($sort_order === 'asc' ? 'ASC' : 'DESC') . ", requester.last_name " . ($sort_order === 'asc' ? 'ASC' : 'DESC');
+        break;
+    case 'priority':
+        $order_by_sql = "ORDER BY 
+            CASE t.priority
+                WHEN 'urgent' THEN 1
+                WHEN 'high' THEN 2
+                WHEN 'medium' THEN 3
+                WHEN 'low' THEN 4
+            END " . ($sort_order === 'asc' ? 'ASC' : 'DESC');
+        break;
+    case 'status':
+        $order_by_sql = "ORDER BY t.status " . ($sort_order === 'asc' ? 'ASC' : 'DESC');
+        break;
+    case 'approval':
+        $order_by_sql = "ORDER BY 
+            CASE t.approval_status
+                WHEN 'pending' THEN 1
+                WHEN 'approved' THEN 2
+                WHEN 'rejected' THEN 3
+            END " . ($sort_order === 'asc' ? 'ASC' : 'DESC');
+        break;
+    case 'created':
+        $order_by_sql = "ORDER BY t.created_at " . ($sort_order === 'asc' ? 'ASC' : 'DESC');
+        break;
+    case 'type':
+        $order_by_sql = "ORDER BY t.ticket_type " . ($sort_order === 'asc' ? 'ASC' : 'DESC');
+        break;
+    default: // 'default'
+        // Default sorting: pending first, then by priority, then by created date
+        $order_by_sql = "ORDER BY 
+            CASE t.approval_status
+                WHEN 'pending' THEN 1
+                WHEN 'approved' THEN 2
+                WHEN 'rejected' THEN 3
+            END,
+            CASE t.priority
+                WHEN 'urgent' THEN 1
+                WHEN 'high' THEN 2
+                WHEN 'medium' THEN 3
+                WHEN 'low' THEN 4
+            END,
+            t.created_at DESC";
+        break;
+}
+
 $query = "
     SELECT 
         t.*,
@@ -167,26 +323,15 @@ $query = "
         CONCAT(approver.first_name, ' ', approver.last_name) as approver_name,
         CONCAT(assigned.first_name, ' ', assigned.last_name) as assigned_to_name,
         a.asset_name,
-        a.asset_code
+        a.asset_code,
+        TIMESTAMPDIFF(MINUTE, t.created_at, NOW()) as minutes_old
     FROM tickets t
     JOIN users requester ON t.requester_id = requester.user_id
     LEFT JOIN users approver ON t.approved_by = approver.user_id
     LEFT JOIN users assigned ON t.assigned_to = assigned.user_id
     LEFT JOIN assets a ON t.asset_id = a.id
     $where_sql
-    ORDER BY 
-        CASE t.approval_status
-            WHEN 'pending' THEN 1
-            WHEN 'approved' THEN 2
-            WHEN 'rejected' THEN 3
-        END,
-        CASE t.priority
-            WHEN 'urgent' THEN 1
-            WHEN 'high' THEN 2
-            WHEN 'medium' THEN 3
-            WHEN 'low' THEN 4
-        END,
-        t.created_at DESC
+    $order_by_sql
 ";
 
 $stmt = $pdo->prepare($query);
@@ -235,7 +380,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             min-height: 100vh;
         }
 
-        /* Main Container */
         .container {
             margin-left: 260px;
             padding: 30px;
@@ -247,7 +391,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             margin-left: 80px;
         }
 
-        /* Header */
         .header {
             background: white;
             border-radius: 16px;
@@ -280,7 +423,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             font-size: 15px;
         }
 
-        /* Alert Messages */
         .alert {
             padding: 16px 20px;
             margin-bottom: 24px;
@@ -316,7 +458,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             }
         }
 
-        /* Stats Grid */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -377,7 +518,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             letter-spacing: 0.5px;
         }
 
-        /* Filters Section */
         .filters-section {
             background: white;
             border-radius: 16px;
@@ -439,7 +579,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.1);
         }
 
-        /* Buttons */
         .btn {
             padding: 12px 24px;
             border: none;
@@ -476,7 +615,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             border-color: #cbd5e0;
         }
 
-        /* Section */
         .section {
             background: white;
             border-radius: 16px;
@@ -485,7 +623,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
         }
 
-        /* Table */
         .table-container {
             overflow-x: auto;
         }
@@ -508,6 +645,23 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             text-transform: uppercase;
             letter-spacing: 0.5px;
             border-bottom: 2px solid #e2e8f0;
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+        }
+
+        .table thead th.sortable:hover {
+            background: rgba(124, 58, 237, 0.1);
+        }
+
+        .table thead th .sort-icon {
+            margin-left: 8px;
+            opacity: 0.3;
+            transition: opacity 0.3s;
+        }
+
+        .table thead th.active .sort-icon {
+            opacity: 1;
         }
 
         .table tbody tr {
@@ -519,10 +673,49 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             background: #fafbfc;
         }
 
+        .table tbody tr.highlight-new {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            animation: highlightPulse 2s ease-in-out;
+            border-left: 4px solid #f59e0b;
+        }
+
+        @keyframes highlightPulse {
+            0%, 100% {
+                box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4);
+            }
+            50% {
+                box-shadow: 0 0 20px 10px rgba(245, 158, 11, 0.2);
+            }
+        }
+
         .table tbody td {
             padding: 16px;
             font-size: 14px;
             color: #2d3748;
+        }
+
+        .new-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.7;
+            }
         }
 
         .no-data {
@@ -532,7 +725,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             font-size: 15px;
         }
 
-        /* Ticket Subject */
         .ticket-subject {
             display: flex;
             flex-direction: column;
@@ -555,7 +747,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             font-size: 10px;
         }
 
-        /* Badges */
         .badge {
             display: inline-block;
             padding: 6px 12px;
@@ -571,7 +762,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             color: #3730a3;
         }
 
-        /* Priority Badges */
         .badge-urgent {
             background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
             color: #991b1b;
@@ -592,7 +782,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             color: #1e40af;
         }
 
-        /* Status Badges */
         .badge-open {
             background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
             color: #1e40af;
@@ -613,7 +802,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             color: #374151;
         }
 
-        /* Approval Badges */
         .badge-pending {
             background: linear-gradient(135deg, #fff3cd 0%, #fff3cd 100%);
             color: #856404;
@@ -639,7 +827,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             font-size: 13px;
         }
 
-        /* Action Buttons */
         .action-buttons {
             display: flex;
             gap: 8px;
@@ -687,7 +874,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
         }
 
-        /* Modal */
         .modal {
             display: none;
             position: fixed;
@@ -772,7 +958,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             justify-content: flex-end;
         }
 
-        /* Empty State */
         .empty-state {
             text-align: center;
             padding: 60px 20px;
@@ -794,7 +979,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             font-size: 15px;
         }
 
-        /* Responsive Design */
         @media (max-width: 1024px) {
             .container {
                 margin-left: 80px;
@@ -971,22 +1155,53 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                 <table class="table">
                     <thead>
                         <tr>
-                            <th>Ticket #</th>
-                            <th>Subject</th>
-                            <th>Type</th>
-                            <th>Requester</th>
-                            <th>Priority</th>
-                            <th>Status</th>
-                            <th>Approval Status</th>
-                            <th>Created</th>
+                            <th class="sortable" onclick="sortTable('ticket_number')">
+                                Ticket # 
+                                <i class="fas fa-sort sort-icon <?php echo $sort_by === 'ticket_number' ? 'active' : ''; ?>"></i>
+                            </th>
+                            <th class="sortable" onclick="sortTable('subject')">
+                                Subject 
+                                <i class="fas fa-sort sort-icon <?php echo $sort_by === 'subject' ? 'active' : ''; ?>"></i>
+                            </th>
+                            <th class="sortable" onclick="sortTable('type')">
+                                Type 
+                                <i class="fas fa-sort sort-icon <?php echo $sort_by === 'type' ? 'active' : ''; ?>"></i>
+                            </th>
+                            <th class="sortable" onclick="sortTable('requester')">
+                                Requester 
+                                <i class="fas fa-sort sort-icon <?php echo $sort_by === 'requester' ? 'active' : ''; ?>"></i>
+                            </th>
+                            <th class="sortable" onclick="sortTable('priority')">
+                                Priority 
+                                <i class="fas fa-sort sort-icon <?php echo $sort_by === 'priority' ? 'active' : ''; ?>"></i>
+                            </th>
+                            <th class="sortable" onclick="sortTable('status')">
+                                Status 
+                                <i class="fas fa-sort sort-icon <?php echo $sort_by === 'status' ? 'active' : ''; ?>"></i>
+                            </th>
+                            <th class="sortable" onclick="sortTable('approval')">
+                                Approval Status 
+                                <i class="fas fa-sort sort-icon <?php echo $sort_by === 'approval' ? 'active' : ''; ?>"></i>
+                            </th>
+                            <th class="sortable" onclick="sortTable('created')">
+                                Created 
+                                <i class="fas fa-sort sort-icon <?php echo $sort_by === 'created' ? 'active' : ''; ?>"></i>
+                            </th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($tickets as $ticket): ?>
-                        <tr>
+                        <?php foreach ($tickets as $ticket): 
+                            $is_new = ($highlight_ticket_id && $ticket['ticket_id'] == $highlight_ticket_id) || ($ticket['minutes_old'] <= 5);
+                        ?>
+                        <tr class="<?php echo $is_new ? 'highlight-new' : ''; ?>" data-ticket-id="<?php echo $ticket['ticket_id']; ?>">
                             <td>
                                 <strong><?php echo htmlspecialchars($ticket['ticket_number']); ?></strong>
+                                <?php if ($is_new): ?>
+                                    <span class="new-badge">
+                                        <i class="fas fa-star"></i> NEW
+                                    </span>
+                                <?php endif; ?>
                             </td>
                             <td>
                                 <div class="ticket-subject">
@@ -1067,6 +1282,10 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
     </div>
 
     <script>
+        // Current sort parameters
+        let currentSort = '<?php echo $sort_by; ?>';
+        let currentOrder = '<?php echo $sort_order; ?>';
+
         // Sidebar toggle functionality
         document.addEventListener('DOMContentLoaded', function() {
             const sidebar = document.getElementById('sidebar');
@@ -1096,7 +1315,52 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                     }
                 }
             });
+
+            // Remove highlight after first click on highlighted row
+            const highlightedRows = document.querySelectorAll('.highlight-new');
+            highlightedRows.forEach(row => {
+                row.addEventListener('click', function(e) {
+                    // Don't remove highlight if clicking on action buttons
+                    if (!e.target.closest('.action-buttons')) {
+                        this.classList.remove('highlight-new');
+                        // Store in sessionStorage that this ticket has been clicked
+                        const ticketId = this.dataset.ticketId;
+                        sessionStorage.setItem('ticket_clicked_' + ticketId, 'true');
+                    }
+                });
+
+                // Check if ticket was already clicked in this session
+                const ticketId = row.dataset.ticketId;
+                if (sessionStorage.getItem('ticket_clicked_' + ticketId)) {
+                    row.classList.remove('highlight-new');
+                }
+            });
+
+            // Clear highlight from session if specified
+            <?php if ($highlight_ticket_id): ?>
+                sessionStorage.removeItem('ticket_clicked_<?php echo $highlight_ticket_id; ?>');
+                // Clear the session variable after first load
+                <?php unset($_SESSION['highlight_ticket_id']); ?>
+            <?php endif; ?>
         });
+
+        function sortTable(column) {
+            const url = new URL(window.location.href);
+            
+            // If clicking the same column, toggle order
+            if (currentSort === column) {
+                currentOrder = currentOrder === 'asc' ? 'desc' : 'asc';
+            } else {
+                // New column, default to descending (or ascending for text fields)
+                currentSort = column;
+                currentOrder = (column === 'subject' || column === 'requester' || column === 'type') ? 'asc' : 'desc';
+            }
+            
+            url.searchParams.set('sort', currentSort);
+            url.searchParams.set('order', currentOrder);
+            
+            window.location.href = url.toString();
+        }
 
         function openApprovalModal(ticketId, action, ticketNumber) {
             document.getElementById('approvalModal').style.display = 'block';
@@ -1157,7 +1421,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
         document.addEventListener('DOMContentLoaded', function() {
             const searchInput = document.querySelector('input[name="search"]');
             if (searchInput) {
-                // Clear search when escape key is pressed
                 searchInput.addEventListener('keydown', function(e) {
                     if (e.key === 'Escape') {
                         this.value = '';
@@ -1172,7 +1435,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             const tableRows = document.querySelectorAll('.table tbody tr');
             tableRows.forEach(row => {
                 row.addEventListener('click', function(e) {
-                    // Don't trigger if clicking on action buttons
                     if (!e.target.closest('.action-buttons')) {
                         const viewLink = this.querySelector('a[href*="departmentTicketDetails.php"]');
                         if (viewLink) {
@@ -1181,7 +1443,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                     }
                 });
                 
-                // Add hover effect
                 row.style.cursor = 'pointer';
             });
         });

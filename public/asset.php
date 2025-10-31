@@ -80,7 +80,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_asset'])) {
 
                 $created_by = $_SESSION['user_id'];
 
-                if ($stmt->execute([$asset_name, $asset_code, $category, $brand, $model, $serial_number, $purchase_date, $purchase_cost, $supplier, $warranty_expiry, $location, $department, $status, $description, $assigned_to, $created_by])) {
+                if ($stmt->execute([$asset_name, $asset_code, $category, $brand, $model, $serial_number,
+                 $purchase_date, $purchase_cost, $supplier, $warranty_expiry, $location, $department, $status, $description, $assigned_to, $created_by])) {
                     $asset_id = $pdo->lastInsertId();
                     $success_message = "Asset added successfully!";
 
@@ -245,7 +246,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_asset'])) {
 
             // Log the assignment change
             $action = $assigned_to ? 'assigned' : 'unassigned';
-            $log_stmt = $pdo->prepare("INSERT INTO assets_history (asset_id, action_type, assigned_from, assigned_to, performed_by, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
+            $log_stmt = $pdo->prepare("INSERT INTO assets_history (asset_id, action_type, assigned_from, assigned_to, performed_by, 
+            created_at) VALUES (?, ?, ?, ?, ?, NOW())");
             $log_stmt->execute([$asset_id, $action, $current_user_id, $assigned_to, $_SESSION['user_id']]);
 
             // Redirect to refresh the page with updated data
