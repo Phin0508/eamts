@@ -134,6 +134,228 @@ class EmailHelper {
         
         return $this->sendEmail($email, $subject, $body);
     }
+    public function sendTicketApprovedToAdminsEmail($ticket_data, $manager_name, $pdo) {
+    // Get all active admins
+    $admin_query = $pdo->prepare("
+        SELECT email, first_name, last_name 
+        FROM users 
+        WHERE role IN ('admin', 'superadmin') AND is_active = 1
+    ");
+    $admin_query->execute();
+    $admins = $admin_query->fetchAll(PDO::FETCH_ASSOC);
+    
+    if (empty($admins)) {
+        return false;
+    }
+    
+    $subject = "✅ Ticket Approved - Ready for Assignment - " . $ticket_data['ticket_number'];
+    
+    foreach ($admins as $admin) {
+        $admin_name = $admin['first_name'] . ' ' . $admin['last_name'];
+        
+        $body = "
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset='UTF-8'>
+            <style>
+                body { font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
+                .container { max-width: 600px; margin: 0 auto; background: white; }
+                .header { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+                .header h1 { margin: 0; font-size: 24px; }
+                .content { padding: 30px; background: #f8f9fa; }
+                .success-box { background: #d1fae5; border-left: 4px solid #10b981; padding: 20px; margin: 20px 0; border-radius: 6px; color: #065f46; }
+                .ticket-info { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #10b981; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+                .info-row { padding: 10px 0; border-bottom: 1px solid #e9ecef; display: flex; }
+                .info-row:last-child { border-bottom: none; }
+                .label { font-weight: 600; color: #6c757d; min-width: 140px; }
+                .value { color: #2c3e50; flex: 1; }
+                .btn { display: inline-block; padding: 14px 28px; background: #10b981; color: white; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 20px 0; }
+                .btn:hover { background: #059669; }
+                .footer { text-align: center; padding: 20px; color: #6c757d; font-size: 12px; border-top: 1px solid #e9ecef; }
+                .priority-badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+                .priority-urgent { background: #fee2e2; color: #991b1b; }
+                .priority-high { background: #fef3c7; color: #92400e; }
+                .priority-medium { background: #dbeafe; color: #1e40af; }
+                .priority-low { background: #d1fae5; color: #065f46; }
+            </style>
+        </head>
+        <body>
+            <div class='container'>
+                <div class='header'>
+                    <h1>✅ Ticket Approved - Action Required</h1>
+                </div>
+                
+                <div class='content'>
+                    <p style='font-size: 16px;'>Hello <strong>{$admin_name}</strong>,</p>
+                    
+                    <div class='success-box'>
+                        <h3 style='margin-top: 0;'>✅ Ticket Has Been Approved</h3>
+                        <p style='margin: 0;'>Manager <strong>{$manager_name}</strong> has approved ticket <strong>{$ticket_data['ticket_number']}</strong>. This ticket is now ready to be assigned to a technician.</p>
+                    </div>
+                    
+                    <div class='ticket-info'>
+                        <h3 style='margin-top: 0; color: #10b981; font-size: 18px;'>📋 Ticket Details</h3>
+                        <div class='info-row'>
+                            <span class='label'>Ticket Number:</span>
+                            <span class='value'><strong style='color: #10b981;'>{$ticket_data['ticket_number']}</strong></span>
+                        </div>
+                        <div class='info-row'>
+                            <span class='label'>Subject:</span>
+                            <span class='value'><strong>{$ticket_data['subject']}</strong></span>
+                        </div>
+                        <div class='info-row'>
+                            <span class='label'>Priority:</span>
+                            <span class='value'>
+                                <span class='priority-badge priority-{$ticket_data['priority']}'>" . strtoupper($ticket_data['priority']) . "</span>
+                            </span>
+                        </div>
+                        <div class='info-row'>
+                            <span class='label'>Type:</span>
+                            <span class='value'>" . ucfirst(str_replace('_', ' ', $ticket_data['ticket_type'])) . "</span>
+                        </div>
+                        <div class='info-row'>
+                            <span class='label'>Requester:</span>
+                            <span class='value'>{$ticket_data['requester_name']}</span>
+                        </div>
+                        <div class='info-row'>
+                            <span class='label'>Department:</span>
+                            <span class='value'>{$ticket_data['requester_department']}</span>
+                        </div>
+                        <div class='info-row'>
+                            <span class='label'>Approved By:</span>
+                            <span class='value'>{$manager_name}</span>
+                        </div>
+                        <div class='info-row'>
+                            <span class='label'>Approval Status:</span>
+                            <span class='value'><span style='color: #10b981; font-weight: 600;'>✅ APPROVED</span></span>
+                        </div>
+                    </div>
+                    
+                    <div style='background: white; padding: 15px; border-radius: 8px; margin: 20px 0;'>
+                        <h4 style='margin-top: 0; color: #2c3e50;'>Description:</h4>
+                        <p style='margin: 0; color: #4a5568;'>" . nl2br(htmlspecialchars($ticket_data['description'])) . "</p>
+                    </div>
+                    
+                    <center>
+                        <a href='" . SYSTEM_URL . "/tickets/ticketDetails.php?id={$ticket_data['id']}' class='btn'>
+                            👤 Assign Technician Now
+                        </a>
+                    </center>
+                    
+                    <p style='color: #6c757d; font-size: 13px; margin-top: 25px; padding: 15px; background: #fff; border-radius: 6px;'>
+                        <strong>⚡ Next Step:</strong> Please assign this ticket to an appropriate technician to begin working on the request.
+                    </p>
+                </div>
+                
+                <div class='footer'>
+                    <p><strong>E-Asset Management System</strong></p>
+                    <p>This is an automated notification. Please do not reply to this email.</p>
+                    <p style='margin-top: 10px;'>
+                        <a href='" . SYSTEM_URL . "' style='color: #10b981; text-decoration: none;'>Access Dashboard</a>
+                    </p>
+                </div>
+            </div>
+        </body>
+        </html>
+        ";
+        
+        $this->sendEmail($admin['email'], $subject, $body);
+    }
+    
+    return true;
+}
+
+/**
+ * Send ticket rejection notification to requester
+ */
+public function sendTicketRejectedEmail($requester_email, $requester_name, $ticket_data, $manager_name, $rejection_reason) {
+    $subject = "❌ Ticket Rejected - " . $ticket_data['ticket_number'];
+    
+    $body = "
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset='UTF-8'>
+        <style>
+            body { font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
+            .container { max-width: 600px; margin: 0 auto; background: white; }
+            .header { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+            .header h1 { margin: 0; font-size: 24px; }
+            .content { padding: 30px; background: #f8f9fa; }
+            .rejection-box { background: #fee2e2; border-left: 4px solid #ef4444; padding: 20px; margin: 20px 0; border-radius: 6px; color: #991b1b; }
+            .ticket-info { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border: 1px solid #e9ecef; }
+            .info-row { padding: 10px 0; border-bottom: 1px solid #e9ecef; display: flex; }
+            .info-row:last-child { border-bottom: none; }
+            .label { font-weight: 600; color: #6c757d; min-width: 140px; }
+            .value { color: #2c3e50; flex: 1; }
+            .reason-box { background: rgba(239, 68, 68, 0.1); padding: 15px; border-radius: 6px; margin: 15px 0; border-left: 3px solid #ef4444; }
+            .btn { display: inline-block; padding: 14px 28px; background: #ef4444; color: white; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 20px 0; }
+            .footer { text-align: center; padding: 20px; color: #6c757d; font-size: 12px; border-top: 1px solid #e9ecef; }
+        </style>
+    </head>
+    <body>
+        <div class='container'>
+            <div class='header'>
+                <h1>❌ Your Ticket Has Been Rejected</h1>
+            </div>
+            
+            <div class='content'>
+                <p style='font-size: 16px;'>Hello <strong>{$requester_name}</strong>,</p>
+                
+                <div class='rejection-box'>
+                    <h3 style='margin-top: 0;'>❌ Ticket Rejected</h3>
+                    <p style='margin: 0;'>Your ticket <strong>{$ticket_data['ticket_number']}</strong> has been reviewed and rejected by <strong>{$manager_name}</strong>.</p>
+                </div>
+                
+                <div class='reason-box'>
+                    <h4 style='margin-top: 0; color: #991b1b;'>📝 Rejection Reason:</h4>
+                    <p style='margin: 0; white-space: pre-wrap;'>" . htmlspecialchars($rejection_reason) . "</p>
+                </div>
+                
+                <div class='ticket-info'>
+                    <h3 style='margin-top: 0; color: #ef4444; font-size: 18px;'>📋 Ticket Details</h3>
+                    <div class='info-row'>
+                        <span class='label'>Ticket Number:</span>
+                        <span class='value'><strong>{$ticket_data['ticket_number']}</strong></span>
+                    </div>
+                    <div class='info-row'>
+                        <span class='label'>Subject:</span>
+                        <span class='value'>{$ticket_data['subject']}</span>
+                    </div>
+                    <div class='info-row'>
+                        <span class='label'>Rejected By:</span>
+                        <span class='value'>{$manager_name}</span>
+                    </div>
+                    <div class='info-row'>
+                        <span class='label'>Status:</span>
+                        <span class='value'><span style='color: #ef4444; font-weight: 600;'>❌ REJECTED</span></span>
+                    </div>
+                </div>
+                
+                <center>
+                    <a href='" . SYSTEM_URL . "/users/userTicket.php?id={$ticket_data['id']}' class='btn'>
+                        View Ticket Details
+                    </a>
+                </center>
+                
+                <p style='color: #6c757d; font-size: 13px; margin-top: 25px; padding: 15px; background: #fff; border-radius: 6px;'>
+                    <strong>💡 What's Next?</strong><br>
+                    If you have questions about this decision, please contact {$manager_name} directly. You may also submit a new ticket with revised information if needed.
+                </p>
+            </div>
+            
+            <div class='footer'>
+                <p><strong>E-Asset Management System</strong></p>
+                <p>This is an automated notification. Please do not reply to this email.</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    ";
+    
+    return $this->sendEmail($requester_email, $subject, $body);
+}
     
     /**
      * Send asset assignment notification (Updated signature to accept single array parameter)
@@ -338,7 +560,7 @@ class EmailHelper {
                     </div>
                     
                     <center>
-                        <a href='" . SYSTEM_URL . "/auth/login.php?redirect=" . urlencode("/users/userAsset.php") . "' class='cta-button'>
+                        <a href='" . SYSTEM_URL . "/public/login.php?redirect=" . urlencode("/users/userAsset.php") . "' class='cta-button'>
                             Login to View Your Assets
                         </a>
                     </center>
@@ -375,7 +597,7 @@ class EmailHelper {
                   "- Keep the asset in good condition and follow company policies\n" .
                   "- Report any damage, loss, or maintenance needs promptly\n" .
                   "- Return the asset when requested or when leaving the organization\n\n" .
-                  "Login to view asset details: " . SYSTEM_URL . "/auth/login.php\n\n" .
+                  "Login to view asset details: " . SYSTEM_URL . "/public/login.php\n\n" .
                   SYSTEM_NAME . "\n" .
                   "This is an automated notification. Please do not reply to this email.";
         
@@ -643,5 +865,6 @@ class EmailHelper {
         return $this->sendEmail($test_email, $subject, $body);
     }
 }
+
 
 ?>

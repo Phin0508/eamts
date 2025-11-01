@@ -17,6 +17,8 @@ if (!in_array($user_role, ['manager', 'admin'])) {
     exit();
 }
 
+$emailHelper = new EmailHelper();
+
 // Get manager's information
 $manager_query = $pdo->prepare("SELECT department, first_name, last_name FROM users WHERE user_id = ?");
 $manager_query->execute([$user_id]);
@@ -167,6 +169,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $history_query = "INSERT INTO ticket_history (ticket_id, action_type, new_value, performed_by, created_at) VALUES (?, 'created', ?, ?, NOW())";
             $history_stmt = $pdo->prepare($history_query);
             $history_stmt->execute([$ticket_id, "$history_action: $ticket_number", $user_id]);
+            
             
             // Handle file uploads
             if (!empty($_FILES['attachments']['name'][0])) {

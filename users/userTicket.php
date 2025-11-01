@@ -13,7 +13,7 @@ $user_id = $_SESSION['user_id'];
 // SECURITY: Only allow employees to access this page
 // Managers and admins should use the main tickets.php
 if ($_SESSION['role'] !== 'employee') {
-    header("Location: ../public/ticket.php");
+    header("Location: ../users/userCreateicket.php");
     exit();
 }
 
@@ -122,7 +122,7 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                     <p>View and manage your support tickets</p>
                 </div>
                 <div class="header-right">
-                    <a href="../public/createTicket.php" class="btn btn-primary">
+                    <a href="../users/userCreateticket.php" class="btn btn-primary">
                         <i class="fas fa-plus"></i> Create New Ticket
                     </a>
                 </div>

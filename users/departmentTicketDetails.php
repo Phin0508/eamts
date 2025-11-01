@@ -1,21 +1,47 @@
 <?php
 session_start();
 require_once '../auth/config/database.php';
+require_once '../auth/helpers/EmailHelper.php';
+
+// CRITICAL: Validate session user_id early
+if (!isset($_SESSION['user_id']) || empty($_SESSION['user_id']) || !is_numeric($_SESSION['user_id'])) {
+    error_log("CRITICAL ERROR: Invalid or missing user_id in session.");
+    session_destroy();
+    header("Location: ../auth/login.php?error=session_expired");
+    exit();
+}
 
 // Check if user is logged in and is a manager
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'manager') {
+if ($_SESSION['role'] !== 'manager') {
     header("Location: login.php");
     exit();
 }
 
-$user_id = $_SESSION['user_id'];
-$ticket_id = $_GET['id'] ?? 0;
+$user_id = intval($_SESSION['user_id']);
+$ticket_id = intval($_GET['id'] ?? 0);
 
-// Get manager's department
-$dept_query = "SELECT department FROM users WHERE user_id = ?";
-$dept_stmt = $pdo->prepare($dept_query);
-$dept_stmt->execute([$user_id]);
-$manager_dept = $dept_stmt->fetchColumn();
+// Verify user exists in database
+$user_check = "SELECT user_id, department, first_name, last_name FROM users WHERE user_id = ? AND role = 'manager' AND is_active = 1";
+$user_stmt = $pdo->prepare($user_check);
+$user_stmt->execute([$user_id]);
+$user_data = $user_stmt->fetch(PDO::FETCH_ASSOC);
+
+if (!$user_data) {
+    error_log("ERROR: User ID $user_id not found in database or not an active manager");
+    session_destroy();
+    header("Location: ../auth/login.php?error=invalid_user");
+    exit();
+}
+
+// Get manager's department and name
+$manager_dept = $user_data['department'];
+$manager_name = $user_data['first_name'] . ' ' . $user_data['last_name'];
+
+// Initialize EmailHelper
+$emailHelper = new EmailHelper();
+
+// Log for debugging
+error_log("Manager viewing ticket - user_id: $user_id, ticket_id: $ticket_id, department: $manager_dept");
 
 // Fetch ticket details - only from manager's department
 $ticket_query = "
@@ -101,6 +127,14 @@ $history = $history_stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Handle form submissions - Manager can add comments and approve/reject
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // ADDED: Verify user is still logged in
+    if (!isset($_SESSION['user_id']) || empty($_SESSION['user_id'])) {
+        error_log("ERROR: user_id not in session during POST in details page");
+        $_SESSION['error_message'] = "Session expired. Please login again.";
+        header("Location: login.php");
+        exit();
+    }
+    
     try {
         // Add comment
         if (isset($_POST['action']) && $_POST['action'] === 'add_comment') {
@@ -135,50 +169,234 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit();
             }
             
-            if ($action === 'approve') {
-                $update_query = "UPDATE tickets SET 
-                                approval_status = 'approved', 
-                                approved_by = ?, 
-                                approved_at = NOW(),
-                                manager_notes = ?,
-                                updated_at = NOW()
-                                WHERE ticket_id = ?";
-                $update_stmt = $pdo->prepare($update_query);
-                $update_stmt->execute([$user_id, $manager_notes, $ticket_id]);
+            // Use transaction for data integrity
+            try {
+                $pdo->beginTransaction();
                 
-                // Log history
-                $history_query = "INSERT INTO ticket_history (ticket_id, action_type, new_value, performed_by, notes, created_at) 
-                                VALUES (?, 'approval_status_changed', 'approved', ?, ?, NOW())";
-                $history_stmt = $pdo->prepare($history_query);
-                $history_stmt->execute([$ticket_id, $user_id, "Manager approved: " . $manager_notes]);
+                if ($action === 'approve') {
+                    // Update ticket
+                    $update_query = "UPDATE tickets SET 
+                                    approval_status = 'approved', 
+                                    approved_by = ?, 
+                                    approved_at = NOW(),
+                                    manager_notes = ?,
+                                    updated_at = NOW()
+                                    WHERE ticket_id = ?";
+                    $update_stmt = $pdo->prepare($update_query);
+                    $update_stmt->execute([$user_id, $manager_notes, $ticket_id]);
+                    
+                    if ($update_stmt->rowCount() === 0) {
+                        throw new Exception("Ticket was already processed by another manager.");
+                    }
+                    
+                    // Log history
+                    $history_query = "INSERT INTO ticket_history (ticket_id, action_type, new_value, performed_by, notes, created_at) 
+                                    VALUES (?, 'approval_status_changed', 'approved', ?, ?, NOW())";
+                    $history_stmt = $pdo->prepare($history_query);
+                    $history_stmt->execute([$ticket_id, $user_id, "Manager approved: " . $manager_notes]);
+                    
+                    // Send approval emails
+                    try {
+                        error_log("Sending approval notification for ticket: " . $ticket['ticket_number']);
+                        
+                        $email_subject = "Ticket Approved - " . $ticket['ticket_number'];
+                        $email_body = "
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                            <meta charset='UTF-8'>
+                            <style>
+                                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                                .container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; }
+                                .header { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 20px; text-align: center; border-radius: 8px; }
+                                .content { padding: 20px; }
+                                .ticket-info { background: #f8f9fa; padding: 15px; margin: 15px 0; border-radius: 8px; }
+                                .btn { display: inline-block; padding: 12px 24px; background: #10b981; color: white; text-decoration: none; border-radius: 6px; }
+                            </style>
+                        </head>
+                        <body>
+                            <div class='container'>
+                                <div class='header'>
+                                    <h2>✅ Your Ticket Has Been Approved</h2>
+                                </div>
+                                <div class='content'>
+                                    <p>Hello <strong>{$ticket['requester_name']}</strong>,</p>
+                                    <p>Good news! Your ticket has been approved by <strong>{$manager_name}</strong>.</p>
+                                    
+                                    <div class='ticket-info'>
+                                        <p><strong>Ticket Number:</strong> {$ticket['ticket_number']}</p>
+                                        <p><strong>Subject:</strong> {$ticket['subject']}</p>
+                                        <p><strong>Priority:</strong> " . ucfirst($ticket['priority']) . "</p>
+                                        <p><strong>Approved By:</strong> {$manager_name}</p>
+                                        <p><strong>Approval Date:</strong> " . date('F j, Y g:i A') . "</p>
+                                        " . (!empty($manager_notes) ? "<p><strong>Manager's Notes:</strong><br>" . nl2br(htmlspecialchars($manager_notes)) . "</p>" : "") . "
+                                    </div>
+                                    
+                                    <p>Your ticket is now pending assignment to a technician.</p>
+                                </div>
+                            </div>
+                        </body>
+                        </html>
+                        ";
+                        
+                        $emailHelper->sendEmail($ticket['requester_email'], $email_subject, $email_body);
+                        
+                        // Prepare ticket data for admin notification
+                        $ticket_data = [
+                            'id' => $ticket_id,
+                            'ticket_number' => $ticket['ticket_number'],
+                            'subject' => $ticket['subject'],
+                            'priority' => $ticket['priority'],
+                            'ticket_type' => $ticket['ticket_type'],
+                            'requester_name' => $ticket['requester_name'],
+                            'requester_department' => $ticket['requester_department'],
+                            'description' => $ticket['description']
+                        ];
+                        
+                        $emailHelper->sendTicketApprovedToAdminsEmail($ticket_data, $manager_name, $pdo);
+                        
+                    } catch (Exception $e) {
+                        error_log("Failed to send approval email: " . $e->getMessage());
+                    }
+                    
+                    $pdo->commit();
+                    $_SESSION['success_message'] = "Ticket approved successfully!";
+                    
+                } elseif ($action === 'reject') {
+                    error_log("========== DETAILS PAGE REJECTION ==========");
+                    error_log("user_id: " . var_export($user_id, true));
+                    
+                    // Validate user_id
+                    $validated_user_id = intval($user_id);
+                    
+                    if ($validated_user_id <= 0) {
+                        throw new Exception("Invalid user_id for rejection: $validated_user_id");
+                    }
+                    
+                    error_log("Validated user_id for rejection: $validated_user_id");
+                    
+                    // INSERT HISTORY FIRST - before UPDATE to avoid trigger issues
+                    $history_query = "INSERT INTO ticket_history 
+                                    (ticket_id, action_type, new_value, performed_by, notes, created_at) 
+                                    VALUES (?, 'approval_status_changed', 'rejected', ?, ?, NOW())";
+                    
+                    $history_stmt = $pdo->prepare($history_query);
+                    
+                    error_log("Inserting history BEFORE update with performed_by: $validated_user_id");
+                    
+                    $history_result = $history_stmt->execute([
+                        $ticket_id,
+                        $validated_user_id,
+                        "Manager rejected: " . $manager_notes
+                    ]);
+                    
+                    if (!$history_result) {
+                        $error_info = $history_stmt->errorInfo();
+                        error_log("History insert failed: " . print_r($error_info, true));
+                        throw new Exception("Failed to log history: " . ($error_info[2] ?? 'Unknown error'));
+                    }
+                    
+                    error_log("History inserted successfully!");
+                    
+                    // NOW update ticket with rejection
+                    $update_query = "UPDATE tickets SET 
+                                    approval_status = 'rejected', 
+                                    rejected_by = ?, 
+                                    rejected_at = NOW(),
+                                    manager_notes = ?,
+                                    status = 'closed',
+                                    updated_at = NOW()
+                                    WHERE ticket_id = ?";
+                    
+                    $update_stmt = $pdo->prepare($update_query);
+                    
+                    error_log("Executing rejection UPDATE with params: [$validated_user_id, notes, $ticket_id]");
+                    
+                    $update_result = $update_stmt->execute([$validated_user_id, $manager_notes, $ticket_id]);
+                    
+                    if (!$update_result) {
+                        $error_info = $update_stmt->errorInfo();
+                        error_log("UPDATE failed with error: " . print_r($error_info, true));
+                        throw new Exception("Failed to update ticket: " . ($error_info[2] ?? 'Unknown error'));
+                    }
+                    
+                    error_log("UPDATE successful, rows affected: " . $update_stmt->rowCount());
+                    
+                    if ($update_stmt->rowCount() === 0) {
+                        throw new Exception("Ticket was already processed by another manager or does not exist.");
+                    }
+                    
+                    // Verify the update worked
+                    $verify_update = "SELECT rejected_by FROM tickets WHERE ticket_id = ?";
+                    $verify_stmt = $pdo->prepare($verify_update);
+                    $verify_stmt->execute([$ticket_id]);
+                    $verify_result = $verify_stmt->fetch(PDO::FETCH_ASSOC);
+                    
+                    error_log("Verification - rejected_by value: " . var_export($verify_result['rejected_by'], true));
+                    
+                    if (!$verify_result || $verify_result['rejected_by'] === null) {
+                        throw new Exception("Database verification failed - rejected_by is null after update");
+                    }
+                    
+                    // Send rejection email
+                    try {
+                        $ticket_data = [
+                            'id' => $ticket_id,
+                            'ticket_number' => $ticket['ticket_number'],
+                            'subject' => $ticket['subject']
+                        ];
+                        
+                        $emailHelper->sendTicketRejectedEmail(
+                            $ticket['requester_email'], 
+                            $ticket['requester_name'], 
+                            $ticket_data, 
+                            $manager_name, 
+                            $manager_notes
+                        );
+                        
+                        error_log("Rejection email sent successfully");
+                        
+                    } catch (Exception $e) {
+                        error_log("Failed to send rejection email: " . $e->getMessage());
+                    }
+                    
+                    $pdo->commit();
+                    $_SESSION['success_message'] = "Ticket rejected successfully.";
+                    error_log("========== REJECTION COMPLETE ==========");
+                }
                 
-                $_SESSION['success_message'] = "Ticket approved successfully!";
-            } elseif ($action === 'reject') {
-                $update_query = "UPDATE tickets SET 
-                                approval_status = 'rejected', 
-                                approved_by = ?, 
-                                approved_at = NOW(),
-                                manager_notes = ?,
-                                status = 'closed',
-                                updated_at = NOW()
-                                WHERE ticket_id = ?";
-                $update_stmt = $pdo->prepare($update_query);
-                $update_stmt->execute([$user_id, $manager_notes, $ticket_id]);
+                header("Location: departmentTicketDetails.php?id=$ticket_id");
+                exit();
                 
-                // Log history
-                $history_query = "INSERT INTO ticket_history (ticket_id, action_type, new_value, performed_by, notes, created_at) 
-                                VALUES (?, 'approval_status_changed', 'rejected', ?, ?, NOW())";
-                $history_stmt = $pdo->prepare($history_query);
-                $history_stmt->execute([$ticket_id, $user_id, "Manager rejected: " . $manager_notes]);
-                
-                $_SESSION['success_message'] = "Ticket rejected successfully.";
+            } catch (PDOException $e) {
+                $pdo->rollBack();
+                error_log("Database error during approval/rejection: " . $e->getMessage());
+                error_log("Error Code: " . $e->getCode());
+                error_log("SQL State: " . ($e->errorInfo[0] ?? 'unknown'));
+                error_log("user_id at time of error: " . var_export($user_id, true));
+                error_log("Stack trace: " . $e->getTraceAsString());
+                $_SESSION['error_message'] = "Database error: " . $e->getMessage();
+                header("Location: departmentTicketDetails.php?id=$ticket_id");
+                exit();
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                error_log("Error during approval/rejection: " . $e->getMessage());
+                error_log("user_id at time of error: " . var_export($user_id, true));
+                $_SESSION['error_message'] = $e->getMessage();
+                header("Location: departmentTicketDetails.php?id=$ticket_id");
+                exit();
             }
-            
-            header("Location: departmentTicketDetails.php?id=$ticket_id");
-            exit();
         }
     } catch (PDOException $e) {
-        $_SESSION['error_message'] = "Error: " . $e->getMessage();
+        error_log("Error in POST handling: " . $e->getMessage());
+        $_SESSION['error_message'] = "Database error: " . $e->getMessage();
+        header("Location: departmentTicketDetails.php?id=$ticket_id");
+        exit();
+    } catch (Exception $e) {
+        error_log("Error in POST handling: " . $e->getMessage());
+        $_SESSION['error_message'] = $e->getMessage();
+        header("Location: departmentTicketDetails.php?id=$ticket_id");
+        exit();
     }
 }
 ?>
