@@ -9,6 +9,20 @@ if (!isset($_SESSION['user_id'])) {
 
 // Include database configuration
 include("../auth/config/database.php");
+require_once '../auth/helpers/EmailHelper.php';
+
+// ============= VERIFY EMAIL HELPER =============
+if (!class_exists('EmailHelper')) {
+    error_log("CRITICAL: EmailHelper class not found!");
+    die("Email system not configured");
+}
+
+$emailHelper = new EmailHelper();
+if (!method_exists($emailHelper, 'sendEmail')) {
+    error_log("CRITICAL: EmailHelper::sendEmail() method missing!");
+    die("Email method not available");
+}
+// ============= END EMAIL HELPER VERIFICATION =============
 
 $user_id = $_SESSION['user_id'];
 $user_role = $_SESSION['role'];
@@ -22,6 +36,11 @@ if ($user_role === 'employee') {
 $success_message = '';
 $error_message = '';
 
+$protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? "https" : "http";
+$host = $_SERVER['HTTP_HOST'];
+$base_path = str_replace('/tickets/createTicket.php', '', $_SERVER['SCRIPT_NAME']);
+$SYSTEM_URL = $protocol . "://" . $host . $base_path;
+
 // Get user info
 $user_query = $pdo->prepare("SELECT first_name, last_name, email, department FROM users WHERE user_id = ?");
 $user_query->execute([$user_id]);
@@ -30,13 +49,66 @@ $user_name = $user_data['first_name'] . ' ' . $user_data['last_name'];
 $user_email = $user_data['email'];
 $user_department = $user_data['department'];
 
-// Fetch all users for assignment (if admin wants to create ticket on behalf of someone)
-$users_query = $pdo->query("SELECT user_id, first_name, last_name, email, department FROM users WHERE status = 'active' ORDER BY first_name");
+// Fetch all ACTIVE users for assignment (if admin wants to create ticket on behalf of someone)
+$users_query = $pdo->query("
+    SELECT user_id, first_name, last_name, email, department, role 
+    FROM users 
+    WHERE is_active = 1 
+    AND is_deleted = 0 
+    ORDER BY 
+        CASE 
+            WHEN role = 'employee' THEN 1
+            WHEN role = 'manager' THEN 2
+            WHEN role = 'admin' THEN 3
+            ELSE 4
+        END,
+        first_name, last_name
+");
 $all_users = $users_query->fetchAll(PDO::FETCH_ASSOC);
 
-// Fetch all assets
-$assets_query = $pdo->query("SELECT id, asset_name, asset_code, category, assigned_to FROM assets WHERE status = 'in_use' ORDER BY asset_name");
+// Fetch all in-use assets
+$assets_query = $pdo->query("
+    SELECT id, asset_name, asset_code, category, assigned_to 
+    FROM assets 
+    WHERE status = 'in_use' 
+    ORDER BY asset_name
+");
 $all_assets = $assets_query->fetchAll(PDO::FETCH_ASSOC);
+
+// ==================== AJAX ENDPOINT FOR LOADING USER'S ASSETS ====================
+if (isset($_GET['action']) && $_GET['action'] === 'get_user_assets' && isset($_GET['user_id'])) {
+    header('Content-Type: application/json');
+
+    $selected_user_id = intval($_GET['user_id']);
+
+    // Fetch user's role and assets
+    $user_check = $pdo->prepare("SELECT role, first_name, last_name FROM users WHERE user_id = ? AND is_active = 1");
+    $user_check->execute([$selected_user_id]);
+    $selected_user = $user_check->fetch(PDO::FETCH_ASSOC);
+
+    if ($selected_user) {
+        // Get user's assets
+        $user_assets_query = $pdo->prepare("
+            SELECT id, asset_name, asset_code, category 
+            FROM assets 
+            WHERE assigned_to = ? AND status = 'in_use' 
+            ORDER BY asset_name
+        ");
+        $user_assets_query->execute([$selected_user_id]);
+        $user_assets = $user_assets_query->fetchAll(PDO::FETCH_ASSOC);
+
+        echo json_encode([
+            'success' => true,
+            'role' => $selected_user['role'],
+            'name' => $selected_user['first_name'] . ' ' . $selected_user['last_name'],
+            'assets' => $user_assets
+        ]);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'User not found']);
+    }
+    exit();
+}
+// ==================== END AJAX ENDPOINT ====================
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -47,12 +119,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $priority = $_POST['priority'];
         $requester_id = !empty($_POST['requester_id']) ? $_POST['requester_id'] : $user_id;
         $asset_id = !empty($_POST['asset_id']) ? $_POST['asset_id'] : null;
-        
-        // Get requester department
-        $requester_query = $pdo->prepare("SELECT department FROM users WHERE user_id = ?");
+
+        // Get requester information (department AND role)
+        $requester_query = $pdo->prepare("SELECT department, role, first_name, last_name FROM users WHERE user_id = ?");
         $requester_query->execute([$requester_id]);
-        $requester_dept = $requester_query->fetch(PDO::FETCH_ASSOC)['department'];
-        
+        $requester_info = $requester_query->fetch(PDO::FETCH_ASSOC);
+        $requester_dept = $requester_info['department'];
+        $requester_role = $requester_info['role'];
+        $requester_name = $requester_info['first_name'] . ' ' . $requester_info['last_name'];
+
+        // SECURITY: Verify asset belongs to requester if asset is selected
+        if ($asset_id) {
+            $asset_check = $pdo->prepare("SELECT id FROM assets WHERE id = ? AND assigned_to = ?");
+            $asset_check->execute([$asset_id, $requester_id]);
+            if (!$asset_check->fetch()) {
+                throw new Exception("Invalid asset selected. Asset must belong to the selected user.");
+            }
+        }
+
         // Validation
         $errors = [];
         if (empty($subject)) $errors[] = "Subject is required";
@@ -60,61 +144,122 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (strlen($description) < 20) $errors[] = "Description must be at least 20 characters";
         if (strlen($subject) > 255) $errors[] = "Subject is too long (max 255 characters)";
         if (strlen($description) > 2000) $errors[] = "Description is too long (max 2000 characters)";
-        
+
         if (empty($errors)) {
-            // Generate ticket number
+            // ==================== TICKET NUMBER GENERATION WITH LOCKING ====================
             $year = date('Y');
             $month = date('m');
-            
-            $ticket_count_query = $pdo->prepare("SELECT COUNT(*) as count FROM tickets WHERE YEAR(created_at) = ? AND MONTH(created_at) = ?");
-            $ticket_count_query->execute([$year, $month]);
-            $count = $ticket_count_query->fetch(PDO::FETCH_ASSOC)['count'] + 1;
-            
-            $ticket_number = sprintf("TKT-%s%s-%05d", $year, $month, $count);
-            
-            // Admins can create pre-approved tickets
-            $approval_status = ($user_role === 'admin') ? 'approved' : 'pending';
-            
-            // Insert ticket
-            $insert_query = "
-                INSERT INTO tickets (
-                    ticket_number, ticket_type, subject, description, 
-                    priority, status, approval_status, requester_id, 
-                    requester_department, asset_id, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, NOW(), NOW())
-            ";
-            
-            $stmt = $pdo->prepare($insert_query);
-            $stmt->execute([
-                $ticket_number,
-                $ticket_type,
-                $subject,
-                $description,
-                $priority,
-                $approval_status,
-                $requester_id,
-                $requester_dept,
-                $asset_id
-            ]);
-            
-            $ticket_id = $pdo->lastInsertId();
-            
-            // Log history
-            $history_query = "INSERT INTO ticket_history (ticket_id, action_type, new_value, performed_by, created_at) VALUES (?, 'created', ?, ?, NOW())";
-            $history_stmt = $pdo->prepare($history_query);
-            $history_stmt->execute([
-                $ticket_id, 
-                "Ticket created: $ticket_number" . ($requester_id != $user_id ? " (on behalf of user)" : ""), 
-                $user_id
-            ]);
-            
-            // Handle file uploads
+
+            // START TRANSACTION
+            $pdo->beginTransaction();
+
+            try {
+                // Get the highest ticket number for this month with FOR UPDATE lock
+                $max_ticket_query = $pdo->prepare("
+                    SELECT ticket_number 
+                    FROM tickets 
+                    WHERE YEAR(created_at) = ? AND MONTH(created_at) = ?
+                    ORDER BY ticket_id DESC
+                    LIMIT 1
+                    FOR UPDATE
+                ");
+                $max_ticket_query->execute([$year, $month]);
+                $last_ticket = $max_ticket_query->fetch(PDO::FETCH_ASSOC);
+
+                // Extract counter
+                if ($last_ticket && preg_match('/TKT-\d{6}-(\d{5})/', $last_ticket['ticket_number'], $matches)) {
+                    $count = intval($matches[1]) + 1;
+                } else {
+                    $count = 1;
+                }
+
+                // Generate unique ticket number
+                $ticket_number = sprintf("TKT-%s%s-%05d", $year, $month, $count);
+                error_log("Admin creating ticket - Generated: $ticket_number (count: $count)");
+
+                // Verify uniqueness
+                $check_query = $pdo->prepare("SELECT COUNT(*) as count FROM tickets WHERE ticket_number = ?");
+                $check_query->execute([$ticket_number]);
+                $exists = $check_query->fetch(PDO::FETCH_ASSOC)['count'];
+
+                $attempts = 0;
+                $max_attempts = 100;
+
+                while ($exists > 0 && $attempts < $max_attempts) {
+                    $count++;
+                    $attempts++;
+                    $ticket_number = sprintf("TKT-%s%s-%05d", $year, $month, $count);
+                    error_log("Collision! Trying: $ticket_number (attempt $attempts)");
+                    $check_query->execute([$ticket_number]);
+                    $exists = $check_query->fetch(PDO::FETCH_ASSOC)['count'];
+                }
+
+                if ($attempts >= $max_attempts) {
+                    throw new Exception("Unable to generate unique ticket number");
+                }
+
+                // ==================== APPROVAL LOGIC BASED ON REQUESTER ROLE ====================
+                // 1. If requester is MANAGER or ADMIN -> Auto-approve
+                // 2. If requester is EMPLOYEE -> Pending approval
+                if (in_array($requester_role, ['manager', 'admin', 'superadmin'])) {
+                    $approval_status = 'approved';
+                    $status_message = "Auto-approved (Requester: " . strtoupper($requester_role) . ")";
+                    error_log("Ticket $ticket_number: AUTO-APPROVED because requester is $requester_role");
+                } else {
+                    $approval_status = 'pending';
+                    $status_message = "Pending approval (Requester: EMPLOYEE)";
+                    error_log("Ticket $ticket_number: PENDING approval because requester is employee");
+                }
+                // ==================== END APPROVAL LOGIC ====================
+
+                // Insert ticket
+                $insert_query = "
+                    INSERT INTO tickets (
+                        ticket_number, ticket_type, subject, description, 
+                        priority, status, approval_status, requester_id, 
+                        requester_department, asset_id, created_by, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, NOW(), NOW())
+                ";
+
+                $stmt = $pdo->prepare($insert_query);
+                $stmt->execute([
+                    $ticket_number,
+                    $ticket_type,
+                    $subject,
+                    $description,
+                    $priority,
+                    $approval_status,
+                    $requester_id,
+                    $requester_dept,
+                    $asset_id,
+                    $user_id // Admin who created the ticket
+                ]);
+
+                $ticket_id = $pdo->lastInsertId();
+
+                // Log history
+                $history_message = "Ticket created by Admin on behalf of $requester_name ($requester_role) - $status_message";
+                $history_query = "INSERT INTO ticket_history (ticket_id, action_type, new_value, performed_by, created_at) VALUES (?, 'created', ?, ?, NOW())";
+                $history_stmt = $pdo->prepare($history_query);
+                $history_stmt->execute([$ticket_id, $history_message, $user_id]);
+
+                // COMMIT TRANSACTION
+                $pdo->commit();
+
+                error_log("✓ Admin ticket created: $ticket_number (ID: $ticket_id) | Requester: $requester_name ($requester_role) | Status: $approval_status");
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                throw $e;
+            }
+            // ==================== END TICKET NUMBER GENERATION ====================
+
+            // Handle file uploads (AFTER transaction commit)
             if (!empty($_FILES['attachments']['name'][0])) {
                 $upload_dir = '../uploads/tickets/';
                 if (!file_exists($upload_dir)) {
                     mkdir($upload_dir, 0777, true);
                 }
-                
+
                 $uploaded_files = 0;
                 foreach ($_FILES['attachments']['tmp_name'] as $key => $tmp_name) {
                     if ($_FILES['attachments']['error'][$key] === 0) {
@@ -122,14 +267,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $file_size = $_FILES['attachments']['size'][$key];
                         $file_tmp = $_FILES['attachments']['tmp_name'][$key];
                         $file_type = $_FILES['attachments']['type'][$key];
-                        
+
                         $file_ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
                         $allowed_extensions = ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx', 'xls', 'xlsx'];
-                        
-                        if (in_array($file_ext, $allowed_extensions) && $file_size <= 5242880) { // 5MB limit
+
+                        if (in_array($file_ext, $allowed_extensions) && $file_size <= 5242880) {
                             $new_file_name = $ticket_id . '_' . time() . '_' . uniqid() . '.' . $file_ext;
                             $file_path = $upload_dir . $new_file_name;
-                            
+
                             if (move_uploaded_file($file_tmp, $file_path)) {
                                 $attach_query = "INSERT INTO ticket_attachments (ticket_id, uploaded_by, file_name, file_path, file_type, file_size, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())";
                                 $attach_stmt = $pdo->prepare($attach_query);
@@ -147,21 +292,482 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
             }
-            
-            $success_message = "Ticket created successfully! Ticket Number: " . $ticket_number;
+
+            // ==================== EMAIL NOTIFICATIONS ====================
+            try {
+                error_log("========================================");
+                error_log("ADMIN CREATED TICKET - SENDING EMAILS");
+                error_log("Ticket: $ticket_number | Created by: $user_name (Admin)");
+                error_log("Requester: $requester_name ($requester_role) | Approval: $approval_status");
+
+                // Get requester's email
+                $requester_email_query = $pdo->prepare("SELECT email FROM users WHERE user_id = ?");
+                $requester_email_query->execute([$requester_id]);
+                $requester_email = $requester_email_query->fetch(PDO::FETCH_ASSOC)['email'];
+
+                // ============= 1. EMAIL TO REQUESTER (The person the ticket is for) =============
+                error_log("Sending email to REQUESTER: $requester_email");
+
+                $requester_subject = "Ticket Created for You - $ticket_number";
+
+                if ($approval_status === 'approved') {
+                    // Auto-approved tickets (Manager/Admin requester)
+                    $requester_body = "
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset='UTF-8'>
+            <style>
+                body { font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
+                .container { max-width: 600px; margin: 0 auto; background: white; }
+                .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+                .header h1 { margin: 0; font-size: 24px; }
+                .content { padding: 30px; background: #f8f9fa; }
+                .success-badge { background: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin: 15px 0; border-radius: 6px; color: #155724; }
+                .ticket-info { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #667eea; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+                .info-row { padding: 10px 0; border-bottom: 1px solid #e9ecef; }
+                .info-row:last-child { border-bottom: none; }
+                .btn { display: inline-block; padding: 14px 28px; background: #667eea; color: white; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 20px 0; }
+                .footer { text-align: center; padding: 20px; color: #6c757d; font-size: 12px; border-top: 1px solid #e9ecef; }
+            </style>
+        </head>
+        <body>
+            <div class='container'>
+                <div class='header'>
+                    <h1>✅ Ticket Created & Approved</h1>
+                </div>
+                
+                <div class='content'>
+                    <p style='font-size: 16px;'>Hello <strong>" . htmlspecialchars($requester_name) . "</strong>,</p>
+                    
+                    <div class='success-badge'>
+                        <strong>✓ Auto-Approved!</strong> A support ticket has been created for you by <strong>" . htmlspecialchars($user_name) . "</strong> (Admin) and has been automatically approved.
+                    </div>
+                    
+                    <div class='ticket-info'>
+                        <h3 style='margin-top: 0; color: #667eea; font-size: 18px;'>📋 Ticket Details</h3>
+                        <div class='info-row'>
+                            <strong>Ticket Number:</strong> " . htmlspecialchars($ticket_number) . "
+                        </div>
+                        <div class='info-row'>
+                            <strong>Subject:</strong> " . htmlspecialchars($subject) . "
+                        </div>
+                        <div class='info-row'>
+                            <strong>Priority:</strong> " . strtoupper($priority) . "
+                        </div>
+                        <div class='info-row'>
+                            <strong>Type:</strong> " . htmlspecialchars(ucfirst(str_replace('_', ' ', $ticket_type))) . "
+                        </div>
+                        <div class='info-row'>
+                            <strong>Status:</strong> <span style='color: #28a745; font-weight: 600;'>✓ Approved</span>
+                        </div>
+                        <div class='info-row'>
+                            <strong>Created By:</strong> " . htmlspecialchars($user_name) . " (Admin)
+                        </div>
+                        <div class='info-row'>
+                            <strong>Created:</strong> " . date('F j, Y \a\t g:i A') . "
+                        </div>
+                    </div>
+                    
+                    <div style='background: white; padding: 15px; border-radius: 8px; margin: 20px 0;'>
+                        <h4 style='margin-top: 0; color: #2c3e50;'>Description:</h4>
+                        <p style='margin: 0; color: #4a5568;'>" . nl2br(htmlspecialchars($description)) . "</p>
+                    </div>
+                    
+                    <center>
+                        <a href='" . $SYSTEM_URL . "/users/userTicket.php?id=" . $ticket_id . "' class='btn'>
+                            🔍 View Ticket Details
+                        </a>
+                    </center>
+                    
+                    <p style='color: #6c757d; font-size: 13px; margin-top: 25px; padding: 15px; background: #fff; border-radius: 6px;'>
+                        <strong>📌 Next Steps:</strong> This ticket has been automatically approved and will be assigned to a technician shortly.
+                    </p>
+                </div>
+                
+                <div class='footer'>
+                    <p><strong>E-Asset Management System</strong></p>
+                    <p>This is an automated notification. Please do not reply to this email.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        ";
+                } else {
+                    // Pending approval tickets (Employee requester)
+                    $requester_body = "
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset='UTF-8'>
+            <style>
+                body { font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
+                .container { max-width: 600px; margin: 0 auto; background: white; }
+                .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+                .header h1 { margin: 0; font-size: 24px; }
+                .content { padding: 30px; background: #f8f9fa; }
+                .pending-badge { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 15px 0; border-radius: 6px; color: #856404; }
+                .ticket-info { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #667eea; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+                .info-row { padding: 10px 0; border-bottom: 1px solid #e9ecef; }
+                .info-row:last-child { border-bottom: none; }
+                .btn { display: inline-block; padding: 14px 28px; background: #667eea; color: white; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 20px 0; }
+                .footer { text-align: center; padding: 20px; color: #6c757d; font-size: 12px; border-top: 1px solid #e9ecef; }
+            </style>
+        </head>
+        <body>
+            <div class='container'>
+                <div class='header'>
+                    <h1>🎫 Ticket Created for You</h1>
+                </div>
+                
+                <div class='content'>
+                    <p style='font-size: 16px;'>Hello <strong>" . htmlspecialchars($requester_name) . "</strong>,</p>
+                    
+                    <div class='pending-badge'>
+                        <strong>ℹ️ Ticket Created:</strong> A support ticket has been created for you by <strong>" . htmlspecialchars($user_name) . "</strong> (Admin) and has been sent to your manager for approval.
+                    </div>
+                    
+                    <div class='ticket-info'>
+                        <h3 style='margin-top: 0; color: #667eea; font-size: 18px;'>📋 Ticket Details</h3>
+                        <div class='info-row'>
+                            <strong>Ticket Number:</strong> " . htmlspecialchars($ticket_number) . "
+                        </div>
+                        <div class='info-row'>
+                            <strong>Subject:</strong> " . htmlspecialchars($subject) . "
+                        </div>
+                        <div class='info-row'>
+                            <strong>Priority:</strong> " . strtoupper($priority) . "
+                        </div>
+                        <div class='info-row'>
+                            <strong>Type:</strong> " . htmlspecialchars(ucfirst(str_replace('_', ' ', $ticket_type))) . "
+                        </div>
+                        <div class='info-row'>
+                            <strong>Status:</strong> <span style='color: #f59e0b; font-weight: 600;'>⏳ Pending Approval</span>
+                        </div>
+                        <div class='info-row'>
+                            <strong>Created By:</strong> " . htmlspecialchars($user_name) . " (Admin)
+                        </div>
+                        <div class='info-row'>
+                            <strong>Created:</strong> " . date('F j, Y \a\t g:i A') . "
+                        </div>
+                    </div>
+                    
+                    <div style='background: white; padding: 15px; border-radius: 8px; margin: 20px 0;'>
+                        <h4 style='margin-top: 0; color: #2c3e50;'>Description:</h4>
+                        <p style='margin: 0; color: #4a5568;'>" . nl2br(htmlspecialchars($description)) . "</p>
+                    </div>
+                    
+                    <center>
+                        <a href='" . $SYSTEM_URL . "/users/userTicket.php?id=" . $ticket_id . "' class='btn'>
+                            🔍 View Ticket Details
+                        </a>
+                    </center>
+                    
+                    <p style='color: #6c757d; font-size: 13px; margin-top: 25px; padding: 15px; background: #fff; border-radius: 6px;'>
+                        <strong>📌 Next Steps:</strong> Your ticket is pending approval from your department manager. You'll be notified once it's approved.
+                    </p>
+                </div>
+                
+                <div class='footer'>
+                    <p><strong>E-Asset Management System</strong></p>
+                    <p>This is an automated notification. Please do not reply to this email.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        ";
+                }
+
+                $requester_email_sent = $emailHelper->sendEmail($requester_email, $requester_subject, $requester_body);
+                error_log("Requester email result: " . ($requester_email_sent ? "SUCCESS ✓" : "FAILED ✗"));
+
+                // ============= 2. EMAIL TO DEPARTMENT MANAGER(S) =============
+                error_log("Searching for managers in department: '$requester_dept'");
+
+                $managers_query = $pdo->prepare("
+        SELECT user_id, email, first_name, last_name 
+        FROM users 
+        WHERE department = ? 
+        AND role = 'manager' 
+        AND is_active = 1 
+        AND is_deleted = 0
+        ORDER BY user_id
+    ");
+                $managers_query->execute([$requester_dept]);
+                $managers = $managers_query->fetchAll(PDO::FETCH_ASSOC);
+
+                error_log("Found " . count($managers) . " manager(s) for department '$requester_dept'");
+
+                if (!empty($managers)) {
+                    $manager_emails_sent = 0;
+                    $manager_emails_failed = 0;
+
+                    foreach ($managers as $manager) {
+                        $manager_name = $manager['first_name'] . ' ' . $manager['last_name'];
+                        $manager_email_address = $manager['email'];
+
+                        error_log("Processing manager: $manager_name ($manager_email_address)");
+
+                        if ($approval_status === 'approved') {
+                            // Manager notification for AUTO-APPROVED tickets
+                            $manager_subject = "🎫 New Approved Ticket - $ticket_number";
+                            $manager_body = "
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset='UTF-8'>
+                    <style>
+                        body { font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
+                        .container { max-width: 600px; margin: 0 auto; background: white; }
+                        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+                        .content { padding: 30px; background: #f8f9fa; }
+                        .alert { background: #d1ecf1; border-left: 4px solid #0c5460; padding: 15px; margin: 15px 0; border-radius: 6px; color: #0c5460; }
+                        .ticket-info { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #28a745; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+                        .info-row { padding: 10px 0; border-bottom: 1px solid #e9ecef; }
+                        .info-row:last-child { border-bottom: none; }
+                        .btn { display: inline-block; padding: 14px 28px; background: #667eea; color: white; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 20px 0; }
+                        .footer { text-align: center; padding: 20px; color: #6c757d; font-size: 12px; border-top: 1px solid #e9ecef; }
+                    </style>
+                </head>
+                <body>
+                    <div class='container'>
+                        <div class='header'>
+                            <h1>✅ New Auto-Approved Ticket</h1>
+                        </div>
+                        
+                        <div class='content'>
+                            <p>Hello <strong>" . htmlspecialchars($manager_name) . "</strong>,</p>
+                            
+                            <p>A new support ticket has been created by Admin <strong>" . htmlspecialchars($user_name) . "</strong> for <strong>" . htmlspecialchars($requester_name) . "</strong> (" . strtoupper($requester_role) . ") from your <strong>" . htmlspecialchars($requester_dept) . "</strong> department.</p>
+                            
+                            <div class='alert'>
+                                <strong>ℹ️ FYI:</strong> This ticket was automatically approved (Requester is " . strtoupper($requester_role) . "). No action needed from you.
+                            </div>
+                            
+                            <div class='ticket-info'>
+                                <h3 style='margin-top: 0; color: #28a745;'>📋 Ticket Details</h3>
+                                <div class='info-row'>
+                                    <strong>Ticket Number:</strong> " . htmlspecialchars($ticket_number) . "
+                                </div>
+                                <div class='info-row'>
+                                    <strong>Status:</strong> <span style='color: #28a745; font-weight: 600;'>✓ Auto-Approved</span>
+                                </div>
+                                <div class='info-row'>
+                                    <strong>Subject:</strong> " . htmlspecialchars($subject) . "
+                                </div>
+                                <div class='info-row'>
+                                    <strong>Priority:</strong> " . strtoupper($priority) . "
+                                </div>
+                                <div class='info-row'>
+                                    <strong>Requester:</strong> " . htmlspecialchars($requester_name) . " (" . strtoupper($requester_role) . ")
+                                </div>
+                                <div class='info-row'>
+                                    <strong>Created By:</strong> " . htmlspecialchars($user_name) . " (Admin)
+                                </div>
+                                <div class='info-row'>
+                                    <strong>Created:</strong> " . date('F j, Y \a\t g:i A') . "
+                                </div>
+                            </div>
+                            
+                            <div style='background: white; padding: 15px; border-radius: 8px; margin: 20px 0;'>
+                                <h4 style='margin-top: 0; color: #2c3e50;'>Description:</h4>
+                                <p style='margin: 0; color: #4a5568;'>" . nl2br(htmlspecialchars(substr($description, 0, 300))) . (strlen($description) > 300 ? '...' : '') . "</p>
+                            </div>
+                            
+                            <center>
+                                <a href='" . $SYSTEM_URL . "/managers/departmentTicket.php?id=" . $ticket_id . "' class='btn'>
+                                    🔍 View Ticket
+                                </a>
+                            </center>
+                        </div>
+                        
+                        <div class='footer'>
+                            <p><strong>E-Asset Management System</strong></p>
+                            <p>This is an informational notification.</p>
+                        </div>
+                    </div>
+                </body>
+                </html>
+                ";
+                        } else {
+                            // Manager notification for PENDING APPROVAL tickets
+                            $manager_subject = "⏰ New Ticket Requires Your Approval - $ticket_number";
+                            $manager_body = "
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset='UTF-8'>
+                    <style>
+                        body { font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
+                        .container { max-width: 600px; margin: 0 auto; background: white; }
+                        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+                        .content { padding: 30px; background: #f8f9fa; }
+                        .alert { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 15px 0; border-radius: 6px; color: #856404; }
+                        .ticket-info { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #667eea; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+                        .info-row { padding: 10px 0; border-bottom: 1px solid #e9ecef; }
+                        .info-row:last-child { border-bottom: none; }
+                        .btn { display: inline-block; padding: 14px 28px; background: #667eea; color: white; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 20px 0; }
+                        .footer { text-align: center; padding: 20px; color: #6c757d; font-size: 12px; border-top: 1px solid #e9ecef; }
+                    </style>
+                </head>
+                <body>
+                    <div class='container'>
+                        <div class='header'>
+                            <h1>⏰ Ticket Awaiting Your Approval</h1>
+                        </div>
+                        
+                        <div class='content'>
+                            <p>Hello <strong>" . htmlspecialchars($manager_name) . "</strong>,</p>
+                            
+                            <p>A new support ticket has been created by Admin <strong>" . htmlspecialchars($user_name) . "</strong> for <strong>" . htmlspecialchars($requester_name) . "</strong> (EMPLOYEE) from your <strong>" . htmlspecialchars($requester_dept) . "</strong> department.</p>
+                            
+                            <div class='alert'>
+                                <strong>⚡ Action Required:</strong> Please review and approve or reject this ticket.
+                            </div>
+                            
+                            <div class='ticket-info'>
+                                <h3 style='margin-top: 0; color: #667eea;'>📋 Ticket Details</h3>
+                                <div class='info-row'>
+                                    <strong>Ticket Number:</strong> " . htmlspecialchars($ticket_number) . "
+                                </div>
+                                <div class='info-row'>
+                                    <strong>Subject:</strong> " . htmlspecialchars($subject) . "
+                                </div>
+                                <div class='info-row'>
+                                    <strong>Priority:</strong> " . strtoupper($priority) . "
+                                </div>
+                                <div class='info-row'>
+                                    <strong>Requester:</strong> " . htmlspecialchars($requester_name) . " (EMPLOYEE)
+                                </div>
+                                <div class='info-row'>
+                                    <strong>Created By:</strong> " . htmlspecialchars($user_name) . " (Admin)
+                                </div>
+                                <div class='info-row'>
+                                    <strong>Created:</strong> " . date('F j, Y \a\t g:i A') . "
+                                </div>
+                            </div>
+                            
+                            <div style='background: white; padding: 15px; border-radius: 8px; margin: 20px 0;'>
+                                <h4 style='margin-top: 0; color: #2c3e50;'>Description:</h4>
+                                <p style='margin: 0; color: #4a5568;'>" . nl2br(htmlspecialchars(substr($description, 0, 300))) . (strlen($description) > 300 ? '...' : '') . "</p>
+                            </div>
+                            
+                            <center>
+                                <a href='" . $SYSTEM_URL . "/managers/departmentTicket.php?id=" . $ticket_id . "' class='btn'>
+                                    🔍 Review & Approve Ticket
+                                </a>
+                            </center>
+                            
+                            <p style='color: #6c757d; font-size: 13px; margin-top: 25px; padding: 15px; background: #fff; border-radius: 6px;'>
+                                <strong>📌 Note:</strong> This ticket will remain in Pending status until you approve or reject it.
+                            </p>
+                        </div>
+                        
+                        <div class='footer'>
+                            <p><strong>E-Asset Management System</strong></p>
+                            <p>This is an automated notification.</p>
+                        </div>
+                    </div>
+                </body>
+                </html>
+                ";
+                        }
+
+                        error_log("Attempting to send email to manager: $manager_email_address");
+                        $manager_sent = $emailHelper->sendEmail($manager_email_address, $manager_subject, $manager_body);
+
+                        if ($manager_sent) {
+                            error_log("✓✓✓ SUCCESS! Email sent to manager: $manager_email_address");
+                            $manager_emails_sent++;
+                        } else {
+                            error_log("✗✗✗ FAILED! Email NOT sent to manager: $manager_email_address");
+                            $manager_emails_failed++;
+                        }
+                    }
+
+                    error_log("Manager email summary: $manager_emails_sent sent, $manager_emails_failed failed out of " . count($managers) . " total managers");
+                } else {
+                    error_log("✗✗✗ NO MANAGERS FOUND FOR DEPARTMENT: '$requester_dept'");
+
+                    // FALLBACK: Notify admins if no managers
+                    error_log("Sending fallback notification to admins...");
+
+                    $admin_fallback_query = $pdo->prepare("
+            SELECT email, first_name, last_name 
+            FROM users 
+            WHERE role IN ('admin', 'superadmin')
+            AND is_active = 1 
+            AND is_deleted = 0
+            AND user_id != ?
+        ");
+                    $admin_fallback_query->execute([$user_id]);
+                    $admins = $admin_fallback_query->fetchAll(PDO::FETCH_ASSOC);
+
+                    if (!empty($admins)) {
+                        foreach ($admins as $admin) {
+                            $admin_name = $admin['first_name'] . ' ' . $admin['last_name'];
+                            $admin_subject = "⚠️ New Ticket (No Manager) - $ticket_number";
+                            $admin_body = "
+                <!DOCTYPE html>
+                <html>
+                <body style='font-family: Arial, sans-serif;'>
+                    <h2 style='color: #dc3545;'>⚠️ Ticket Created - No Manager Available</h2>
+                    <p>Hello <strong>$admin_name</strong>,</p>
+                    <p>A new ticket has been created but <strong>no active manager</strong> was found for the <strong>" . htmlspecialchars($requester_dept) . "</strong> department.</p>
+                    
+                    <div style='background: #f8f9fa; padding: 15px; border-left: 4px solid #dc3545; margin: 20px 0;'>
+                        <p><strong>Ticket:</strong> " . htmlspecialchars($ticket_number) . "</p>
+                        <p><strong>Created By:</strong> " . htmlspecialchars($user_name) . " (Admin)</p>
+                        <p><strong>Requester:</strong> " . htmlspecialchars($requester_name) . " ($requester_role)</p>
+                        <p><strong>Department:</strong> " . htmlspecialchars($requester_dept) . "</p>
+                        <p><strong>Subject:</strong> " . htmlspecialchars($subject) . "</p>
+                    </div>
+                    
+                    <p><strong>Action Required:</strong> Please assign a manager to this department or handle the ticket approval manually.</p>
+                    
+                    <p><a href='" . $SYSTEM_URL . "/admin/adminTicketDetails.php?id=" . $ticket_id . "' style='background: #667eea; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;'>View Ticket</a></p>
+                </body>
+                </html>
+                ";
+
+                            $emailHelper->sendEmail($admin['email'], $admin_subject, $admin_body);
+                        }
+                    }
+                }
+
+                error_log("EMAIL NOTIFICATION COMPLETE");
+                error_log("========================================");
+            } catch (Exception $e) {
+                error_log("❌❌❌ CRITICAL EMAIL ERROR: " . $e->getMessage());
+                error_log("Stack trace: " . $e->getTraceAsString());
+                // Don't fail ticket creation, just log the error
+            }
+            // ==================== END EMAIL NOTIFICATIONS ====================
+
+            // Success message with approval status
+            if ($approval_status === 'approved') {
+                $success_message = "✓ Ticket created successfully! Ticket Number: $ticket_number | Status: AUTO-APPROVED (Requester: " . strtoupper($requester_role) . ")";
+            } else {
+                $success_message = "✓ Ticket created successfully! Ticket Number: $ticket_number | Status: PENDING APPROVAL (Sent to manager for review)";
+            }
+
             $_POST = array(); // Clear form
         } else {
             $error_message = implode("<br>", $errors);
         }
-        
     } catch (PDOException $e) {
         $error_message = "Database error: " . $e->getMessage();
+        error_log("Admin ticket creation error: " . $e->getMessage());
+    } catch (Exception $e) {
+        $error_message = "Error: " . $e->getMessage();
+        error_log("Admin ticket creation error: " . $e->getMessage());
     }
 }
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -254,7 +860,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         /* Messages */
-        .success-message, .error-message {
+        .success-message,
+        .error-message {
             padding: 16px 20px;
             border-radius: 12px;
             margin-bottom: 24px;
@@ -282,6 +889,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 opacity: 0;
                 transform: translateY(-10px);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
@@ -445,7 +1053,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             text-align: center;
         }
 
-        .priority-option input[type="radio"]:checked + .priority-label {
+        .priority-option input[type="radio"]:checked+.priority-label {
             border-color: #7c3aed;
             background: linear-gradient(135deg, #f7f4fe 0%, #ede9fe 100%);
             box-shadow: 0 4px 12px rgba(124, 58, 237, 0.2);
@@ -467,10 +1075,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             color: #2d3748;
         }
 
-        .priority-low .priority-icon { color: #10b981; }
-        .priority-medium .priority-icon { color: #f59e0b; }
-        .priority-high .priority-icon { color: #ef4444; }
-        .priority-urgent .priority-icon { color: #dc2626; }
+        .priority-low .priority-icon {
+            color: #10b981;
+        }
+
+        .priority-medium .priority-icon {
+            color: #f59e0b;
+        }
+
+        .priority-high .priority-icon {
+            color: #ef4444;
+        }
+
+        .priority-urgent .priority-icon {
+            color: #dc2626;
+        }
 
         /* File Upload */
         .file-upload-area {
@@ -665,8 +1284,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 justify-content: center;
             }
         }
+
+        /* Approval Status Styling */
+        #approval-notice {
+            padding: 10px 12px;
+            background: #f7fafc;
+            border-radius: 8px;
+            border-left: 3px solid #718096;
+            transition: all 0.3s ease;
+        }
+
+        #approval-notice i.fa-check-circle {
+            color: #28a745 !important;
+        }
+
+        #approval-notice i.fa-clock {
+            color: #f59e0b !important;
+        }
     </style>
 </head>
+
 <body>
     <?php include("../auth/inc/sidebar.php"); ?>
 
@@ -677,7 +1314,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <h1>
                         <i class="fas fa-ticket-alt"></i> Create Support Ticket
                         <?php if ($user_role === 'admin'): ?>
-                        <span class="admin-badge"><i class="fas fa-crown"></i> Admin</span>
+                            <span class="admin-badge"><i class="fas fa-crown"></i> Admin</span>
                         <?php endif; ?>
                     </h1>
                     <p>Submit a new support request or report an issue</p>
@@ -691,17 +1328,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
 
         <?php if (!empty($success_message)): ?>
-        <div class="success-message">
-            <i class="fas fa-check-circle"></i>
-            <span><?php echo htmlspecialchars($success_message); ?></span>
-        </div>
+            <div class="success-message">
+                <i class="fas fa-check-circle"></i>
+                <span><?php echo htmlspecialchars($success_message); ?></span>
+            </div>
         <?php endif; ?>
 
         <?php if (!empty($error_message)): ?>
-        <div class="error-message">
-            <i class="fas fa-exclamation-circle"></i>
-            <span><?php echo $error_message; ?></span>
-        </div>
+            <div class="error-message">
+                <i class="fas fa-exclamation-circle"></i>
+                <span><?php echo $error_message; ?></span>
+            </div>
         <?php endif; ?>
 
         <div class="info-banner">
@@ -716,35 +1353,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <form method="POST" enctype="multipart/form-data" id="ticketForm">
                 <div class="form-grid">
                     <?php if ($user_role === 'admin'): ?>
-                    <div class="form-group">
-                        <label for="requester_id">
-                            <i class="fas fa-user"></i> Create For <span class="required">*</span>
-                        </label>
-                        <select id="requester_id" name="requester_id">
-                            <option value="<?php echo $user_id; ?>">Myself (<?php echo htmlspecialchars($user_name); ?>)</option>
-                            <optgroup label="Other Users">
-                                <?php foreach ($all_users as $user): ?>
-                                    <?php if ($user['user_id'] != $user_id): ?>
-                                    <option value="<?php echo $user['user_id']; ?>">
-                                        <?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name'] . ' - ' . $user['department']); ?>
-                                    </option>
-                                    <?php endif; ?>
-                                <?php endforeach; ?>
-                            </optgroup>
-                        </select>
-                        <div class="form-help">
-                            <i class="fas fa-info-circle"></i> 
-                            Select yourself or create a ticket on behalf of another user
+                        <div class="form-group">
+                            <label for="requester_id">
+                                <i class="fas fa-user"></i> Create For <span class="required">*</span>
+                            </label>
+                            <select id="requester_id" name="requester_id" onchange="loadUserAssets()">
+                                <option value="<?php echo $user_id; ?>">Myself (<?php echo htmlspecialchars($user_name); ?>) - <?php echo strtoupper($user_role); ?></option>
+                                <optgroup label="Employees (Requires Approval)">
+                                    <?php foreach ($all_users as $user): ?>
+                                        <?php if ($user['user_id'] != $user_id && $user['role'] === 'employee'): ?>
+                                            <option value="<?php echo $user['user_id']; ?>" data-role="<?php echo $user['role']; ?>">
+                                                <?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?>
+                                                - <?php echo htmlspecialchars($user['department']); ?>
+                                            </option>
+                                        <?php endif; ?>
+                                    <?php endforeach; ?>
+                                </optgroup>
+                                <optgroup label="Managers & Admins (Auto-Approved)">
+                                    <?php foreach ($all_users as $user): ?>
+                                        <?php if ($user['user_id'] != $user_id && in_array($user['role'], ['manager', 'admin', 'superadmin'])): ?>
+                                            <option value="<?php echo $user['user_id']; ?>" data-role="<?php echo $user['role']; ?>">
+                                                <?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?>
+                                                - <?php echo htmlspecialchars($user['department']); ?>
+                                                (<?php echo strtoupper($user['role']); ?>)
+                                            </option>
+                                        <?php endif; ?>
+                                    <?php endforeach; ?>
+                                </optgroup>
+                            </select>
+                            <div class="form-help" id="approval-notice">
+                                <i class="fas fa-info-circle"></i>
+                                <span id="approval-text">Creating ticket for yourself - will be auto-approved</span>
+                            </div>
                         </div>
-                    </div>
-                    <?php else: ?>
-                    <div class="form-group">
-                        <label for="user_name">
-                            <i class="fas fa-user"></i> Your Name <span class="required">*</span>
-                        </label>
-                        <input type="text" id="user_name" name="user_name" 
-                               value="<?php echo htmlspecialchars($user_name); ?>" readonly>
-                    </div>
                     <?php endif; ?>
 
                     <div class="form-group">
@@ -773,14 +1414,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <select id="asset_id" name="asset_id">
                         <option value="">No specific asset</option>
                         <?php foreach ($all_assets as $asset): ?>
-                        <option value="<?php echo $asset['id']; ?>">
-                            <?php echo htmlspecialchars($asset['asset_code'] . ' - ' . $asset['asset_name'] . ' (' . $asset['category'] . ')'); ?>
-                        </option>
+                            <option value="<?php echo $asset['id']; ?>">
+                                <?php echo htmlspecialchars($asset['asset_code'] . ' - ' . $asset['asset_name'] . ' (' . $asset['category'] . ')'); ?>
+                            </option>
                         <?php endforeach; ?>
                     </select>
                     <div class="form-help">
-                        <i class="fas fa-info-circle"></i> 
-                        Select an asset if this request is related to a specific item
+                        <i class="fas fa-info-circle"></i>
+                        <span id="asset-help-text">Select an asset if this request is related to a specific item</span>
                     </div>
                 </div>
 
@@ -788,12 +1429,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <label for="subject">
                         <i class="fas fa-heading"></i> Subject <span class="required">*</span>
                     </label>
-                    <input 
-                        type="text" 
-                        id="subject" 
-                        name="subject" 
-                        placeholder="Brief description of your issue (e.g., 'Laptop keyboard not working')" 
-                        required 
+                    <input
+                        type="text"
+                        id="subject"
+                        name="subject"
+                        placeholder="Brief description of your issue (e.g., 'Laptop keyboard not working')"
+                        required
                         maxlength="255"
                         oninput="updateCharCount('subject', 255)"
                         value="<?php echo isset($_POST['subject']) ? htmlspecialchars($_POST['subject']) : ''; ?>">
@@ -840,10 +1481,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <label for="description">
                         <i class="fas fa-align-left"></i> Description <span class="required">*</span>
                     </label>
-                    <textarea 
-                        id="description" 
-                        name="description" 
-                        placeholder="Please provide detailed information:&#10;- What is the problem or request?&#10;- When did it start?&#10;- What have you tried?&#10;- Any error messages or additional context?" 
+                    <textarea
+                        id="description"
+                        name="description"
+                        placeholder="Please provide detailed information:&#10;- What is the problem or request?&#10;- When did it start?&#10;- What have you tried?&#10;- Any error messages or additional context?"
                         required
                         minlength="20"
                         maxlength="2000"
@@ -881,7 +1522,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         function updateMainContainer() {
             const mainContainer = document.getElementById('mainContainer');
             const sidebar = document.querySelector('.sidebar');
-            
+
             if (sidebar && sidebar.classList.contains('collapsed')) {
                 mainContainer.classList.add('sidebar-collapsed');
             } else {
@@ -903,7 +1544,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         const observer = new MutationObserver(updateMainContainer);
         const sidebar = document.querySelector('.sidebar');
         if (sidebar) {
-            observer.observe(sidebar, { attributes: true, attributeFilter: ['class'] });
+            observer.observe(sidebar, {
+                attributes: true,
+                attributeFilter: ['class']
+            });
         }
 
         // Auto-hide success/error messages
@@ -927,7 +1571,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const field = document.getElementById(fieldId);
             const counter = document.getElementById(fieldId + '-counter');
             const length = field.value.length;
-            
+
             if (fieldId === 'description') {
                 counter.textContent = `${length} / ${maxLength} characters (minimum 20)`;
                 if (length < 20) {
@@ -945,7 +1589,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     counter.style.color = '#718096';
                 }
             }
-            
+
             if (length === maxLength) {
                 counter.style.color = '#ef4444';
             }
@@ -977,34 +1621,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             e.preventDefault();
             this.style.borderColor = '#cbd5e0';
             this.style.background = '#f8f9fa';
-            
+
             const dt = new DataTransfer();
             const files = e.dataTransfer.files;
-            
+
             for (let i = 0; i < files.length; i++) {
                 dt.items.add(files[i]);
             }
-            
+
             fileInput.files = dt.files;
             displayFiles(dt.files);
         });
 
         function displayFiles(files) {
             fileList.innerHTML = '';
-            
+
             if (files.length === 0) return;
-            
+
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
                 const fileSize = (file.size / 1024 / 1024).toFixed(2);
-                
+
                 const fileItem = document.createElement('div');
                 fileItem.className = 'file-item';
                 fileItem.innerHTML = `
                     <span><i class="fas fa-file"></i> ${file.name} <small>(${fileSize} MB)</small></span>
                     <button type="button" onclick="removeFile(${i})" title="Remove file"><i class="fas fa-times"></i></button>
                 `;
-                
+
                 fileList.appendChild(fileItem);
             }
         }
@@ -1012,13 +1656,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         function removeFile(index) {
             const dt = new DataTransfer();
             const files = fileInput.files;
-            
+
             for (let i = 0; i < files.length; i++) {
                 if (i !== index) {
                     dt.items.add(files[i]);
                 }
             }
-            
+
             fileInput.files = dt.files;
             displayFiles(dt.files);
         }
@@ -1073,6 +1717,106 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         subjectField.addEventListener('input', function() {
             updateCharCount('subject', 255);
         });
+        // ==================== DYNAMIC ASSET LOADING & APPROVAL NOTICE ====================
+        function loadUserAssets() {
+            const select = document.getElementById('requester_id');
+            const selectedUserId = select.value;
+            const selectedOption = select.options[select.selectedIndex];
+            const selectedRole = selectedOption.dataset.role || '<?php echo $user_role; ?>';
+
+            const assetSelect = document.getElementById('asset_id');
+            const assetHelpText = document.getElementById('asset-help-text');
+            const approvalNotice = document.getElementById('approval-text');
+            const approvalIcon = document.querySelector('#approval-notice i');
+
+            // Update approval notice based on role
+            if (selectedUserId == '<?php echo $user_id; ?>') {
+                approvalNotice.textContent = 'Creating ticket for yourself - will be auto-approved';
+                approvalIcon.className = 'fas fa-check-circle';
+                approvalIcon.style.color = '#28a745';
+            } else if (selectedRole === 'employee') {
+                approvalNotice.textContent = 'Creating for EMPLOYEE - will require manager approval';
+                approvalIcon.className = 'fas fa-clock';
+                approvalIcon.style.color = '#f59e0b';
+            } else if (selectedRole === 'manager' || selectedRole === 'admin') {
+                approvalNotice.textContent = 'Creating for ' + selectedRole.toUpperCase() + ' - will be auto-approved';
+                approvalIcon.className = 'fas fa-check-circle';
+                approvalIcon.style.color = '#28a745';
+            }
+
+            // Load user's assets via AJAX
+            if (selectedUserId == '<?php echo $user_id; ?>') {
+                // Admin's own assets - already loaded
+                restoreDefaultAssets();
+                return;
+            }
+
+            // Show loading state
+            assetSelect.innerHTML = '<option value="">Loading assets...</option>';
+            assetSelect.disabled = true;
+            assetHelpText.textContent = 'Loading user assets...';
+
+            // Fetch user's assets
+            fetch(`?action=get_user_assets&user_id=${selectedUserId}`)
+                .then(response => response.json())
+                .then(data => {
+                    assetSelect.disabled = false;
+
+                    if (data.success) {
+                        assetSelect.innerHTML = '<option value="">No specific asset</option>';
+
+                        if (data.assets.length === 0) {
+                            const option = document.createElement('option');
+                            option.value = '';
+                            option.textContent = 'No assets assigned to ' + data.name;
+                            option.disabled = true;
+                            assetSelect.appendChild(option);
+                            assetHelpText.textContent = data.name + ' has no assets assigned';
+                        } else {
+                            data.assets.forEach(asset => {
+                                const option = document.createElement('option');
+                                option.value = asset.id;
+                                option.textContent = `${asset.asset_code} - ${asset.asset_name} (${asset.category})`;
+                                assetSelect.appendChild(option);
+                            });
+                            assetHelpText.textContent = `Showing assets assigned to ${data.name} (${data.role})`;
+                        }
+                    } else {
+                        assetSelect.innerHTML = '<option value="">Error loading assets</option>';
+                        assetHelpText.textContent = 'Failed to load user assets';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading assets:', error);
+                    assetSelect.disabled = false;
+                    assetSelect.innerHTML = '<option value="">Error loading assets</option>';
+                    assetHelpText.textContent = 'Error occurred while loading assets';
+                });
+        }
+
+        // Restore default assets (admin's own)
+        function restoreDefaultAssets() {
+            const assetSelect = document.getElementById('asset_id');
+            const assetHelpText = document.getElementById('asset-help-text');
+
+            assetSelect.innerHTML = '<option value="">No specific asset</option>';
+
+            <?php foreach ($all_assets as $asset): ?>
+                const option<?php echo $asset['id']; ?> = document.createElement('option');
+                option<?php echo $asset['id']; ?>.value = '<?php echo $asset['id']; ?>';
+                option<?php echo $asset['id']; ?>.textContent = '<?php echo htmlspecialchars($asset['asset_code'] . ' - ' . $asset['asset_name'] . ' (' . $asset['category'] . ')'); ?>';
+                assetSelect.appendChild(option<?php echo $asset['id']; ?>);
+            <?php endforeach; ?>
+
+            assetHelpText.textContent = 'Select an asset if this request is related to a specific item';
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadUserAssets(); // Set initial state
+        });
+        // ==================== END DYNAMIC ASSET LOADING ====================
     </script>
 </body>
+
 </html>

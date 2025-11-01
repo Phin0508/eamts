@@ -44,7 +44,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_maintenance'])) {
     $next_maintenance_date = !empty($_POST['next_maintenance_date']) ? $_POST['next_maintenance_date'] : NULL;
 
     try {
-        $stmt = $pdo->prepare("INSERT INTO asset_maintenance (asset_id, maintenance_type, maintenance_date, performed_by, cost, notes, next_maintenance_date, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())");
+        $stmt = $pdo->prepare("INSERT INTO asset_maintenance (asset_id, maintenance_type, maintenance_date,
+         performed_by, cost, notes, next_maintenance_date, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())");
 
         if ($stmt->execute([$asset_id, $maintenance_type, $maintenance_date, $performed_by, $cost, $notes, $next_maintenance_date, $_SESSION['user_id']])) {
             $success_message = "Maintenance record added successfully!";

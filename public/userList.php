@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         try {
             $user_id = $_POST['user_id'];
             $new_status = $_POST['new_status'];
-            
+
             $stmt = $pdo->prepare("UPDATE users SET is_active = ?, updated_at = NOW() WHERE user_id = ?");
             if ($stmt->execute([$new_status, $user_id])) {
                 $success_message = "User status updated successfully";
@@ -28,15 +28,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $error_message = "Error updating user status: " . $e->getMessage();
         }
     }
-    
+
     if ($_POST['action'] === 'delete_user' && isset($_POST['user_id']) && $_SESSION['role'] === 'admin') {
-    try {
-        $user_id = $_POST['user_id'];
-        
-        // Prevent self-deletion
-        if ($user_id != $_SESSION['user_id']) {
-            // Soft delete: Set is_active to 0, is_deleted to 1, and mark email as deleted
-            $stmt = $pdo->prepare("
+        try {
+            $user_id = $_POST['user_id'];
+
+            // Prevent self-deletion
+            if ($user_id != $_SESSION['user_id']) {
+                // Soft delete: Set is_active to 0, is_deleted to 1, and mark email as deleted
+                $stmt = $pdo->prepare("
                 UPDATE users 
                 SET is_active = 0, 
                     is_deleted = 1,
@@ -45,16 +45,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     updated_at = NOW() 
                 WHERE user_id = ?
             ");
-            if ($stmt->execute([$user_id])) {
-                $success_message = "User marked as deleted successfully";
+                if ($stmt->execute([$user_id])) {
+                    $success_message = "User marked as deleted successfully";
+                }
+            } else {
+                $error_message = "You cannot delete your own account";
             }
-        } else {
-            $error_message = "You cannot delete your own account";
+        } catch (PDOException $e) {
+            $error_message = "Error deleting user: " . $e->getMessage();
         }
-    } catch (PDOException $e) {
-        $error_message = "Error deleting user: " . $e->getMessage();
     }
-}
 }
 
 // Get filter parameters
@@ -128,6 +128,7 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -206,7 +207,8 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
         }
 
         /* Messages */
-        .success-message, .error-message {
+        .success-message,
+        .error-message {
             padding: 16px 20px;
             border-radius: 12px;
             margin-bottom: 24px;
@@ -234,6 +236,7 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                 opacity: 0;
                 transform: translateY(-10px);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
@@ -268,12 +271,29 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             margin-bottom: 8px;
         }
 
-        .stat-number.total { color: #7c3aed; }
-        .stat-number.active { color: #10b981; }
-        .stat-number.inactive { color: #ef4444; }
-        .stat-number.admins { color: #3b82f6; }
-        .stat-number.managers { color: #f59e0b; }
-        .stat-number.employees { color: #8b5cf6; }
+        .stat-number.total {
+            color: #7c3aed;
+        }
+
+        .stat-number.active {
+            color: #10b981;
+        }
+
+        .stat-number.inactive {
+            color: #ef4444;
+        }
+
+        .stat-number.admins {
+            color: #3b82f6;
+        }
+
+        .stat-number.managers {
+            color: #f59e0b;
+        }
+
+        .stat-number.employees {
+            color: #8b5cf6;
+        }
 
         .stat-label {
             color: #718096;
@@ -632,8 +652,13 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
         }
 
         .modal-content {
@@ -655,6 +680,7 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                 opacity: 0;
                 transform: translate(-50%, -45%);
             }
+
             to {
                 opacity: 1;
                 transform: translate(-50%, -50%);
@@ -800,6 +826,7 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
     </style>
     <link rel="stylesheet" href="../auth/inc/navigation.css">
 </head>
+
 <body>
     <?php include("../auth/inc/sidebar.php"); ?>
 
@@ -827,17 +854,17 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
 
         <!-- Messages -->
         <?php if (!empty($success_message)): ?>
-        <div class="success-message">
-            <i class="fas fa-check-circle"></i>
-            <span><?php echo htmlspecialchars($success_message); ?></span>
-        </div>
+            <div class="success-message">
+                <i class="fas fa-check-circle"></i>
+                <span><?php echo htmlspecialchars($success_message); ?></span>
+            </div>
         <?php endif; ?>
 
         <?php if (!empty($error_message)): ?>
-        <div class="error-message">
-            <i class="fas fa-exclamation-circle"></i>
-            <span><?php echo htmlspecialchars($error_message); ?></span>
-        </div>
+            <div class="error-message">
+                <i class="fas fa-exclamation-circle"></i>
+                <span><?php echo htmlspecialchars($error_message); ?></span>
+            </div>
         <?php endif; ?>
 
         <!-- Statistics -->
@@ -877,8 +904,8 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                 <div class="filter-row">
                     <div class="form-group">
                         <label><i class="fas fa-search"></i> Search</label>
-                        <input type="text" name="search" placeholder="Search by name, email, username..." 
-                               value="<?php echo htmlspecialchars($search); ?>">
+                        <input type="text" name="search" placeholder="Search by name, email, username..."
+                            value="<?php echo htmlspecialchars($search); ?>">
                     </div>
                     <div class="form-group">
                         <label><i class="fas fa-building"></i> Department</label>
@@ -927,141 +954,144 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             </div>
 
             <?php if (count($users) > 0): ?>
-            <div class="table-container">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>User</th>
-                            <th>Username</th>
-                            <th>Department</th>
-                            <th>Role</th>
-                            <th>Employee ID</th>
-                            <th>Phone</th>
-                            <th>Status</th>
-                            <th>Verified</th>
-                            <th>Last Login</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($users as $user): ?>
-                        <tr>
-                            <td>
-                                <div class="user-info">
-                                    <div class="user-avatar">
-                                        <?php echo strtoupper(substr($user['first_name'], 0, 1) . substr($user['last_name'], 0, 1)); ?>
-                                    </div>
-                                    <div class="user-details">
-                                        <h4><?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?></h4>
-                                        <p><?php echo htmlspecialchars($user['email']); ?></p>
-                                    </div>
-                                </div>
-                            </td>
-                            <td>@<?php echo htmlspecialchars($user['username']); ?></td>
-                            <td><?php echo htmlspecialchars($user['department']); ?></td>
-                            <td>
-                                <span class="badge badge-<?php echo $user['role']; ?>">
-                                    <?php echo ucfirst($user['role']); ?>
-                                </span>
-                            </td>
-                            <td><?php echo htmlspecialchars($user['employee_id'] ?? '-'); ?></td>
-                            <td>
-                                <?php if ($user['phone']): ?>
-                                    <i class="fas fa-phone" style="font-size: 11px; color: #718096;"></i>
-                                    <?php echo htmlspecialchars($user['phone']); ?>
-                                <?php else: ?>
-                                    -
-                                <?php endif; ?>
-                            </td>
-                            <td>
-                                <span class="badge badge-<?php echo $user['is_active'] ? 'active' : 'inactive'; ?>">
-                                    <?php echo $user['is_active'] ? 'Active' : 'Inactive'; ?>
-                                </span>
-                            </td>
-                            <td>
-                                <span class="badge badge-<?php echo $user['is_verified'] ? 'verified' : 'unverified'; ?>">
-                                    <?php echo $user['is_verified'] ? 'Yes' : 'No'; ?>
-                                </span>
-                            </td>
-                            <td><?php echo $user['last_login'] ? date('M d, Y', strtotime($user['last_login'])) : 'Never'; ?></td>
-                            <td>
-                                <div class="action-buttons">
-                                    <?php if ($user['user_id'] != $_SESSION['user_id']): ?>
-                                    <form method="POST" style="display: inline;">
-                                        <input type="hidden" name="action" value="toggle_status">
-                                        <input type="hidden" name="user_id" value="<?php echo $user['user_id']; ?>">
-                                        <input type="hidden" name="new_status" value="<?php echo $user['is_active'] ? 0 : 1; ?>">
-                                        <button type="submit" class="btn btn-sm <?php echo $user['is_active'] ? 'btn-warning' : 'btn-success'; ?>">
-                                            <i class="fas fa-<?php echo $user['is_active'] ? 'ban' : 'check'; ?>"></i>
-                                            <?php echo $user['is_active'] ? 'Deactivate' : 'Activate'; ?>
-                                        </button>
-                                    </form>
-                                    <?php if ($_SESSION['role'] === 'admin'): ?>
-                                    <button type="button" class="btn btn-sm btn-danger" 
-                                            onclick="confirmDelete(<?php echo $user['user_id']; ?>, '<?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?>')">
-                                        <i class="fas fa-trash"></i> Delete
-                                    </button>
-                                    <?php endif; ?>
-                                    <?php endif; ?>
-                                </div>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Username</th>
+                                <th>Department</th>
+                                <th>Role</th>
+                                <th>Employee ID</th>
+                                <th>Phone</th>
+                                <th>Status</th>
+                                <th>Verified</th>
+                                <th>Last Login</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($users as $user): ?>
+                                <tr>
+                                    <td>
+                                        <div class="user-info">
+                                            <div class="user-avatar">
+                                                <?php echo strtoupper(substr($user['first_name'], 0, 1) . substr($user['last_name'], 0, 1)); ?>
+                                            </div>
+                                            <div class="user-details">
+                                                <h4><?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?></h4>
+                                                <p><?php echo htmlspecialchars($user['email']); ?></p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>@<?php echo htmlspecialchars($user['username']); ?></td>
+                                    <td><?php echo htmlspecialchars($user['department']); ?></td>
+                                    <td>
+                                        <span class="badge badge-<?php echo $user['role']; ?>">
+                                            <?php echo ucfirst($user['role']); ?>
+                                        </span>
+                                    </td>
+                                    <td><?php echo htmlspecialchars($user['employee_id'] ?? '-'); ?></td>
+                                    <td>
+                                        <?php if ($user['phone']): ?>
+                                            <i class="fas fa-phone" style="font-size: 11px; color: #718096;"></i>
+                                            <?php echo htmlspecialchars($user['phone']); ?>
+                                        <?php else: ?>
+                                            -
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-<?php echo $user['is_active'] ? 'active' : 'inactive'; ?>">
+                                            <?php echo $user['is_active'] ? 'Active' : 'Inactive'; ?>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-<?php echo $user['is_verified'] ? 'verified' : 'unverified'; ?>">
+                                            <?php echo $user['is_verified'] ? 'Yes' : 'No'; ?>
+                                        </span>
+                                    </td>
+                                    <td><?php echo $user['last_login'] ? date('M d, Y', strtotime($user['last_login'])) : 'Never'; ?></td>
+                                    <td>
+                                        <div class="action-buttons">
+                                            <a href="../public/userDetails.php?id=<?php echo $user['user_id']; ?>" class="btn btn-sm btn-primary">
+                                                <i class="fas fa-eye"></i> View Details
+                                            </a>
+                                            <?php if ($user['user_id'] != $_SESSION['user_id']): ?>
+                                                <form method="POST" style="display: inline;">
+                                                    <input type="hidden" name="action" value="toggle_status">
+                                                    <input type="hidden" name="user_id" value="<?php echo $user['user_id']; ?>">
+                                                    <input type="hidden" name="new_status" value="<?php echo $user['is_active'] ? 0 : 1; ?>">
+                                                    <button type="submit" class="btn btn-sm <?php echo $user['is_active'] ? 'btn-warning' : 'btn-success'; ?>">
+                                                        <i class="fas fa-<?php echo $user['is_active'] ? 'ban' : 'check'; ?>"></i>
+                                                        <?php echo $user['is_active'] ? 'Deactivate' : 'Activate'; ?>
+                                                    </button>
+                                                </form>
+                                                <?php if ($_SESSION['role'] === 'admin'): ?>
+                                                    <button type="button" class="btn btn-sm btn-danger"
+                                                        onclick="confirmDelete(<?php echo $user['user_id']; ?>, '<?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?>')">
+                                                        <i class="fas fa-trash"></i> Delete
+                                                    </button>
+                                                <?php endif; ?>
+                                            <?php endif; ?>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
             <?php else: ?>
-            <div class="empty-state">
-                <div class="empty-state-icon">👥</div>
-                <h3>No users found</h3>
-                <p>Try adjusting your filters or search terms</p>
-            </div>
+                <div class="empty-state">
+                    <div class="empty-state-icon">👥</div>
+                    <h3>No users found</h3>
+                    <p>Try adjusting your filters or search terms</p>
+                </div>
             <?php endif; ?>
         </div>
 
         <!-- Pagination -->
         <?php if ($total_pages > 1): ?>
-        <div class="pagination">
-            <?php if ($page > 1): ?>
-            <a href="?page=<?php echo $page - 1; ?>&search=<?php echo urlencode($search); ?>&department=<?php echo urlencode($department_filter); ?>&role=<?php echo urlencode($role_filter); ?>&status=<?php echo urlencode($status_filter); ?>">
-                <i class="fas fa-chevron-left"></i> Previous
-            </a>
-            <?php endif; ?>
-
-            <?php 
-            $start_page = max(1, $page - 2);
-            $end_page = min($total_pages, $page + 2);
-            
-            if ($start_page > 1): ?>
-                <a href="?page=1&search=<?php echo urlencode($search); ?>&department=<?php echo urlencode($department_filter); ?>&role=<?php echo urlencode($role_filter); ?>&status=<?php echo urlencode($status_filter); ?>">1</a>
-                <?php if ($start_page > 2): ?>
-                    <span>...</span>
+            <div class="pagination">
+                <?php if ($page > 1): ?>
+                    <a href="?page=<?php echo $page - 1; ?>&search=<?php echo urlencode($search); ?>&department=<?php echo urlencode($department_filter); ?>&role=<?php echo urlencode($role_filter); ?>&status=<?php echo urlencode($status_filter); ?>">
+                        <i class="fas fa-chevron-left"></i> Previous
+                    </a>
                 <?php endif; ?>
-            <?php endif; ?>
 
-            <?php for ($i = $start_page; $i <= $end_page; $i++): ?>
-                <?php if ($i == $page): ?>
-                <span class="active"><?php echo $i; ?></span>
-                <?php else: ?>
-                <a href="?page=<?php echo $i; ?>&search=<?php echo urlencode($search); ?>&department=<?php echo urlencode($department_filter); ?>&role=<?php echo urlencode($role_filter); ?>&status=<?php echo urlencode($status_filter); ?>">
-                    <?php echo $i; ?>
-                </a>
+                <?php
+                $start_page = max(1, $page - 2);
+                $end_page = min($total_pages, $page + 2);
+
+                if ($start_page > 1): ?>
+                    <a href="?page=1&search=<?php echo urlencode($search); ?>&department=<?php echo urlencode($department_filter); ?>&role=<?php echo urlencode($role_filter); ?>&status=<?php echo urlencode($status_filter); ?>">1</a>
+                    <?php if ($start_page > 2): ?>
+                        <span>...</span>
+                    <?php endif; ?>
                 <?php endif; ?>
-            <?php endfor; ?>
 
-            <?php if ($end_page < $total_pages): ?>
-                <?php if ($end_page < $total_pages - 1): ?>
-                    <span>...</span>
+                <?php for ($i = $start_page; $i <= $end_page; $i++): ?>
+                    <?php if ($i == $page): ?>
+                        <span class="active"><?php echo $i; ?></span>
+                    <?php else: ?>
+                        <a href="?page=<?php echo $i; ?>&search=<?php echo urlencode($search); ?>&department=<?php echo urlencode($department_filter); ?>&role=<?php echo urlencode($role_filter); ?>&status=<?php echo urlencode($status_filter); ?>">
+                            <?php echo $i; ?>
+                        </a>
+                    <?php endif; ?>
+                <?php endfor; ?>
+
+                <?php if ($end_page < $total_pages): ?>
+                    <?php if ($end_page < $total_pages - 1): ?>
+                        <span>...</span>
+                    <?php endif; ?>
+                    <a href="?page=<?php echo $total_pages; ?>&search=<?php echo urlencode($search); ?>&department=<?php echo urlencode($department_filter); ?>&role=<?php echo urlencode($role_filter); ?>&status=<?php echo urlencode($status_filter); ?>"><?php echo $total_pages; ?></a>
                 <?php endif; ?>
-                <a href="?page=<?php echo $total_pages; ?>&search=<?php echo urlencode($search); ?>&department=<?php echo urlencode($department_filter); ?>&role=<?php echo urlencode($role_filter); ?>&status=<?php echo urlencode($status_filter); ?>"><?php echo $total_pages; ?></a>
-            <?php endif; ?>
 
-            <?php if ($page < $total_pages): ?>
-            <a href="?page=<?php echo $page + 1; ?>&search=<?php echo urlencode($search); ?>&department=<?php echo urlencode($department_filter); ?>&role=<?php echo urlencode($role_filter); ?>&status=<?php echo urlencode($status_filter); ?>">
-                Next <i class="fas fa-chevron-right"></i>
-            </a>
-            <?php endif; ?>
-        </div>
+                <?php if ($page < $total_pages): ?>
+                    <a href="?page=<?php echo $page + 1; ?>&search=<?php echo urlencode($search); ?>&department=<?php echo urlencode($department_filter); ?>&role=<?php echo urlencode($role_filter); ?>&status=<?php echo urlencode($status_filter); ?>">
+                        Next <i class="fas fa-chevron-right"></i>
+                    </a>
+                <?php endif; ?>
+            </div>
         <?php endif; ?>
     </div>
 
@@ -1095,7 +1125,7 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
         function updateMainContainer() {
             const mainContainer = document.getElementById('mainContainer');
             const sidebar = document.querySelector('.sidebar');
-            
+
             if (sidebar && sidebar.classList.contains('collapsed')) {
                 mainContainer.classList.add('sidebar-collapsed');
             } else {
@@ -1117,7 +1147,10 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
         const observer = new MutationObserver(updateMainContainer);
         const sidebar = document.querySelector('.sidebar');
         if (sidebar) {
-            observer.observe(sidebar, { attributes: true, attributeFilter: ['class'] });
+            observer.observe(sidebar, {
+                attributes: true,
+                attributeFilter: ['class']
+            });
         }
 
         function confirmDelete(userId, userName) {
@@ -1164,4 +1197,5 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
         }, 5000);
     </script>
 </body>
+
 </html>
