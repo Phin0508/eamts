@@ -154,37 +154,187 @@ $ticket_priority_values = json_encode(array_column($my_ticket_priority_data, 'co
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Dashboard - E-Asset Management System</title>
-    <link rel="stylesheet" href="../auth/inc/navigation.css">
-    <link rel="stylesheet" href="../style/dashboard.css">
+    <title>My Dashboard - E-Asset Management</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
     <script src="../js/deviceTracker.js" defer></script>
-    
     <style>
-        /* Keep all your existing styles */
-        .charts-section {
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8f9fc;
+            color: #2d3748;
+            min-height: 100vh;
+        }
+
+        /* Main Container */
+        .container {
+            margin-left: 260px;
+            padding: 30px;
+            transition: margin-left 0.3s ease;
+            min-height: 100vh;
+        }
+
+        .container.sidebar-collapsed {
+            margin-left: 80px;
+        }
+
+        /* Header */
+        .header {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1a202c;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header h1 i {
+            color: #7c3aed;
+        }
+
+        .header p {
+            color: #718096;
+            font-size: 15px;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 16px;
+            padding: 28px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            transition: all 0.3s;
+            border-left: 4px solid #7c3aed;
+            cursor: pointer;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 20px rgba(124, 58, 237, 0.15);
+        }
+
+        .stat-icon {
+            font-size: 32px;
+            color: #7c3aed;
+            margin-bottom: 16px;
+            display: block;
+        }
+
+        .stat-number {
+            font-size: 36px;
+            font-weight: 700;
+            color: #1a202c;
+            margin-bottom: 8px;
+        }
+
+        .stat-label {
+            color: #718096;
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* CTA Section */
+        .cta-section {
+            background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+            color: white;
+            padding: 40px;
+            border-radius: 16px;
+            text-align: center;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+        }
+
+        .cta-section h2 {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        .cta-section p {
+            opacity: 0.95;
+            margin-bottom: 24px;
+            font-size: 15px;
+        }
+
+        .btn-create-ticket {
+            background: white;
+            color: #7c3aed;
+            padding: 14px 32px;
+            border-radius: 10px;
+            text-decoration: none;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            font-size: 15px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .btn-create-ticket:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Charts Grid */
+        .charts-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
-            gap: 2rem;
-            margin: 2rem 0;
+            gap: 24px;
+            margin-bottom: 30px;
         }
 
         .chart-card {
             background: white;
-            padding: 1.5rem;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 16px;
+            padding: 32px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
         }
 
-        .chart-card h3 {
-            margin: 0 0 1.5rem 0;
-            color: #2c3e50;
-            font-size: 1.2rem;
-            font-weight: 600;
+        .chart-header {
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .chart-header h3 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1a202c;
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: 10px;
+        }
+
+        .chart-header h3 i {
+            color: #7c3aed;
         }
 
         .chart-container {
@@ -196,6 +346,82 @@ $ticket_priority_values = json_encode(array_column($my_ticket_priority_data, 'co
             max-height: 300px;
         }
 
+        /* Section */
+        .section {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+
+        .section-header {
+            margin-bottom: 24px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .section-header h2 {
+            font-size: 22px;
+            font-weight: 700;
+            color: #1a202c;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-header h2 i {
+            color: #7c3aed;
+        }
+
+        .section-header p {
+            color: #718096;
+            font-size: 14px;
+        }
+
+        /* Asset List */
+        .asset-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .asset-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 16px;
+            border-bottom: 1px solid #e2e8f0;
+            transition: all 0.2s;
+        }
+
+        .asset-item:hover {
+            background: #fafbfc;
+        }
+
+        .asset-item:last-child {
+            border-bottom: none;
+        }
+
+        .asset-info {
+            flex: 1;
+        }
+
+        .asset-info h4 {
+            font-size: 15px;
+            font-weight: 600;
+            color: #1a202c;
+            margin-bottom: 6px;
+        }
+
+        .asset-info p {
+            color: #718096;
+            font-size: 13px;
+            margin: 0;
+        }
+
+        /* Ticket List */
         .ticket-list {
             list-style: none;
             padding: 0;
@@ -204,16 +430,16 @@ $ticket_priority_values = json_encode(array_column($my_ticket_priority_data, 'co
 
         .ticket-item {
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            padding: 1rem;
+            justify-content: space-between;
+            padding: 20px 16px;
             border-bottom: 1px solid #e2e8f0;
-            transition: background 0.2s;
+            transition: all 0.2s;
             cursor: pointer;
         }
 
         .ticket-item:hover {
-            background: #f8f9fa;
+            background: #fafbfc;
         }
 
         .ticket-item:last-child {
@@ -225,344 +451,569 @@ $ticket_priority_values = json_encode(array_column($my_ticket_priority_data, 'co
         }
 
         .ticket-info h4 {
-            margin: 0 0 0.25rem 0;
-            color: #2c3e50;
-            font-size: 0.95rem;
+            font-size: 15px;
             font-weight: 600;
+            color: #1a202c;
+            margin-bottom: 6px;
         }
 
         .ticket-info p {
-            margin: 0;
             color: #718096;
-            font-size: 0.85rem;
+            font-size: 13px;
+            margin: 0;
         }
 
         .ticket-badges {
             display: flex;
-            gap: 0.5rem;
+            gap: 8px;
             align-items: center;
+            flex-wrap: wrap;
+        }
+
+        /* Badge */
+        .badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
         }
 
         .priority-badge {
-            padding: 0.25rem 0.75rem;
-            border-radius: 12px;
-            font-size: 0.75rem;
-            font-weight: 600;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
             text-transform: uppercase;
+            letter-spacing: 0.3px;
         }
 
-        .priority-low { background: #d1fae5; color: #065f46; }
-        .priority-medium { background: #fed7aa; color: #92400e; }
-        .priority-high { background: #fecaca; color: #991b1b; }
-        .priority-urgent { background: #fee2e2; color: #7f1d1d; }
+        .priority-low {
+            background: linear-gradient(135deg, #d4f4dd 0%, #c3e6cb 100%);
+            color: #155724;
+        }
+
+        .priority-medium {
+            background: linear-gradient(135deg, #fed7aa 0%, #fdba74 100%);
+            color: #92400e;
+        }
+
+        .priority-high {
+            background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%);
+            color: #991b1b;
+        }
+
+        .priority-urgent {
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            color: #7f1d1d;
+        }
 
         .status-badge {
-            padding: 0.25rem 0.75rem;
-            border-radius: 12px;
-            font-size: 0.75rem;
-            font-weight: 600;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
             text-transform: capitalize;
+            letter-spacing: 0.3px;
         }
 
-        .status-open { background: #dbeafe; color: #1e40af; }
-        .status-in-progress, .status-in_progress { background: #fef3c7; color: #92400e; }
-        .status-pending { background: #fef9c3; color: #854d0e; }
-        .status-resolved { background: #d1fae5; color: #065f46; }
-        .status-closed { background: #e5e7eb; color: #374151; }
-
-        .status-available { background: #d1fae5; color: #065f46; }
-        .status-in-use { background: #dbeafe; color: #1e40af; }
-        .status-maintenance { background: #fed7aa; color: #92400e; }
-        .status-retired { background: #e5e7eb; color: #374151; }
-        .status-damaged { background: #fecaca; color: #991b1b; }
-
-        .cta-section {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 2rem;
-            border-radius: 12px;
-            text-align: center;
-            margin: 2rem 0;
+        .status-open {
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+            color: #1e40af;
         }
 
-        .cta-section h2 {
-            margin: 0 0 1rem 0;
-            font-size: 1.5rem;
+        .status-in-progress,
+        .status-in_progress {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            color: #92400e;
         }
 
-        .cta-section p {
-            margin: 0 0 1.5rem 0;
-            opacity: 0.95;
+        .status-pending {
+            background: linear-gradient(135deg, #fef9c3 0%, #fef08a 100%);
+            color: #854d0e;
         }
 
-        .btn-create-ticket {
-            background: white;
-            color: #667eea;
-            padding: 0.875rem 2rem;
-            border-radius: 8px;
-            text-decoration: none;
+        .status-resolved {
+            background: linear-gradient(135deg, #d4f4dd 0%, #c3e6cb 100%);
+            color: #155724;
+        }
+
+        .status-closed {
+            background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);
+            color: #374151;
+        }
+
+        .status-available {
+            background: linear-gradient(135deg, #d4f4dd 0%, #c3e6cb 100%);
+            color: #155724;
+        }
+
+        .status-in-use {
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+            color: #1e40af;
+        }
+
+        .status-maintenance {
+            background: linear-gradient(135deg, #fed7aa 0%, #fdba74 100%);
+            color: #92400e;
+        }
+
+        .status-retired {
+            background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);
+            color: #374151;
+        }
+
+        .status-damaged {
+            background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%);
+            color: #991b1b;
+        }
+
+        /* Details Grid */
+        .details-grid {
+            display: grid;
+            gap: 16px;
+        }
+
+        .detail-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px;
+            background: #f7fafc;
+            border-radius: 10px;
+            transition: all 0.2s;
+        }
+
+        .detail-item:hover {
+            background: #edf2f7;
+        }
+
+        .detail-item .label {
             font-weight: 600;
+            color: #4a5568;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .detail-item .label i {
+            color: #7c3aed;
+            font-size: 14px;
+        }
+
+        .detail-item .value {
+            color: #1a202c;
+            font-weight: 500;
+        }
+
+        /* Quick Actions */
+        .quick-actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 2px solid #e2e8f0;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
             display: inline-flex;
             align-items: center;
-            gap: 0.5rem;
-            transition: all 0.3s ease;
-            border: none;
-            cursor: pointer;
-            font-size: 1rem;
+            gap: 8px;
+            text-decoration: none;
         }
 
-        .btn-create-ticket:hover {
+        .btn-primary {
+            background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+            color: white;
+            box-shadow: 0 2px 8px rgba(124, 58, 237, 0.3);
+        }
+
+        .btn-primary:hover {
             transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4);
         }
 
+        .btn-secondary {
+            background: white;
+            color: #718096;
+            border: 2px solid #e2e8f0;
+        }
+
+        .btn-secondary:hover {
+            background: #f7fafc;
+            border-color: #cbd5e0;
+        }
+
+        /* Empty State */
         .empty-state {
             text-align: center;
-            padding: 3rem 1rem;
-            color: #718096;
+            padding: 60px 20px;
         }
 
-        .empty-state i {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-            opacity: 0.5;
+        .empty-state-icon {
+            font-size: 48px;
+            color: #cbd5e0;
+            margin-bottom: 20px;
+        }
+
+        .empty-state h3 {
+            font-size: 20px;
+            color: #1a202c;
+            margin-bottom: 10px;
         }
 
         .empty-state p {
-            margin: 0;
-            font-size: 0.95rem;
+            color: #718096;
+            font-size: 15px;
+            margin-bottom: 20px;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1024px) {
+            .container {
+                margin-left: 80px;
+            }
+
+            .container.sidebar-collapsed {
+                margin-left: 80px;
+            }
+
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
         }
 
         @media (max-width: 768px) {
-            .charts-section {
+            .container {
+                margin-left: 0;
+                padding: 20px;
+            }
+
+            .container.sidebar-collapsed {
+                margin-left: 0;
+            }
+
+            .header {
+                padding: 20px;
+            }
+
+            .header h1 {
+                font-size: 22px;
+            }
+
+            .stats-grid {
                 grid-template-columns: 1fr;
+            }
+
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .section {
+                padding: 20px;
+            }
+
+            .cta-section {
+                padding: 30px 20px;
             }
 
             .ticket-item {
                 flex-direction: column;
                 align-items: flex-start;
-                gap: 0.75rem;
+                gap: 12px;
             }
 
             .ticket-badges {
                 width: 100%;
-                justify-content: flex-start;
+            }
+
+            .quick-actions {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+                justify-content: center;
             }
         }
     </style>
-    
-    
+    <link rel="stylesheet" href="../auth/inc/navigation.css">
 </head>
 <body>
+    <?php include("../auth/inc/Usidebar.php"); ?>
 
-<?php include("../auth/inc/Usidebar.php"); ?>
-    
+    <div class="container" id="mainContainer">
+        <div class="header">
+            <h1><i class="fas fa-home"></i> My Dashboard</h1>
+            <p>Welcome back, <?php echo htmlspecialchars($_SESSION['first_name']); ?>! Here's your asset and ticket overview</p>
+        </div>
 
-    <main class="main-content">
-        <div class="dashboard-content">
-            <div class="welcome-section">
-                <h1>Welcome back, <?php echo htmlspecialchars($_SESSION['first_name']); ?>! 👋</h1>
-                <p class="welcome-message">Here's your asset and ticket overview</p>
+        <!-- Statistics -->
+        <div class="stats-grid">
+            <div class="stat-card" onclick="window.location.href='../public/asset.php'">
+                <i class="fas fa-boxes stat-icon"></i>
+                <div class="stat-number"><?php echo $stats['my_assets']; ?></div>
+                <div class="stat-label">My Assets</div>
             </div>
 
-            <div class="stats-grid">
-                <div class="stat-card" onclick="window.location.href='../public/asset.php'">
-                    <span class="stat-icon">📦</span>
-                    <div class="stat-number"><?php echo $stats['my_assets']; ?></div>
-                    <div class="stat-label">My Assets</div>
-                </div>
-                
-                <div class="stat-card" onclick="window.location.href='../public/tickets.php'">
-                    <span class="stat-icon">🎫</span>
-                    <div class="stat-number"><?php echo $stats['total_tickets']; ?></div>
-                    <div class="stat-label">Total Tickets</div>
-                </div>
-
-                <div class="stat-card" onclick="window.location.href='../public/tickets.php?filter=open'">
-                    <span class="stat-icon">📋</span>
-                    <div class="stat-number"><?php echo $stats['open_tickets']; ?></div>
-                    <div class="stat-label">Open Tickets</div>
-                </div>
-
-                <div class="stat-card" onclick="window.location.href='../public/tickets.php?filter=urgent'">
-                    <span class="stat-icon">⚡</span>
-                    <div class="stat-number"><?php echo $stats['urgent_tickets']; ?></div>
-                    <div class="stat-label">Urgent Tickets</div>
-                </div>
+            <div class="stat-card" onclick="window.location.href='../public/tickets.php'">
+                <i class="fas fa-ticket-alt stat-icon"></i>
+                <div class="stat-number"><?php echo $stats['total_tickets']; ?></div>
+                <div class="stat-label">Total Tickets</div>
             </div>
 
-            <!-- Call to Action -->
-            <div class="cta-section">
-                <h2>Need Help or Support?</h2>
-                <p>Create a ticket for repairs, maintenance, new requests, or any inquiries</p>
-                <a href="../users/userCreateticket.php" class="btn-create-ticket">
-                    <i class="fas fa-plus-circle"></i> Create New Ticket
-                </a>
+            <div class="stat-card" onclick="window.location.href='../public/tickets.php?filter=open'">
+                <i class="fas fa-folder-open stat-icon"></i>
+                <div class="stat-number"><?php echo $stats['open_tickets']; ?></div>
+                <div class="stat-label">Open Tickets</div>
             </div>
 
-            <!-- Charts Section -->
-            <div class="charts-section">
-                <!-- My Asset Status Chart -->
-                <?php if (count($my_asset_status_data) > 0): ?>
+            <div class="stat-card" onclick="window.location.href='../public/tickets.php?filter=urgent'">
+                <i class="fas fa-exclamation-circle stat-icon"></i>
+                <div class="stat-number"><?php echo $stats['urgent_tickets']; ?></div>
+                <div class="stat-label">Urgent Tickets</div>
+            </div>
+        </div>
+
+        <!-- Call to Action -->
+        <div class="cta-section">
+            <h2>Need Help or Support?</h2>
+            <p>Create a ticket for repairs, maintenance, new requests, or any inquiries</p>
+            <a href="../users/userCreateticket.php" class="btn-create-ticket">
+                <i class="fas fa-plus-circle"></i> Create New Ticket
+            </a>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="charts-grid">
+            <!-- My Asset Status Chart -->
+            <?php if (count($my_asset_status_data) > 0): ?>
                 <div class="chart-card">
-                    <h3>📊 My Assets Status</h3>
+                    <div class="chart-header">
+                        <h3><i class="fas fa-chart-pie"></i> My Assets Status</h3>
+                    </div>
                     <div class="chart-container">
                         <canvas id="myAssetStatusChart"></canvas>
                     </div>
                 </div>
-                <?php endif; ?>
+            <?php endif; ?>
 
-                <!-- Ticket Status Chart -->
-                <?php if (count($my_ticket_status_data) > 0): ?>
+            <!-- Ticket Status Chart -->
+            <?php if (count($my_ticket_status_data) > 0): ?>
                 <div class="chart-card">
-                    <h3>🎫 My Ticket Status</h3>
+                    <div class="chart-header">
+                        <h3><i class="fas fa-ticket-alt"></i> My Ticket Status</h3>
+                    </div>
                     <div class="chart-container">
                         <canvas id="ticketStatusChart"></canvas>
                     </div>
                 </div>
-                <?php endif; ?>
+            <?php endif; ?>
 
-                <!-- Ticket Priority Chart -->
-                <?php if (count($my_ticket_priority_data) > 0): ?>
+            <!-- Ticket Priority Chart -->
+            <?php if (count($my_ticket_priority_data) > 0): ?>
                 <div class="chart-card">
-                    <h3>⚠️ Tickets by Priority</h3>
+                    <div class="chart-header">
+                        <h3><i class="fas fa-exclamation-triangle"></i> Tickets by Priority</h3>
+                    </div>
                     <div class="chart-container">
                         <canvas id="ticketPriorityChart"></canvas>
                     </div>
                 </div>
-                <?php endif; ?>
+            <?php endif; ?>
+        </div>
+
+        <!-- My Recent Assets -->
+        <div class="section">
+            <div class="section-header">
+                <h2><i class="fas fa-boxes"></i> My Recent Assets</h2>
+                <p>Assets recently assigned to you</p>
             </div>
 
-            <div class="dashboard-grid">
-                <!-- My Recent Assets -->
-                <div class="card">
-                    <h2>📦 My Recent Assets</h2>
-                    <?php if (count($recent_assets) > 0): ?>
-                        <ul class="asset-list">
-                            <?php foreach ($recent_assets as $asset): ?>
-                                <li class="asset-item">
-                                    <div class="asset-info">
-                                        <h4><?php echo htmlspecialchars($asset['asset_name']); ?></h4>
-                                        <p><?php echo htmlspecialchars($asset['asset_code']); ?> • <?php echo htmlspecialchars($asset['category']); ?></p>
-                                    </div>
-                                    <span class="status-badge status-<?php echo strtolower(str_replace(' ', '-', $asset['status'])); ?>">
-                                        <?php echo htmlspecialchars($asset['status']); ?>
-                                    </span>
-                                </li>
-                            <?php endforeach; ?>
-                        </ul>
-                        <div class="quick-actions">
-                            <a href="../public/asset.php" class="action-btn btn-primary">View All My Assets</a>
-                        </div>
-                    <?php else: ?>
-                        <div class="empty-state">
-                            <i class="fas fa-inbox"></i>
-                            <p>No assets assigned to you yet.</p>
-                        </div>
-                    <?php endif; ?>
+            <?php if (count($recent_assets) > 0): ?>
+                <ul class="asset-list">
+                    <?php foreach ($recent_assets as $asset): ?>
+                        <li class="asset-item">
+                            <div class="asset-info">
+                                <h4><?php echo htmlspecialchars($asset['asset_name']); ?></h4>
+                                <p><?php echo htmlspecialchars($asset['asset_code']); ?> • <?php echo htmlspecialchars($asset['category']); ?></p>
+                            </div>
+                            <span class="status-badge status-<?php echo strtolower(str_replace(' ', '-', $asset['status'])); ?>">
+                                <?php echo htmlspecialchars($asset['status']); ?>
+                            </span>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+                <div class="quick-actions">
+                    <a href="../public/asset.php" class="btn btn-primary">
+                        <i class="fas fa-arrow-right"></i> View All My Assets
+                    </a>
                 </div>
+            <?php else: ?>
+                <div class="empty-state">
+                    <div class="empty-state-icon">
+                        <i class="fas fa-box-open"></i>
+                    </div>
+                    <h3>No Assets Assigned</h3>
+                    <p>No assets have been assigned to you yet.</p>
+                </div>
+            <?php endif; ?>
+        </div>
 
-                <!-- My Recent Tickets -->
-                <div class="card">
-                    <h2>🎫 My Recent Tickets</h2>
-                    <?php if (count($recent_tickets) > 0): ?>
-                        <ul class="ticket-list">
-                            <?php foreach ($recent_tickets as $ticket): ?>
-                                <li class="ticket-item" onclick="window.location.href='../public/ticketDetails.php?id=<?php echo $ticket['id']; ?>'">
-                                    <div class="ticket-info">
-                                        <h4><?php echo htmlspecialchars($ticket['ticket_number']); ?></h4>
-                                        <p><?php echo htmlspecialchars($ticket['subject']); ?></p>
-                                    </div>
-                                    <div class="ticket-badges">
-                                        <span class="priority-badge priority-<?php echo strtolower($ticket['priority']); ?>">
-                                            <?php echo htmlspecialchars($ticket['priority']); ?>
-                                        </span>
-                                        <span class="status-badge status-<?php echo strtolower($ticket['status']); ?>">
-                                            <?php echo htmlspecialchars(str_replace('_', ' ', $ticket['status'])); ?>
-                                        </span>
-                                    </div>
-                                </li>
-                            <?php endforeach; ?>
-                        </ul>
-                        <div class="quick-actions">
-                            <a href="../public/tickets.php" class="action-btn btn-primary">View All My Tickets</a>
-                        </div>
-                    <?php else: ?>
-                        <div class="empty-state">
-                            <i class="fas fa-ticket-alt"></i>
-                            <p>You haven't created any tickets yet.</p>
-                            <br>
-                            <a href="../public/createTicket.php" class="action-btn btn-primary">Create Your First Ticket</a>
-                        </div>
-                    <?php endif; ?>
-                </div>
+        <!-- My Recent Tickets -->
+        <div class="section">
+            <div class="section-header">
+                <h2><i class="fas fa-ticket-alt"></i> My Recent Tickets</h2>
+                <p>Your latest ticket submissions</p>
             </div>
 
-            <!-- Quick Stats -->
-            <div class="card">
-                <h2>📈 Quick Statistics</h2>
-                <div class="details-grid">
-                    <div class="detail-item">
-                        <span class="label">Open Tickets:</span>
-                        <span class="value"><?php echo $stats['open_tickets']; ?></span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="label">In Progress:</span>
-                        <span class="value"><?php echo $stats['in_progress_tickets']; ?></span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="label">Pending:</span>
-                        <span class="value"><?php echo $stats['pending_tickets']; ?></span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="label">Resolved:</span>
-                        <span class="value"><?php echo $stats['resolved_tickets']; ?></span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="label">Urgent Tickets:</span>
-                        <span class="value"><?php echo $stats['urgent_tickets']; ?></span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="label">Total Assets:</span>
-                        <span class="value"><?php echo $stats['my_assets']; ?></span>
-                    </div>
+            <?php if (count($recent_tickets) > 0): ?>
+                <ul class="ticket-list">
+                    <?php foreach ($recent_tickets as $ticket): ?>
+                        <li class="ticket-item" onclick="window.location.href='../public/ticketDetails.php?id=<?php echo $ticket['id']; ?>'">
+                            <div class="ticket-info">
+                                <h4><?php echo htmlspecialchars($ticket['ticket_number']); ?></h4>
+                                <p><?php echo htmlspecialchars($ticket['subject']); ?></p>
+                            </div>
+                            <div class="ticket-badges">
+                                <span class="priority-badge priority-<?php echo strtolower($ticket['priority']); ?>">
+                                    <?php echo htmlspecialchars($ticket['priority']); ?>
+                                </span>
+                                <span class="status-badge status-<?php echo strtolower($ticket['status']); ?>">
+                                    <?php echo htmlspecialchars(str_replace('_', ' ', $ticket['status'])); ?>
+                                </span>
+                            </div>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+                <div class="quick-actions">
+                    <a href="../public/tickets.php" class="btn btn-primary">
+                        <i class="fas fa-arrow-right"></i> View All My Tickets
+                    </a>
                 </div>
-            </div>
+            <?php else: ?>
+                <div class="empty-state">
+                    <div class="empty-state-icon">
+                        <i class="fas fa-ticket-alt"></i>
+                    </div>
+                    <h3>No Tickets Created</h3>
+                    <p>You haven't created any tickets yet.</p>
+                    <a href="../users/userCreateticket.php" class="btn btn-primary" style="margin-top: 20px;">
+                        <i class="fas fa-plus"></i> Create Your First Ticket
+                    </a>
+                </div>
+            <?php endif; ?>
+        </div>
 
-            <!-- Account Info -->
-            <div class="card">
-                <h2>👤 Your Account Information</h2>
-                <div class="details-grid">
-                    <div class="detail-item">
-                        <span class="label">Full Name:</span>
-                        <span class="value"><?php echo htmlspecialchars($user_name); ?></span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="label">Username:</span>
-                        <span class="value"><?php echo htmlspecialchars($username); ?></span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="label">Email:</span>
-                        <span class="value"><?php echo htmlspecialchars($email); ?></span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="label">Department:</span>
-                        <span class="value"><?php echo htmlspecialchars($department); ?></span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="label">Role:</span>
-                        <span class="value"><?php echo htmlspecialchars(ucfirst($role)); ?></span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="label">Login Time:</span>
-                        <span class="value"><?php echo htmlspecialchars($login_time); ?></span>
-                    </div>
+        <!-- Quick Statistics -->
+        <div class="section">
+            <div class="section-header">
+                <h2><i class="fas fa-chart-line"></i> Quick Statistics</h2>
+                <p>Overview of your tickets and assets</p>
+            </div>
+            <div class="details-grid">
+                <div class="detail-item">
+                    <span class="label"><i class="fas fa-folder-open"></i> Open Tickets</span>
+                    <span class="value"><?php echo $stats['open_tickets']; ?></span>
+                </div>
+                <div class="detail-item">
+                    <span class="label"><i class="fas fa-spinner"></i> In Progress</span>
+                    <span class="value"><?php echo $stats['in_progress_tickets']; ?></span>
+                </div>
+                <div class="detail-item">
+                    <span class="label"><i class="fas fa-clock"></i> Pending</span>
+                    <span class="value"><?php echo $stats['pending_tickets']; ?></span>
+                </div>
+                <div class="detail-item">
+                    <span class="label"><i class="fas fa-check-circle"></i> Resolved</span>
+                    <span class="value"><?php echo $stats['resolved_tickets']; ?></span>
+                </div>
+                <div class="detail-item">
+                    <span class="label"><i class="fas fa-exclamation-circle"></i> Urgent Tickets</span>
+                    <span class="value"><?php echo $stats['urgent_tickets']; ?></span>
+                </div>
+                <div class="detail-item">
+                    <span class="label"><i class="fas fa-boxes"></i> Total Assets</span>
+                    <span class="value"><?php echo $stats['my_assets']; ?></span>
                 </div>
             </div>
         </div>
-    </main>
+
+        <!-- Account Information -->
+        <div class="section">
+            <div class="section-header">
+                <h2><i class="fas fa-user-circle"></i> Your Account Information</h2>
+                <p>Your profile details and login information</p>
+            </div>
+            <div class="details-grid">
+                <div class="detail-item">
+                    <span class="label"><i class="fas fa-user"></i> Full Name</span>
+                    <span class="value"><?php echo htmlspecialchars($user_name); ?></span>
+                </div>
+                <div class="detail-item">
+                    <span class="label"><i class="fas fa-at"></i> Username</span>
+                    <span class="value"><?php echo htmlspecialchars($username); ?></span>
+                </div>
+                <div class="detail-item">
+                    <span class="label"><i class="fas fa-envelope"></i> Email</span>
+                    <span class="value"><?php echo htmlspecialchars($email); ?></span>
+                </div>
+                <div class="detail-item">
+                    <span class="label"><i class="fas fa-building"></i> Department</span>
+                    <span class="value"><?php echo htmlspecialchars($department); ?></span>
+                </div>
+                <div class="detail-item">
+                    <span class="label"><i class="fas fa-user-tag"></i> Role</span>
+                    <span class="value"><?php echo htmlspecialchars(ucfirst($role)); ?></span>
+                </div>
+                <div class="detail-item">
+                    <span class="label"><i class="fas fa-clock"></i> Login Time</span>
+                    <span class="value"><?php echo htmlspecialchars($login_time); ?></span>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script>
+        // Handle sidebar toggle
+        function updateMainContainer() {
+            const mainContainer = document.getElementById('mainContainer');
+            const sidebar = document.querySelector('.sidebar');
+            
+            if (sidebar && sidebar.classList.contains('collapsed')) {
+                mainContainer.classList.add('sidebar-collapsed');
+            } else {
+                mainContainer.classList.remove('sidebar-collapsed');
+            }
+        }
+
+        // Check on load
+        document.addEventListener('DOMContentLoaded', updateMainContainer);
+
+        // Listen for sidebar changes
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('.toggle-sidebar')) {
+                setTimeout(updateMainContainer, 50);
+            }
+        });
+
+        // Observe sidebar changes
+        const observer = new MutationObserver(updateMainContainer);
+        const sidebar = document.querySelector('.sidebar');
+        if (sidebar) {
+            observer.observe(sidebar, { attributes: true, attributeFilter: ['class'] });
+        }
+
         // Color palettes
         const statusColors = {
             'Available': '#10b981',
@@ -587,111 +1038,182 @@ $ticket_priority_values = json_encode(array_column($my_ticket_priority_data, 'co
             'urgent': '#dc2626'
         };
 
+        // Chart.js default settings
+        Chart.defaults.font.family = "'Inter', sans-serif";
+        Chart.defaults.color = '#718096';
+
         <?php if (count($my_asset_status_data) > 0): ?>
-        // My Asset Status Chart
-        const myAssetStatusCtx = document.getElementById('myAssetStatusChart').getContext('2d');
-        const myAssetStatusLabels = <?php echo $asset_status_labels; ?>;
-        const myAssetStatusData = <?php echo $asset_status_values; ?>;
-        
-        new Chart(myAssetStatusCtx, {
-            type: 'doughnut',
-            data: {
-                labels: myAssetStatusLabels,
-                datasets: [{
-                    data: myAssetStatusData,
-                    backgroundColor: myAssetStatusLabels.map(label => statusColors[label] || '#6b7280'),
-                    borderWidth: 2,
-                    borderColor: '#fff'
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: {
-                            padding: 15,
-                            font: {
-                                size: 12
+            // My Asset Status Chart
+            const myAssetStatusCtx = document.getElementById('myAssetStatusChart');
+            if (myAssetStatusCtx) {
+                const myAssetStatusLabels = <?php echo $asset_status_labels; ?>;
+                const myAssetStatusData = <?php echo $asset_status_values; ?>;
+
+                new Chart(myAssetStatusCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: myAssetStatusLabels,
+                        datasets: [{
+                            data: myAssetStatusData,
+                            backgroundColor: myAssetStatusLabels.map(label => statusColors[label] || '#6b7280'),
+                            borderWidth: 3,
+                            borderColor: '#fff',
+                            hoverOffset: 8
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    padding: 20,
+                                    font: {
+                                        size: 13,
+                                        weight: 500
+                                    },
+                                    usePointStyle: true,
+                                    pointStyle: 'circle'
+                                }
+                            },
+                            tooltip: {
+                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                padding: 12,
+                                titleFont: {
+                                    size: 14,
+                                    weight: 600
+                                },
+                                bodyFont: {
+                                    size: 13
+                                },
+                                cornerRadius: 8
                             }
                         }
                     }
-                }
+                });
             }
-        });
         <?php endif; ?>
 
         <?php if (count($my_ticket_status_data) > 0): ?>
-        // Ticket Status Chart
-        const ticketStatusCtx = document.getElementById('ticketStatusChart').getContext('2d');
-        const ticketStatusLabels = <?php echo $ticket_status_labels; ?>;
-        const ticketStatusData = <?php echo $ticket_status_values; ?>;
-        
-        new Chart(ticketStatusCtx, {
-            type: 'doughnut',
-            data: {
-                labels: ticketStatusLabels.map(label => label.replace('_', ' ').toUpperCase()),
-                datasets: [{
-                    data: ticketStatusData,
-                    backgroundColor: ticketStatusLabels.map(label => ticketStatusColors[label] || '#6b7280'),
-                    borderWidth: 2,
-                    borderColor: '#fff'
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: {
-                            padding: 15,
-                            font: {
-                                size: 12
+            // Ticket Status Chart
+            const ticketStatusCtx = document.getElementById('ticketStatusChart');
+            if (ticketStatusCtx) {
+                const ticketStatusLabels = <?php echo $ticket_status_labels; ?>;
+                const ticketStatusData = <?php echo $ticket_status_values; ?>;
+
+                new Chart(ticketStatusCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ticketStatusLabels.map(label => label.replace('_', ' ').toUpperCase()),
+                        datasets: [{
+                            data: ticketStatusData,
+                            backgroundColor: ticketStatusLabels.map(label => ticketStatusColors[label] || '#6b7280'),
+                            borderWidth: 3,
+                            borderColor: '#fff',
+                            hoverOffset: 8
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    padding: 20,
+                                    font: {
+                                        size: 13,
+                                        weight: 500
+                                    },
+                                    usePointStyle: true,
+                                    pointStyle: 'circle'
+                                }
+                            },
+                            tooltip: {
+                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                padding: 12,
+                                titleFont: {
+                                    size: 14,
+                                    weight: 600
+                                },
+                                bodyFont: {
+                                    size: 13
+                                },
+                                cornerRadius: 8
                             }
                         }
                     }
-                }
+                });
             }
-        });
         <?php endif; ?>
 
         <?php if (count($my_ticket_priority_data) > 0): ?>
-        // Ticket Priority Chart
-        const ticketPriorityCtx = document.getElementById('ticketPriorityChart').getContext('2d');
-        const ticketPriorityLabels = <?php echo $ticket_priority_labels; ?>;
-        const ticketPriorityData = <?php echo $ticket_priority_values; ?>;
-        
-        new Chart(ticketPriorityCtx, {
-            type: 'bar',
-            data: {
-                labels: ticketPriorityLabels.map(label => label.toUpperCase()),
-                datasets: [{
-                    label: 'Number of Tickets',
-                    data: ticketPriorityData,
-                    backgroundColor: ticketPriorityLabels.map(label => priorityColors[label] || '#6b7280'),
-                    borderWidth: 0
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            stepSize: 1
+            // Ticket Priority Chart
+            const ticketPriorityCtx = document.getElementById('ticketPriorityChart');
+            if (ticketPriorityCtx) {
+                const ticketPriorityLabels = <?php echo $ticket_priority_labels; ?>;
+                const ticketPriorityData = <?php echo $ticket_priority_values; ?>;
+
+                new Chart(ticketPriorityCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: ticketPriorityLabels.map(label => label.toUpperCase()),
+                        datasets: [{
+                            label: 'Number of Tickets',
+                            data: ticketPriorityData,
+                            backgroundColor: ticketPriorityLabels.map(label => priorityColors[label] || '#6b7280'),
+                            borderWidth: 0,
+                            borderRadius: 8
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    stepSize: 1,
+                                    font: {
+                                        size: 12
+                                    }
+                                },
+                                grid: {
+                                    color: 'rgba(0, 0, 0, 0.05)'
+                                }
+                            },
+                            x: {
+                                ticks: {
+                                    font: {
+                                        size: 12
+                                    }
+                                },
+                                grid: {
+                                    display: false
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            tooltip: {
+                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                padding: 12,
+                                titleFont: {
+                                    size: 14,
+                                    weight: 600
+                                },
+                                bodyFont: {
+                                    size: 13
+                                },
+                                cornerRadius: 8
+                            }
                         }
                     }
-                },
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                }
+                });
             }
-        });
         <?php endif; ?>
     </script>
 </body>

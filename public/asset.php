@@ -288,11 +288,18 @@ try {
 // Get all users for assignment dropdown
 $users = [];
 try {
-    $users_query = "SELECT user_id, username, first_name, last_name, email, department FROM users ORDER BY first_name, last_name";
+    // Filter out deleted users and only show active users
+    $users_query = "SELECT user_id, username, first_name, last_name, email, department 
+                    FROM users 
+                    WHERE user_id IS NOT NULL 
+                    AND (is_deleted = 0 OR is_deleted IS NULL)
+                    AND (status = 'active' OR status IS NULL)
+                    ORDER BY first_name, last_name";
     $users_result = $pdo->query($users_query);
     $users = $users_result->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     // Handle error silently
+    error_log("Error fetching users: " . $e->getMessage());
 }
 
 // Get departments for dropdown

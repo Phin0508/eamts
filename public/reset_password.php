@@ -8,12 +8,35 @@ $success_message = '';
 $token = $_GET['token'] ?? '';
 $valid_token = false;
 $user_data = null;
+$requires_current_password = false;
 
-// Verify token
-if (!empty($token)) {
+// Check if user is logged in and must change password
+if (isset($_SESSION['user_id']) && isset($_SESSION['must_change_password']) && $_SESSION['must_change_password'] == 1) {
+    // User is logged in and must reset their temporary password
     try {
         $stmt = $pdo->prepare("
-            SELECT user_id, first_name, last_name, email, username, password_reset_expiry 
+            SELECT user_id, first_name, last_name, email, username, password_hash
+            FROM users 
+            WHERE user_id = ? 
+            AND is_active = 1
+            AND must_change_password = 1
+        ");
+        $stmt->execute([$_SESSION['user_id']]);
+        $user_data = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($user_data) {
+            $valid_token = true;
+            $requires_current_password = true;
+        }
+    } catch (PDOException $e) {
+        $error_message = "Database error. Please try again later.";
+    }
+}
+// Verify token from email link
+elseif (!empty($token)) {
+    try {
+        $stmt = $pdo->prepare("
+            SELECT user_id, first_name, last_name, email, username, password_hash, password_reset_expiry, must_change_password
             FROM users 
             WHERE password_reset_token = ? 
             AND is_active = 1
@@ -25,6 +48,10 @@ if (!empty($token)) {
             // Check if token is expired
             if (strtotime($user_data['password_reset_expiry']) > time()) {
                 $valid_token = true;
+                // If this is a new user (must_change_password = 1), require temporary password
+                if ($user_data['must_change_password'] == 1) {
+                    $requires_current_password = true;
+                }
             } else {
                 $error_message = "This password reset link has expired. Please request a new one.";
             }
@@ -35,7 +62,7 @@ if (!empty($token)) {
         $error_message = "Database error. Please try again later.";
     }
 } else {
-    $error_message = "No reset token provided.";
+    $error_message = "No reset token provided or invalid session.";
 }
 
 // Enhanced password validation
@@ -76,6 +103,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $valid_token) {
         $confirm_password = $_POST['confirmPassword'];
         
         $errors = [];
+        
+        // If current password is required, verify it
+        if ($requires_current_password) {
+            $current_password = $_POST['currentPassword'] ?? '';
+            
+            if (empty($current_password)) {
+                $errors[] = "Current password is required";
+            } elseif (!password_verify($current_password, $user_data['password_hash'])) {
+                $errors[] = "Current password is incorrect";
+            }
+        }
         
         // Validate passwords match
         if ($new_password !== $confirm_password) {
@@ -124,8 +162,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $valid_token) {
                 
                 $success_message = "Password reset successfully! You can now log in with your new password.";
                 
-                // Redirect to login after 3 seconds
-                header("refresh:3;url=login.php?message=password_reset");
+                // Update session if user was logged in
+                if ($requires_current_password) {
+                    $_SESSION['must_change_password'] = 0;
+                    // Redirect to dashboard after 3 seconds
+                    header("refresh:3;url=../dashboard/index.php");
+                } else {
+                    // Redirect to login after 3 seconds
+                    header("refresh:3;url=login.php?message=password_reset");
+                }
             } else {
                 $errors[] = "Failed to update password. Please try again.";
             }
@@ -213,6 +258,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $valid_token) {
         
         .user-info strong {
             color: #2c3e50;
+        }
+        
+        .info-box {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            color: #856404;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
         }
         
         .alert {
@@ -378,12 +433,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $valid_token) {
     <div class="container">
         <div class="logo">🔐</div>
         <h1>Reset Your Password</h1>
-        <p class="subtitle">Create a new secure password</p>
+        <p class="subtitle"><?php echo $requires_current_password ? 'Change your temporary password' : 'Create a new secure password'; ?></p>
         
         <?php if (!empty($success_message)): ?>
         <div class="alert alert-success">
             <?php echo $success_message; ?>
-            <p style="margin-top: 10px;">Redirecting to login page...</p>
+            <p style="margin-top: 10px;">Redirecting...</p>
         </div>
         <?php endif; ?>
         
@@ -394,12 +449,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $valid_token) {
         <?php endif; ?>
         
         <?php if ($valid_token && empty($success_message)): ?>
+        <?php if ($requires_current_password): ?>
+        <div class="info-box">
+            ⚠️ <strong>First Time Login:</strong> Please enter your temporary password provided by the administrator and create a new secure password.
+        </div>
+        <?php endif; ?>
+        
         <div class="user-info">
             <p><strong>Welcome, <?php echo htmlspecialchars($user_data['first_name'] . ' ' . $user_data['last_name']); ?>!</strong></p>
             <p>Username: <strong><?php echo htmlspecialchars($user_data['username']); ?></strong></p>
         </div>
         
         <form method="POST" action="" id="resetForm">
+            <?php if ($requires_current_password): ?>
+            <div class="form-group">
+                <label for="currentPassword">Current Temporary Password</label>
+                <div class="password-container">
+                    <input type="password" id="currentPassword" name="currentPassword" required>
+                    <span class="password-toggle" onclick="togglePassword('currentPassword')">👁</span>
+                </div>
+            </div>
+            <?php endif; ?>
+            
             <div class="form-group">
                 <label for="password">New Password</label>
                 <div class="password-container">

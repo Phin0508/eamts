@@ -11,6 +11,7 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['admin', 'mana
 include("../auth/config/database.php");
 
 $error_message = '';
+$success_message = '';
 $user_data = null;
 
 // Get user ID from URL
@@ -66,7 +67,6 @@ try {
         $activity_stmt->execute([$user_id, $user_id, $user_id]);
         $activities = $activity_stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (PDOException $e) {
-        // If assets_history doesn't exist, just use empty array
         $activities = [];
     }
     
@@ -113,6 +113,7 @@ try {
             min-height: 100vh;
         }
 
+        /* Main Container */
         .container {
             margin-left: 260px;
             padding: 30px;
@@ -137,6 +138,7 @@ try {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            margin-bottom: 12px;
         }
 
         .header-title {
@@ -169,6 +171,54 @@ try {
             font-size: 28px;
             font-weight: 700;
             color: #1a202c;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-title h1 i {
+            color: #7c3aed;
+        }
+
+        .header p {
+            color: #718096;
+            font-size: 15px;
+            margin-left: 59px;
+        }
+
+        /* Messages */
+        .success-message, .error-message {
+            padding: 16px 20px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            animation: slideDown 0.3s ease;
+            font-weight: 500;
+        }
+
+        .success-message {
+            background: linear-gradient(135deg, #d4f4dd 0%, #c3e6cb 100%);
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+
+        .error-message {
+            background: linear-gradient(135deg, #ffe6e6 0%, #ffd4d4 100%);
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         /* Profile Card */
@@ -200,6 +250,7 @@ try {
             font-size: 48px;
             font-weight: 700;
             box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+            flex-shrink: 0;
         }
 
         .profile-info h2 {
@@ -263,15 +314,15 @@ try {
             margin-bottom: 30px;
         }
 
-        /* Info Card */
-        .info-card {
+        /* Section/Info Card */
+        .section, .info-card {
             background: white;
             border-radius: 16px;
             padding: 30px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
         }
 
-        .info-card h3 {
+        .section-header, .info-card h3 {
             font-size: 20px;
             font-weight: 700;
             color: #1a202c;
@@ -283,13 +334,22 @@ try {
             border-bottom: 2px solid #e2e8f0;
         }
 
-        .info-card h3 i {
+        .section-header i, .info-card h3 i {
             color: #7c3aed;
+        }
+
+        .section-header p {
+            color: #718096;
+            font-size: 14px;
+            margin-top: 8px;
+            padding-bottom: 0;
+            border-bottom: none;
         }
 
         .info-row {
             display: flex;
             justify-content: space-between;
+            align-items: center;
             padding: 16px 0;
             border-bottom: 1px solid #f1f3f5;
         }
@@ -343,8 +403,8 @@ try {
         }
 
         .badge-admin {
-            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
-            color: #1e40af;
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            color: #991b1b;
         }
 
         .badge-manager {
@@ -352,9 +412,24 @@ try {
             color: #92400e;
         }
 
-        .badge-employee {
-            background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
-            color: #3730a3;
+        .badge-employee, .badge-user {
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+            color: #1e40af;
+        }
+
+        .badge-available {
+            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+            color: #065f46;
+        }
+
+        .badge-in-use {
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+            color: #1e40af;
+        }
+
+        .badge-maintenance {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            color: #92400e;
         }
 
         /* Activity Timeline */
@@ -432,6 +507,10 @@ try {
             transform: translateX(5px);
         }
 
+        .asset-item:last-child {
+            margin-bottom: 0;
+        }
+
         .asset-info {
             display: flex;
             align-items: center;
@@ -448,6 +527,7 @@ try {
             align-items: center;
             justify-content: center;
             font-size: 18px;
+            flex-shrink: 0;
         }
 
         .asset-details h4 {
@@ -457,24 +537,19 @@ try {
             margin-bottom: 4px;
         }
 
+        .asset-details h4 a {
+            color: #1a202c;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        .asset-details h4 a:hover {
+            color: #7c3aed;
+        }
+
         .asset-details p {
             font-size: 12px;
             color: #718096;
-        }
-
-        .badge-available {
-            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
-            color: #065f46;
-        }
-
-        .badge-in-use {
-            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
-            color: #1e40af;
-        }
-
-        .badge-maintenance {
-            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-            color: #92400e;
         }
 
         /* Empty State */
@@ -487,6 +562,12 @@ try {
             font-size: 48px;
             margin-bottom: 15px;
             opacity: 0.3;
+        }
+
+        .empty-state h3 {
+            font-size: 18px;
+            color: #1a202c;
+            margin-bottom: 8px;
         }
 
         .empty-state p {
@@ -547,6 +628,14 @@ try {
                 gap: 15px;
             }
 
+            .header-title h1 {
+                font-size: 22px;
+            }
+
+            .header p {
+                margin-left: 0;
+            }
+
             .profile-card {
                 padding: 30px 20px;
             }
@@ -568,7 +657,7 @@ try {
                 grid-template-columns: 1fr;
             }
 
-            .info-card {
+            .section, .info-card {
                 padding: 20px;
             }
         }
@@ -586,6 +675,13 @@ try {
         </div>
         <?php endif; ?>
 
+        <?php if ($success_message): ?>
+        <div class="success-message">
+            <i class="fas fa-check-circle"></i>
+            <span><?php echo htmlspecialchars($success_message); ?></span>
+        </div>
+        <?php endif; ?>
+
         <?php if ($user_data): ?>
         <!-- Header -->
         <div class="header">
@@ -594,12 +690,13 @@ try {
                     <a href="userList.php" class="back-btn">
                         <i class="fas fa-arrow-left"></i>
                     </a>
-                    <h1>User Details</h1>
+                    <h1><i class="fas fa-user-circle"></i> User Details</h1>
                 </div>
                 <a href="userList.php" class="btn btn-primary">
                     <i class="fas fa-list"></i> Back to User List
                 </a>
             </div>
+            <p>View complete user information and activity</p>
         </div>
 
         <!-- Profile Card -->
@@ -738,8 +835,10 @@ try {
         </div>
 
         <!-- Assigned Assets -->
-        <div class="info-card" style="margin-bottom: 30px;">
-            <h3><i class="fas fa-laptop"></i> Assigned Assets (<?php echo count($assigned_assets); ?>)</h3>
+        <div class="section" style="margin-bottom: 30px;">
+            <div class="section-header">
+                <h3><i class="fas fa-laptop"></i> Assigned Assets (<?php echo count($assigned_assets); ?>)</h3>
+            </div>
             <?php if (count($assigned_assets) > 0): ?>
                 <?php foreach ($assigned_assets as $asset): ?>
                     <div class="asset-item">
@@ -749,7 +848,7 @@ try {
                             </div>
                             <div class="asset-details">
                                 <h4>
-                                    <a href="assetDetails.php?id=<?php echo $asset['asset_id']; ?>" style="color: #1a202c; text-decoration: none;">
+                                    <a href="assetDetails.php?id=<?php echo $asset['asset_id']; ?>">
                                         <?php echo htmlspecialchars($asset['asset_name']); ?>
                                     </a>
                                 </h4>
@@ -766,7 +865,7 @@ try {
                     </div>
                 <?php endforeach; ?>
                 <?php if ($asset_count > 5): ?>
-                <div style="text-align: center; margin-top: 15px;">
+                <div style="text-align: center; margin-top: 20px;">
                     <a href="../public/asset.php?assigned_to=<?php echo $user_id; ?>" class="btn btn-primary">
                         <i class="fas fa-list"></i> View All Assets (<?php echo $asset_count; ?>)
                     </a>
@@ -775,14 +874,17 @@ try {
             <?php else: ?>
             <div class="empty-state">
                 <div class="empty-state-icon">📦</div>
+                <h3>No Assets Assigned</h3>
                 <p>No assets assigned to this user</p>
             </div>
             <?php endif; ?>
         </div>
 
         <!-- Recent Activity -->
-        <div class="info-card">
-            <h3><i class="fas fa-history"></i> Recent Activity</h3>
+        <div class="section">
+            <div class="section-header">
+                <h3><i class="fas fa-history"></i> Recent Activity</h3>
+            </div>
             <?php if (count($activities) > 0): ?>
             <div class="activity-timeline">
                 <?php foreach ($activities as $activity): ?>
@@ -803,7 +905,8 @@ try {
             <?php else: ?>
             <div class="empty-state">
                 <div class="empty-state-icon">📊</div>
-                <p>No recent activity recorded</p>
+                <h3>No Activity Recorded</h3>
+                <p>No recent activity recorded for this user</p>
             </div>
             <?php endif; ?>
         </div>
@@ -811,6 +914,7 @@ try {
     </div>
 
     <script>
+        // Handle sidebar toggle
         function updateMainContainer() {
             const mainContainer = document.getElementById('mainContainer');
             const sidebar = document.querySelector('.sidebar');
@@ -822,19 +926,38 @@ try {
             }
         }
 
+        // Check on load
         document.addEventListener('DOMContentLoaded', updateMainContainer);
 
+        // Listen for sidebar changes
         document.addEventListener('click', function(e) {
             if (e.target.closest('.toggle-sidebar')) {
                 setTimeout(updateMainContainer, 50);
             }
         });
 
+        // Observe sidebar changes
         const observer = new MutationObserver(updateMainContainer);
         const sidebar = document.querySelector('.sidebar');
         if (sidebar) {
             observer.observe(sidebar, { attributes: true, attributeFilter: ['class'] });
         }
+
+        // Auto-hide success/error messages after 5 seconds
+        setTimeout(() => {
+            const successMsg = document.querySelector('.success-message');
+            const errorMsg = document.querySelector('.error-message');
+            if (successMsg) {
+                successMsg.style.transition = 'opacity 0.5s';
+                successMsg.style.opacity = '0';
+                setTimeout(() => successMsg.style.display = 'none', 500);
+            }
+            if (errorMsg) {
+                errorMsg.style.transition = 'opacity 0.5s';
+                errorMsg.style.opacity = '0';
+                setTimeout(() => errorMsg.style.display = 'none', 500);
+            }
+        }, 5000);
     </script>
 </body>
 </html>
