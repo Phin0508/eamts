@@ -64,7 +64,7 @@ $team_query = "
     LEFT JOIN tickets t ON u.user_id = t.requester_id
     WHERE $where_clause
     GROUP BY u.user_id
-    ORDER BY u.first_name ASC, u.last_name ASC
+    ORDER BY u.is_active DESC, u.first_name ASC, u.last_name ASC
 ";
 
 $stmt = $pdo->prepare($team_query);

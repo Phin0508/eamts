@@ -1,8 +1,15 @@
 <?php
-session_start();
+
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
+// Start session
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // Check if user is logged in and is a manager
-if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['manager', 'admin'])) {
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'manager') {
     header("Location: ../auth/login.php");
     exit();
 }
@@ -10,1182 +17,805 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['manager', 'ad
 // Include database connection
 include("../auth/config/database.php");
 
-// Get user information
-$user_id = $_SESSION['user_id'];
-$user_role = $_SESSION['role'];
-$user_name = $_SESSION['first_name'] . ' ' . $_SESSION['last_name'];
+// Verify PDO connection exists
+if (!isset($pdo)) {
+    die("Database connection failed. Please check your database configuration.");
+}
 
 // Get asset ID from URL
-$asset_id = $_GET['id'] ?? null;
+$asset_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 
-if (!$asset_id) {
+if ($asset_id === 0) {
     header("Location: managerAsset.php");
     exit();
 }
 
-// Fetch asset details
+// Fetch asset details - only assets assigned to this manager
+$asset = null;
 try {
     $query = "SELECT a.*, 
-              CONCAT(assigned_user.first_name, ' ', assigned_user.last_name) as assigned_to_name,
-              assigned_user.email as assigned_to_email,
-              assigned_user.department as assigned_to_department,
-              CONCAT(creator.first_name, ' ', creator.last_name) as created_by_name
-              FROM assets a
-              LEFT JOIN users assigned_user ON a.assigned_to = assigned_user.user_id
-              LEFT JOIN users creator ON a.created_by = creator.user_id
-              WHERE a.id = ?";
-    
-    // SECURITY: Managers can only view their own assets
-    if ($user_role === 'manager') {
-        $query .= " AND a.assigned_to = ?";
-        $stmt = $pdo->prepare($query);
-        $stmt->execute([$asset_id, $user_id]);
-    } else {
-        // Admins can view any asset
-        $stmt = $pdo->prepare($query);
-        $stmt->execute([$asset_id]);
-    }
-    
+              u.username as created_by_name,
+              assigned_user.username as assigned_username,
+              CONCAT(assigned_user.first_name, ' ', assigned_user.last_name) as assigned_user_name
+              FROM assets a 
+              LEFT JOIN users u ON a.created_by = u.user_id 
+              LEFT JOIN users assigned_user ON a.assigned_to = assigned_user.user_id                                                        
+              WHERE a.id = ? AND a.assigned_to = ?";
+    $stmt = $pdo->prepare($query);
+    $stmt->execute([$asset_id, $_SESSION['user_id']]);
     $asset = $stmt->fetch(PDO::FETCH_ASSOC);
-    
+
     if (!$asset) {
-        $_SESSION['error_message'] = "Asset not found or you don't have permission to view it.";
+        // Asset not found or not assigned to this manager
         header("Location: managerAsset.php");
         exit();
     }
-    
-    // Set default value for updated_by_name if not available
-    $asset['updated_by_name'] = $asset['created_by_name'] ?? 'System';
-    
 } catch (PDOException $e) {
     die("Error fetching asset: " . $e->getMessage());
 }
 
+// Calculate warranty status
+$warranty_status = 'No Warranty Info';
+$warranty_days_left = null;
+$warranty_class = 'unknown';
+
+if ($asset['warranty_expiry']) {
+    $warranty_date = new DateTime($asset['warranty_expiry']);
+    $today = new DateTime();
+    $interval = $today->diff($warranty_date);
+    $warranty_days_left = $interval->days * ($interval->invert ? -1 : 1);
+
+    if ($warranty_days_left < 0) {
+        $warranty_status = 'Expired';
+        $warranty_class = 'expired';
+    } elseif ($warranty_days_left <= 30) {
+        $warranty_status = 'Expiring Soon';
+        $warranty_class = 'expiring';
+    } else {
+        $warranty_status = 'Active';
+        $warranty_class = 'active';
+    }
+}
+
 // Fetch maintenance history
-$maintenance_history = [];
+$maintenance_records = [];
 try {
-    $maint_query = "SELECT am.*, 
-                    CONCAT(u.first_name, ' ', u.last_name) as performed_by_name
-                    FROM asset_maintenance am
-                    LEFT JOIN users u ON am.performed_by = u.user_id
-                    WHERE am.asset_id = ?
-                    ORDER BY am.maintenance_date DESC";
-    $stmt = $pdo->prepare($maint_query);
-    $stmt->execute([$asset_id]);
-    $maintenance_history = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $maint_query = "SELECT m.*, u.username as created_by_name 
+                    FROM asset_maintenance m
+                    LEFT JOIN users u ON m.created_by = u.user_id
+                    WHERE m.asset_id = ?
+                    ORDER BY m.maintenance_date DESC";
+    $maint_stmt = $pdo->prepare($maint_query);
+    $maint_stmt->execute([$asset_id]);
+    $maintenance_records = $maint_stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
-    error_log("Maintenance history error: " . $e->getMessage());
+    $error_message = "Error fetching maintenance records: " . $e->getMessage();
 }
 
-// Fetch related tickets
-$related_tickets = [];
+// Fetch recurring maintenance schedules
+$recurring_schedules = [];
 try {
-    $ticket_query = "SELECT t.*, 
-                     CONCAT(u.first_name, ' ', u.last_name) as requester_name,
-                     CONCAT(tech.first_name, ' ', tech.last_name) as assigned_to_name
-                     FROM tickets t
-                     LEFT JOIN users u ON t.requester_id = u.user_id
-                     LEFT JOIN users tech ON t.assigned_to = tech.user_id
-                     WHERE t.asset_id = ?
-                     ORDER BY t.created_at DESC
-                     LIMIT 10";
-    $stmt = $pdo->prepare($ticket_query);
-    $stmt->execute([$asset_id]);
-    $related_tickets = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $recurring_query = "SELECT r.*, 
+                        u.username as assigned_username,
+                        CONCAT(u.first_name, ' ', u.last_name) as assigned_user_name
+                        FROM recurring_maintenance r
+                        LEFT JOIN users u ON r.assigned_to = u.user_id
+                        WHERE r.asset_id = ?
+                        ORDER BY r.next_due_date ASC";
+    $recurring_stmt = $pdo->prepare($recurring_query);
+    $recurring_stmt->execute([$asset_id]);
+    $recurring_schedules = $recurring_stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
-    error_log("Related tickets error: " . $e->getMessage());
+    $error_message = "Error fetching recurring schedules: " . $e->getMessage();
 }
 
-// Calculate asset age
-$purchase_date = $asset['purchase_date'] ? new DateTime($asset['purchase_date']) : null;
-$current_date = new DateTime();
-$asset_age = $purchase_date ? $purchase_date->diff($current_date) : null;
+// Check for upcoming maintenance (within next 7 days)
+$upcoming_maintenance = [];
+$today = new DateTime();
+foreach ($recurring_schedules as $schedule) {
+    if ($schedule['is_active']) {
+        $due_date = new DateTime($schedule['next_due_date']);
+        $interval = $today->diff($due_date);
+        $days_until = $interval->days * ($interval->invert ? -1 : 1);
 
-// Calculate depreciation (simple straight-line, assuming 5-year useful life)
-$depreciation_value = 0;
-$current_value = $asset['purchase_cost'];
-if ($asset['purchase_cost'] && $asset_age) {
-    $years_old = $asset_age->y + ($asset_age->m / 12);
-    $useful_life = 5; // years
-    $annual_depreciation = $asset['purchase_cost'] / $useful_life;
-    $depreciation_value = min($annual_depreciation * $years_old, $asset['purchase_cost']);
-    $current_value = max($asset['purchase_cost'] - $depreciation_value, 0);
+        if ($days_until <= $schedule['notify_days_before'] && $days_until >= 0) {
+            $schedule['days_until'] = $days_until;
+            $upcoming_maintenance[] = $schedule;
+        } elseif ($days_until < 0) {
+            $schedule['days_until'] = $days_until;
+            $schedule['overdue'] = true;
+            $upcoming_maintenance[] = $schedule;
+        }
+    }
 }
+
+// Status mapping for display
+$status_labels = [
+    'available' => 'Available',
+    'in_use' => 'In Use',
+    'maintenance' => 'Maintenance',
+    'retired' => 'Retired'
+];
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Asset Details - <?php echo htmlspecialchars($asset['asset_name']); ?></title>
+    <link rel="stylesheet" href="../style/asset.css">
     <link rel="stylesheet" href="../auth/inc/navigation.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
     <style>
-        .dashboard-content {
-            padding: 2rem;
-            background: #f8f9fa;
-            min-height: calc(100vh - 60px);
+        .details-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
         }
 
-        .page-header {
-            background: white;
-            padding: 2rem;
-            border-radius: 12px;
-            margin-bottom: 2rem;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 1rem;
+        .breadcrumb {
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #666;
         }
 
-        .header-left h1 {
-            margin: 0 0 0.5rem 0;
-            color: #2c3e50;
-            font-size: 1.75rem;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-        }
-
-        .header-left p {
-            margin: 0;
-            color: #6c757d;
-        }
-
-        .asset-code-large {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-            padding: 0.5rem 1rem;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 1.1rem;
-        }
-
-        .btn {
-            padding: 0.75rem 1.5rem;
-            border: none;
-            border-radius: 8px;
-            font-size: 0.95rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
+        .breadcrumb a {
+            color: #2563eb;
             text-decoration: none;
         }
 
-        .btn-outline {
-            background: white;
-            color: #374151;
-            border: 1px solid #d1d5db;
-        }
-
-        .btn-outline:hover {
-            background: #f9fafb;
-            border-color: #9ca3af;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background: linear-gradient(135deg, #5a67d8, #6b46c1);
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-        }
-
-        .content-grid {
-            display: grid;
-            grid-template-columns: 2fr 1fr;
-            gap: 2rem;
-            margin-bottom: 2rem;
-        }
-
-        .info-card {
-            background: white;
-            padding: 2rem;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        }
-
-        .info-card h2 {
-            margin: 0 0 1.5rem 0;
-            color: #2c3e50;
-            font-size: 1.25rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding-bottom: 1rem;
-            border-bottom: 2px solid #f0f0f0;
-        }
-
-        .status-badge {
-            padding: 0.5rem 1rem;
-            border-radius: 20px;
-            font-size: 0.875rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            display: inline-block;
-        }
-
-        .status-available { background: #d1fae5; color: #065f46; }
-        .status-in-use { background: #dbeafe; color: #1e40af; }
-        .status-maintenance { background: #fed7aa; color: #92400e; }
-        .status-retired { background: #e5e7eb; color: #374151; }
-        .status-damaged { background: #fecaca; color: #991b1b; }
-
-        .detail-group {
-            display: grid;
-            gap: 1.25rem;
-            margin-bottom: 1.5rem;
-        }
-
-        .detail-item {
-            display: flex;
-            align-items: start;
-            gap: 1rem;
-            padding: 1rem;
-            background: #f8f9fa;
-            border-radius: 8px;
-            transition: all 0.2s;
-        }
-
-        .detail-item:hover {
-            background: #e9ecef;
-        }
-
-        .detail-icon {
-            width: 40px;
-            height: 40px;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 1.1rem;
-            flex-shrink: 0;
-        }
-
-        .detail-content {
-            flex: 1;
-        }
-
-        .detail-label {
-            font-size: 0.8rem;
-            color: #6c757d;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            margin-bottom: 0.25rem;
-            font-weight: 600;
-        }
-
-        .detail-value {
-            color: #2c3e50;
-            font-size: 1rem;
-            font-weight: 500;
-        }
-
-        .detail-value.large {
-            font-size: 1.5rem;
-            color: #059669;
-        }
-
-        .info-banner {
-            background: #eff6ff;
-            border-left: 4px solid #2563eb;
-            padding: 1rem 1.5rem;
-            border-radius: 8px;
-            margin-bottom: 1.5rem;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-        }
-
-        .info-banner.warning {
-            background: #fef3c7;
-            border-left-color: #f59e0b;
-        }
-
-        .info-banner.success {
-            background: #d1fae5;
-            border-left-color: #10b981;
-        }
-
-        .info-banner i {
-            font-size: 1.25rem;
-        }
-
-        .stats-row {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-        }
-
-        .stat-box {
-            background: #f8f9fa;
-            padding: 1rem;
-            border-radius: 8px;
-            text-align: center;
-        }
-
-        .stat-box .stat-number {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: #2c3e50;
-            margin-bottom: 0.25rem;
-        }
-
-        .stat-box .stat-label {
-            font-size: 0.8rem;
-            color: #6c757d;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        .timeline {
-            position: relative;
-            padding-left: 2rem;
-        }
-
-        .timeline::before {
-            content: '';
-            position: absolute;
-            left: 0.5rem;
-            top: 0;
-            bottom: 0;
-            width: 2px;
-            background: #e5e7eb;
-        }
-
-        .timeline-item {
-            position: relative;
-            padding-bottom: 2rem;
-        }
-
-        .timeline-item:last-child {
-            padding-bottom: 0;
-        }
-
-        .timeline-marker {
-            position: absolute;
-            left: -1.5rem;
-            width: 1rem;
-            height: 1rem;
-            border-radius: 50%;
-            background: #667eea;
-            border: 3px solid white;
-            box-shadow: 0 0 0 2px #667eea;
-        }
-
-        .timeline-content {
-            background: #f8f9fa;
-            padding: 1rem;
-            border-radius: 8px;
-        }
-
-        .timeline-date {
-            font-size: 0.8rem;
-            color: #6c757d;
-            margin-bottom: 0.5rem;
-        }
-
-        .timeline-title {
-            font-weight: 600;
-            color: #2c3e50;
-            margin-bottom: 0.5rem;
-        }
-
-        .timeline-description {
-            font-size: 0.9rem;
-            color: #4b5563;
-        }
-
-        .timeline-meta {
-            display: flex;
-            gap: 1rem;
-            margin-top: 0.5rem;
-            font-size: 0.8rem;
-            color: #6c757d;
-        }
-
-        .table-responsive {
-            overflow-x: auto;
-        }
-
-        .tickets-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 1rem;
-        }
-
-        .tickets-table th {
-            background: #f8f9fa;
-            padding: 0.75rem;
-            text-align: left;
-            font-size: 0.8rem;
-            color: #6c757d;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            font-weight: 600;
-            border-bottom: 2px solid #e5e7eb;
-        }
-
-        .tickets-table td {
-            padding: 0.75rem;
-            border-bottom: 1px solid #e5e7eb;
-            font-size: 0.9rem;
-        }
-
-        .tickets-table tr:hover {
-            background: #f8f9fa;
-        }
-
-        .ticket-link {
-            color: #667eea;
-            text-decoration: none;
-            font-weight: 600;
-        }
-
-        .ticket-link:hover {
+        .breadcrumb a:hover {
             text-decoration: underline;
         }
 
-        .priority-badge {
-            padding: 0.25rem 0.5rem;
+        .asset-header {
+            background: white;
+            padding: 30px;
             border-radius: 12px;
-            font-size: 0.75rem;
-            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        .asset-header h1 {
+            margin: 0 0 10px 0;
+            color: #1f2937;
+            font-size: 28px;
+        }
+
+        .asset-code {
+            color: #6b7280;
+            font-size: 16px;
+            margin-bottom: 20px;
+        }
+
+        .asset-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .info-item {
+            padding: 15px;
+            background: #f9fafb;
+            border-radius: 8px;
+        }
+
+        .info-label {
+            font-size: 12px;
+            color: #6b7280;
             text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
         }
 
-        .priority-low { background: #d1fae5; color: #065f46; }
-        .priority-medium { background: #dbeafe; color: #1e40af; }
-        .priority-high { background: #fed7aa; color: #92400e; }
-        .priority-urgent { background: #fecaca; color: #991b1b; }
-
-        .no-data {
-            text-align: center;
-            padding: 2rem;
-            color: #9ca3af;
-            font-style: italic;
+        .info-value {
+            font-size: 16px;
+            color: #1f2937;
+            font-weight: 500;
         }
 
-        .no-data i {
-            font-size: 2rem;
-            margin-bottom: 0.5rem;
+        .warranty-card {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        .warranty-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .warranty-status {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .warranty-status.active {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .warranty-status.expiring {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .warranty-status.expired {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .warranty-status.unknown {
+            background: #e5e7eb;
+            color: #4b5563;
+        }
+
+        .alerts-section {
+            margin-bottom: 30px;
+        }
+
+        .alert-box {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .alert-box.warning {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            color: #92400e;
+        }
+
+        .alert-box.danger {
+            background: #fee2e2;
+            border-left: 4px solid #ef4444;
+            color: #991b1b;
+        }
+
+        .alert-box.info {
+            background: #dbeafe;
+            border-left: 4px solid #3b82f6;
+            color: #1e40af;
+        }
+
+        .alert-icon {
+            font-size: 24px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        .tab-button {
+            padding: 12px 24px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            color: #6b7280;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .tab-button.active {
+            color: #2563eb;
+            border-bottom-color: #2563eb;
+            font-weight: 600;
+        }
+
+        .tab-button:hover {
+            color: #2563eb;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
             display: block;
         }
 
-        .action-buttons {
-            display: flex;
-            gap: 0.5rem;
-            margin-top: 2rem;
-            padding-top: 2rem;
-            border-top: 2px solid #f0f0f0;
+        .section-card {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
         }
 
-        @media (max-width: 1024px) {
-            .content-grid {
-                grid-template-columns: 1fr;
-            }
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
 
-            .stats-row {
-                grid-template-columns: repeat(2, 1fr);
-            }
+        .section-header h2 {
+            margin: 0;
+            color: #1f2937;
+            font-size: 20px;
+        }
+
+        .maintenance-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .maintenance-table th,
+        .maintenance-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .maintenance-table th {
+            background: #f9fafb;
+            font-weight: 600;
+            color: #374151;
+            font-size: 14px;
+        }
+
+        .maintenance-table tr:hover {
+            background: #f9fafb;
+        }
+
+        .recurring-card {
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+        }
+
+        .recurring-card.overdue {
+            border-color: #ef4444;
+            background: #fef2f2;
+        }
+
+        .recurring-card.upcoming {
+            border-color: #f59e0b;
+            background: #fffbeb;
+        }
+
+        .recurring-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 15px;
+        }
+
+        .recurring-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 5px;
+        }
+
+        .recurring-type {
+            color: #6b7280;
+            font-size: 14px;
+        }
+
+        .recurring-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .due-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .due-badge.overdue {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .due-badge.upcoming {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .due-badge.normal {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .cost-display {
+            color: #059669;
+            font-weight: 600;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #6b7280;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-badge.status-available {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status-badge.status-in-use {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .status-badge.status-maintenance {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .status-badge.status-retired {
+            background: #e5e7eb;
+            color: #4b5563;
+        }
+
+        .view-only-notice {
+            background: #dbeafe;
+            border-left: 4px solid #3b82f6;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            color: #1e40af;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-indicator.active {
+            background: #10b981;
+        }
+
+        .status-indicator.inactive {
+            background: #6b7280;
         }
 
         @media (max-width: 768px) {
-            .dashboard-content {
-                padding: 1rem;
-            }
-
-            .page-header {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-
-            .stats-row {
+            .asset-info-grid {
                 grid-template-columns: 1fr;
             }
-        }
 
-        @media print {
-            .main-content {
-                margin: 0;
-                padding: 20px;
-            }
-            
-            .btn,
-            nav,
-            .action-buttons {
-                display: none !important;
+            .tabs {
+                overflow-x: auto;
             }
 
-            .info-card {
-                break-inside: avoid;
-                page-break-inside: avoid;
+            .tab-button {
+                white-space: nowrap;
             }
         }
     </style>
 </head>
+
 <body>
     <?php include("../auth/inc/Msidebar.php"); ?>
 
-    <main class="main-content">
-        <div class="dashboard-content">
-            <!-- Page Header -->
-            <div class="page-header">
-                <div class="header-left">
-                    <h1>
-                        <i class="fas fa-box"></i>
-                        <?php echo htmlspecialchars($asset['asset_name']); ?>
-                    </h1>
-                    <p>Complete asset information and history</p>
+    <div class="main-content">
+        <div class="details-container">
+            <!-- Breadcrumb -->
+            <div class="breadcrumb">
+                <a href="managerAsset.php">← Back to My Assets</a>
+            </div>
+
+            <!-- View Only Notice -->
+            <div class="view-only-notice">
+                <strong>ℹ️ View Only Mode</strong><br>
+                You can view asset details and maintenance history. Contact administrators to add or modify maintenance records.
+            </div>
+
+            <!-- Alerts Section -->
+            <?php if (!empty($upcoming_maintenance)): ?>
+                <div class="alerts-section">
+                    <?php foreach ($upcoming_maintenance as $upcoming): ?>
+                        <?php
+                        $alert_class = isset($upcoming['overdue']) ? 'danger' : 'warning';
+                        $alert_icon = isset($upcoming['overdue']) ? '🚨' : '⚠️';
+                        $alert_text = isset($upcoming['overdue'])
+                            ? 'Maintenance Overdue: ' . abs($upcoming['days_until']) . ' days late'
+                            : 'Maintenance Due: ' . $upcoming['days_until'] . ' days remaining';
+                        ?>
+                        <div class="alert-box <?php echo $alert_class; ?>">
+                            <div class="alert-icon"><?php echo $alert_icon; ?></div>
+                            <div>
+                                <strong><?php echo htmlspecialchars($upcoming['schedule_name']); ?></strong><br>
+                                <?php echo $alert_text; ?> - Due: <?php echo date('M d, Y', strtotime($upcoming['next_due_date'])); ?>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
                 </div>
-                <div class="header-right">
-                    <span class="asset-code-large">
-                        <i class="fas fa-hashtag"></i> <?php echo htmlspecialchars($asset['asset_code']); ?>
+            <?php endif; ?>
+
+            <!-- Asset Header -->
+            <div class="asset-header">
+                <h1>📦 <?php echo htmlspecialchars($asset['asset_name']); ?></h1>
+                <div class="asset-code">Code: <?php echo htmlspecialchars($asset['asset_code']); ?></div>
+
+                <div class="asset-info-grid">
+                    <div class="info-item">
+                        <div class="info-label">Category</div>
+                        <div class="info-value"><?php echo htmlspecialchars($asset['category'] ?: 'N/A'); ?></div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Brand & Model</div>
+                        <div class="info-value"><?php echo htmlspecialchars(trim($asset['brand'] . ' ' . $asset['model']) ?: 'N/A'); ?></div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Serial Number</div>
+                        <div class="info-value"><?php echo htmlspecialchars($asset['serial_number'] ?: 'N/A'); ?></div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Status</div>
+                        <div class="info-value">
+                            <?php
+                            $status_value = strtolower(str_replace(' ', '-', $asset['status'] ?? 'available'));
+                            ?>
+                            <span class="status-badge status-<?php echo $status_value; ?>">
+                                <?php echo htmlspecialchars($asset['status']); ?>
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="info-item">
+                        <div class="info-label">Assigned To</div>
+                        <div class="info-value">
+                            <?php echo $asset['assigned_user_name'] ? htmlspecialchars($asset['assigned_user_name']) : 'Unassigned'; ?>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Location</div>
+                        <div class="info-value"><?php echo htmlspecialchars($asset['location'] ?: 'N/A'); ?></div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Department</div>
+                        <div class="info-value"><?php echo htmlspecialchars($asset['department'] ?: 'N/A'); ?></div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Supplier</div>
+                        <div class="info-value"><?php echo htmlspecialchars($asset['supplier'] ?: 'N/A'); ?></div>
+                    </div>
+                </div>
+
+                <?php if ($asset['description']): ?>
+                    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+                        <div class="info-label">Description</div>
+                        <div class="info-value" style="margin-top: 10px; line-height: 1.6;">
+                            <?php echo nl2br(htmlspecialchars($asset['description'])); ?>
+                        </div>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <!-- Warranty Card -->
+            <div class="warranty-card">
+                <div class="warranty-header">
+                    <h2>🛡️ Warranty & Purchase Information</h2>
+                    <span class="warranty-status <?php echo $warranty_class; ?>">
+                        <?php echo $warranty_status; ?>
                     </span>
                 </div>
-            </div>
-
-            <!-- View Only Banner -->
-            <div class="info-banner">
-                <i class="fas fa-eye"></i>
-                <div>
-                    <strong>View Only Mode:</strong> You are viewing this asset in read-only mode. 
-                    Contact your administrator if changes are needed.
+                <div class="asset-info-grid">
+                    <div class="info-item">
+                        <div class="info-label">Purchase Date</div>
+                        <div class="info-value">
+                            <?php echo $asset['purchase_date'] ? date('M d, Y', strtotime($asset['purchase_date'])) : 'Not Set'; ?>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Warranty Expiry</div>
+                        <div class="info-value">
+                            <?php
+                            if ($asset['warranty_expiry']) {
+                                echo date('M d, Y', strtotime($asset['warranty_expiry']));
+                                if ($warranty_days_left !== null) {
+                                    echo '<br><small style="color: #6b7280;">';
+                                    if ($warranty_days_left < 0) {
+                                        echo 'Expired ' . abs($warranty_days_left) . ' days ago';
+                                    } else {
+                                        echo $warranty_days_left . ' days remaining';
+                                    }
+                                    echo '</small>';
+                                }
+                            } else {
+                                echo 'Not Set';
+                            }
+                            ?>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Purchase Cost</div>
+                        <div class="info-value cost-display">
+                            <?php echo $asset['purchase_cost'] ? '$' . number_format($asset['purchase_cost'], 2) : 'Not Set'; ?>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Supplier</div>
+                        <div class="info-value"><?php echo htmlspecialchars($asset['supplier'] ?: 'Not Set'); ?></div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Main Content Grid -->
-            <div class="content-grid">
-                <!-- Left Column: Main Information -->
-                <div>
-                    <!-- Basic Information Card -->
-                    <div class="info-card">
-                        <h2><i class="fas fa-info-circle"></i> Basic Information</h2>
-                        
-                        <div class="detail-group">
-                            <div class="detail-item">
-                                <div class="detail-icon">
-                                    <i class="fas fa-tag"></i>
-                                </div>
-                                <div class="detail-content">
-                                    <div class="detail-label">Asset Name</div>
-                                    <div class="detail-value"><?php echo htmlspecialchars($asset['asset_name']); ?></div>
-                                </div>
-                            </div>
+            <!-- Tabs -->
+            <div class="tabs">
+                <button class="tab-button active" data-tab="maintenance">Maintenance History</button>
+                <button class="tab-button" data-tab="recurring">Recurring Maintenance</button>
+            </div>
 
-                            <div class="detail-item">
-                                <div class="detail-icon">
-                                    <i class="fas fa-layer-group"></i>
-                                </div>
-                                <div class="detail-content">
-                                    <div class="detail-label">Category</div>
-                                    <div class="detail-value"><?php echo htmlspecialchars($asset['category']); ?></div>
-                                </div>
-                            </div>
+            <!-- Maintenance History Tab -->
+            <div class="tab-content active" id="maintenance-tab">
+                <div class="section-card">
+                    <div class="section-header">
+                        <h2>🔧 Maintenance History</h2>
+                    </div>
 
-                            <div class="detail-item">
-                                <div class="detail-icon">
-                                    <i class="fas fa-signal"></i>
-                                </div>
-                                <div class="detail-content">
-                                    <div class="detail-label">Status</div>
-                                    <div class="detail-value">
-                                        <span class="status-badge status-<?php echo strtolower(str_replace(' ', '-', $asset['status'])); ?>">
-                                            <?php echo htmlspecialchars($asset['status']); ?>
+                    <?php if (count($maintenance_records) > 0): ?>
+                        <table class="maintenance-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Type</th>
+                                    <th>Performed By</th>
+                                    <th>Cost</th>
+                                    <th>Next Maintenance</th>
+                                    <th>Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($maintenance_records as $record): ?>
+                                    <tr>
+                                        <td><?php echo date('M d, Y', strtotime($record['maintenance_date'])); ?></td>
+                                        <td><?php echo htmlspecialchars($record['maintenance_type']); ?></td>
+                                        <td><?php echo htmlspecialchars($record['performed_by']); ?></td>
+                                        <td class="cost-display">
+                                            <?php echo $record['cost'] ? '$' . number_format($record['cost'], 2) : '-'; ?>
+                                        </td>
+                                        <td>
+                                            <?php echo $record['next_maintenance_date'] ? date('M d, Y', strtotime($record['next_maintenance_date'])) : '-'; ?>
+                                        </td>
+                                        <td><?php echo htmlspecialchars($record['notes'] ?: '-'); ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    <?php else: ?>
+                        <div class="no-data">
+                            <p>No maintenance records found for this asset.</p>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <!-- Recurring Maintenance Tab -->
+            <div class="tab-content" id="recurring-tab">
+                <div class="section-card">
+                    <div class="section-header">
+                        <h2>🔄 Recurring Maintenance Schedules</h2>
+                    </div>
+
+                    <?php if (count($recurring_schedules) > 0): ?>
+                        <?php foreach ($recurring_schedules as $schedule): ?>
+                            <?php
+                            $due_date = new DateTime($schedule['next_due_date']);
+                            $today = new DateTime();
+                            $interval = $today->diff($due_date);
+                            $days_until = $interval->days * ($interval->invert ? -1 : 1);
+
+                            $card_class = '';
+                            $badge_class = 'normal';
+                            $badge_text = 'Due in ' . $days_until . ' days';
+
+                            if ($days_until < 0) {
+                                $card_class = 'overdue';
+                                $badge_class = 'overdue';
+                                $badge_text = 'Overdue by ' . abs($days_until) . ' days';
+                            } elseif ($days_until <= $schedule['notify_days_before']) {
+                                $card_class = 'upcoming';
+                                $badge_class = 'upcoming';
+                            }
+                            ?>
+                            <div class="recurring-card <?php echo $card_class; ?>">
+                                <div class="recurring-header">
+                                    <div>
+                                        <div class="recurring-title"><?php echo htmlspecialchars($schedule['schedule_name']); ?></div>
+                                        <div class="recurring-type"><?php echo htmlspecialchars($schedule['maintenance_type']); ?></div>
+                                    </div>
+                                    <div>
+                                        <span class="status-indicator <?php echo $schedule['is_active'] ? 'active' : 'inactive'; ?>"></span>
+                                        <span style="color: #6b7280; font-size: 14px;">
+                                            <?php echo $schedule['is_active'] ? 'Active' : 'Inactive'; ?>
                                         </span>
                                     </div>
                                 </div>
-                            </div>
 
-                            <?php if ($asset['brand']): ?>
-                            <div class="detail-item">
-                                <div class="detail-icon">
-                                    <i class="fas fa-trademark"></i>
-                                </div>
-                                <div class="detail-content">
-                                    <div class="detail-label">Brand</div>
-                                    <div class="detail-value"><?php echo htmlspecialchars($asset['brand']); ?></div>
-                                </div>
-                            </div>
-                            <?php endif; ?>
-
-                            <?php if ($asset['model']): ?>
-                            <div class="detail-item">
-                                <div class="detail-icon">
-                                    <i class="fas fa-cube"></i>
-                                </div>
-                                <div class="detail-content">
-                                    <div class="detail-label">Model</div>
-                                    <div class="detail-value"><?php echo htmlspecialchars($asset['model']); ?></div>
-                                </div>
-                            </div>
-                            <?php endif; ?>
-
-                            <?php if ($asset['serial_number']): ?>
-                            <div class="detail-item">
-                                <div class="detail-icon">
-                                    <i class="fas fa-barcode"></i>
-                                </div>
-                                <div class="detail-content">
-                                    <div class="detail-label">Serial Number</div>
-                                    <div class="detail-value"><?php echo htmlspecialchars($asset['serial_number']); ?></div>
-                                </div>
-                            </div>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-
-                    <!-- Location & Assignment Card -->
-                    <div class="info-card" style="margin-top: 2rem;">
-                        <h2><i class="fas fa-map-marker-alt"></i> Location & Assignment</h2>
-                        
-                        <div class="detail-group">
-                            <?php if ($asset['location']): ?>
-                            <div class="detail-item">
-                                <div class="detail-icon">
-                                    <i class="fas fa-building"></i>
-                                </div>
-                                <div class="detail-content">
-                                    <div class="detail-label">Location</div>
-                                    <div class="detail-value"><?php echo htmlspecialchars($asset['location']); ?></div>
-                                </div>
-                            </div>
-                            <?php endif; ?>
-
-                            <?php if ($asset['department']): ?>
-                            <div class="detail-item">
-                                <div class="detail-icon">
-                                    <i class="fas fa-sitemap"></i>
-                                </div>
-                                <div class="detail-content">
-                                    <div class="detail-label">Department</div>
-                                    <div class="detail-value"><?php echo htmlspecialchars($asset['department']); ?></div>
-                                </div>
-                            </div>
-                            <?php endif; ?>
-
-                            <?php if ($asset['assigned_to_name']): ?>
-                            <div class="detail-item">
-                                <div class="detail-icon">
-                                    <i class="fas fa-user"></i>
-                                </div>
-                                <div class="detail-content">
-                                    <div class="detail-label">Assigned To</div>
-                                    <div class="detail-value">
-                                        <?php echo htmlspecialchars($asset['assigned_to_name']); ?>
-                                        <?php if ($asset['assigned_to_email']): ?>
-                                            <br><small style="color: #6c757d;"><?php echo htmlspecialchars($asset['assigned_to_email']); ?></small>
-                                        <?php endif; ?>
+                                <div class="recurring-info">
+                                    <div class="info-item">
+                                        <div class="info-label">Frequency</div>
+                                        <div class="info-value">Every <?php echo $schedule['frequency_days']; ?> days</div>
+                                    </div>
+                                    <div class="info-item">
+                                        <div class="info-label">Next Due Date</div>
+                                        <div class="info-value">
+                                            <?php echo date('M d, Y', strtotime($schedule['next_due_date'])); ?>
+                                            <br>
+                                            <span class="due-badge <?php echo $badge_class; ?>"><?php echo $badge_text; ?></span>
+                                        </div>
+                                    </div>
+                                    <div class="info-item">
+                                        <div class="info-label">Assigned To</div>
+                                        <div class="info-value">
+                                            <?php echo $schedule['assigned_user_name'] ? htmlspecialchars($schedule['assigned_user_name']) : 'Not Assigned'; ?>
+                                        </div>
+                                    </div>
+                                    <div class="info-item">
+                                        <div class="info-label">Last Completed</div>
+                                        <div class="info-value">
+                                            <?php echo $schedule['last_completed_date'] ? date('M d, Y', strtotime($schedule['last_completed_date'])) : 'Never'; ?>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                            <?php else: ?>
-                            <div class="detail-item">
-                                <div class="detail-icon">
-                                    <i class="fas fa-user-slash"></i>
-                                </div>
-                                <div class="detail-content">
-                                    <div class="detail-label">Assignment Status</div>
-                                    <div class="detail-value" style="color: #9ca3af;">Not assigned</div>
-                                </div>
-                            </div>
-                            <?php endif; ?>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <div class="no-data">
+                            <p>No recurring maintenance schedules found for this asset.</p>
                         </div>
-                    </div>
-
-                    <!-- Additional Details Card -->
-                    <?php if (!empty($asset['description']) || !empty($asset['specifications'] ?? '') || !empty($asset['notes'] ?? '')): ?>
-                    <div class="info-card" style="margin-top: 2rem;">
-                        <h2><i class="fas fa-file-alt"></i> Additional Details</h2>
-                        
-                        <?php if (!empty($asset['description'])): ?>
-                        <div style="margin-bottom: 1.5rem;">
-                            <div class="detail-label" style="margin-bottom: 0.5rem;">Description</div>
-                            <div style="background: #f8f9fa; padding: 1rem; border-radius: 8px; line-height: 1.6;">
-                                <?php echo nl2br(htmlspecialchars($asset['description'])); ?>
-                            </div>
-                        </div>
-                        <?php endif; ?>
-
-                        <?php if (!empty($asset['specifications'] ?? '')): ?>
-                        <div style="margin-bottom: 1.5rem;">
-                            <div class="detail-label" style="margin-bottom: 0.5rem;">Specifications</div>
-                            <div style="background: #f8f9fa; padding: 1rem; border-radius: 8px; line-height: 1.6;">
-                                <?php echo nl2br(htmlspecialchars($asset['specifications'])); ?>
-                            </div>
-                        </div>
-                        <?php endif; ?>
-
-                        <?php if (!empty($asset['notes'] ?? '')): ?>
-                        <div>
-                            <div class="detail-label" style="margin-bottom: 0.5rem;">Notes</div>
-                            <div style="background: #f8f9fa; padding: 1rem; border-radius: 8px; line-height: 1.6;">
-                                <?php echo nl2br(htmlspecialchars($asset['notes'])); ?>
-                            </div>
-                        </div>
-                        <?php endif; ?>
-                    </div>
                     <?php endif; ?>
-                </div>
-
-                <!-- Right Column: Financial & Timeline -->
-                <div>
-                    <!-- Financial Information Card -->
-                    <div class="info-card">
-                        <h2><i class="fas fa-dollar-sign"></i> Financial Information</h2>
-                        
-                        <div class="stats-row">
-                            <div class="stat-box">
-                                <div class="stat-number" style="color: #059669;">
-                                    $<?php echo number_format($asset['purchase_cost'], 2); ?>
-                                </div>
-                                <div class="stat-label">Purchase Cost</div>
-                            </div>
-                            <div class="stat-box">
-                                <div class="stat-number" style="color: #dc2626;">
-                                    $<?php echo number_format($depreciation_value, 2); ?>
-                                </div>
-                                <div class="stat-label">Depreciation</div>
-                            </div>
-                            <div class="stat-box">
-                                <div class="stat-number" style="color: #2563eb;">
-                                    $<?php echo number_format($current_value, 2); ?>
-                                </div>
-                                <div class="stat-label">Current Value</div>
-                            </div>
-                        </div>
-
-                        <div class="detail-group">
-                            <?php if ($asset['purchase_date']): ?>
-                            <div class="detail-item">
-                                <div class="detail-icon">
-                                    <i class="fas fa-calendar-check"></i>
-                                </div>
-                                <div class="detail-content">
-                                    <div class="detail-label">Purchase Date</div>
-                                    <div class="detail-value">
-                                        <?php echo date('F j, Y', strtotime($asset['purchase_date'])); ?>
-                                        <?php if ($asset_age): ?>
-                                            <br><small style="color: #6c757d;">
-                                                <?php 
-                                                if ($asset_age->y > 0) echo $asset_age->y . ' year' . ($asset_age->y > 1 ? 's' : '');
-                                                if ($asset_age->m > 0) echo ' ' . $asset_age->m . ' month' . ($asset_age->m > 1 ? 's' : '');
-                                                echo ' old';
-                                                ?>
-                                            </small>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-                            </div>
-                            <?php endif; ?>
-
-                            <?php if ($asset['warranty_expiry']): ?>
-                            <div class="detail-item">
-                                <div class="detail-icon">
-                                    <i class="fas fa-shield-alt"></i>
-                                </div>
-                                <div class="detail-content">
-                                    <div class="detail-label">Warranty Expiry</div>
-                                    <div class="detail-value">
-                                        <?php 
-                                        $warranty_date = new DateTime($asset['warranty_expiry']);
-                                        $is_expired = $warranty_date < $current_date;
-                                        echo date('F j, Y', strtotime($asset['warranty_expiry']));
-                                        ?>
-                                        <br><small style="color: <?php echo $is_expired ? '#dc2626' : '#059669'; ?>;">
-                                            <?php echo $is_expired ? '⚠️ Expired' : '✓ Active'; ?>
-                                        </small>
-                                    </div>
-                                </div>
-                            </div>
-                            <?php endif; ?>
-
-                            <?php if ($asset['supplier']): ?>
-                            <div class="detail-item">
-                                <div class="detail-icon">
-                                    <i class="fas fa-truck"></i>
-                                </div>
-                                <div class="detail-content">
-                                    <div class="detail-label">Supplier</div>
-                                    <div class="detail-value"><?php echo htmlspecialchars($asset['supplier']); ?></div>
-                                </div>
-                            </div>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-
-                    <!-- System Information Card -->
-                    <div class="info-card" style="margin-top: 2rem;">
-                        <h2><i class="fas fa-clock"></i> System Information</h2>
-                        
-                        <div class="detail-group">
-                            <div class="detail-item">
-                                <div class="detail-icon">
-                                    <i class="fas fa-plus-circle"></i>
-                                </div>
-                                <div class="detail-content">
-                                    <div class="detail-label">Created</div>
-                                    <div class="detail-value">
-                                        <?php echo date('F j, Y g:i A', strtotime($asset['created_at'])); ?>
-                                        <?php if ($asset['created_by_name']): ?>
-                                            <br><small style="color: #6c757d;">by <?php echo htmlspecialchars($asset['created_by_name']); ?></small>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="detail-item">
-                                <div class="detail-icon">
-                                    <i class="fas fa-edit"></i>
-                                </div>
-                                <div class="detail-content">
-                                    <div class="detail-label">Last Updated</div>
-                                    <div class="detail-value">
-                                        <?php echo date('F j, Y g:i A', strtotime($asset['updated_at'])); ?>
-                                        <?php if ($asset['updated_by_name']): ?>
-                                            <br><small style="color: #6c757d;">by <?php echo htmlspecialchars($asset['updated_by_name']); ?></small>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Maintenance History Section -->
-            <?php if (count($maintenance_history) > 0): ?>
-            <div class="info-card">
-                <h2><i class="fas fa-tools"></i> Maintenance History (<?php echo count($maintenance_history); ?>)</h2>
-                
-                <div class="timeline">
-                    <?php foreach ($maintenance_history as $index => $maintenance): ?>
-                    <div class="timeline-item">
-                        <div class="timeline-marker"></div>
-                        <div class="timeline-content">
-                            <div class="timeline-date">
-                                <i class="fas fa-calendar"></i>
-                                <?php echo date('F j, Y', strtotime($maintenance['maintenance_date'])); ?>
-                            </div>
-                            <div class="timeline-title">
-                                <?php echo htmlspecialchars($maintenance['maintenance_type']); ?>
-                            </div>
-                            <?php if ($maintenance['description']): ?>
-                            <div class="timeline-description">
-                                <?php echo nl2br(htmlspecialchars($maintenance['description'])); ?>
-                            </div>
-                            <?php endif; ?>
-                            <div class="timeline-meta">
-                                <?php if ($maintenance['cost']): ?>
-                                <span><i class="fas fa-dollar-sign"></i> $<?php echo number_format($maintenance['cost'], 2); ?></span>
-                                <?php endif; ?>
-                                <?php if ($maintenance['performed_by_name']): ?>
-                                <span><i class="fas fa-user-check"></i> <?php echo htmlspecialchars($maintenance['performed_by_name']); ?></span>
-                                <?php endif; ?>
-                                <?php if ($maintenance['vendor']): ?>
-                                <span><i class="fas fa-building"></i> <?php echo htmlspecialchars($maintenance['vendor']); ?></span>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    </div>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-            <?php else: ?>
-            <div class="info-card">
-                <h2><i class="fas fa-tools"></i> Maintenance History</h2>
-                <div class="no-data">
-                    <i class="fas fa-wrench"></i>
-                    No maintenance records found for this asset.
-                </div>
-            </div>
-            <?php endif; ?>
-
-            <!-- Related Tickets Section -->
-            <?php if (count($related_tickets) > 0): ?>
-            <div class="info-card" style="margin-top: 2rem;">
-                <h2><i class="fas fa-ticket-alt"></i> Related Support Tickets (<?php echo count($related_tickets); ?>)</h2>
-                
-                <div class="table-responsive">
-                    <table class="tickets-table">
-                        <thead>
-                            <tr>
-                                <th>Ticket #</th>
-                                <th>Subject</th>
-                                <th>Priority</th>
-                                <th>Status</th>
-                                <th>Requester</th>
-                                <th>Created</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($related_tickets as $ticket): ?>
-                            <tr>
-                                <td>
-                                    <a href="managerticketDetails.php?id=<?php echo $ticket['ticket_id']; ?>" class="ticket-link">
-                                        <?php echo htmlspecialchars($ticket['ticket_number']); ?>
-                                    </a>
-                                </td>
-                                <td><?php echo htmlspecialchars($ticket['subject']); ?></td>
-                                <td>
-                                    <span class="priority-badge priority-<?php echo $ticket['priority']; ?>">
-                                        <?php echo strtoupper($ticket['priority']); ?>
-                                    </span>
-                                </td>
-                                <td>
-                                    <span class="status-badge status-<?php echo strtolower(str_replace('_', '-', $ticket['status'])); ?>">
-                                        <?php echo strtoupper(str_replace('_', ' ', $ticket['status'])); ?>
-                                    </span>
-                                </td>
-                                <td><?php echo htmlspecialchars($ticket['requester_name']); ?></td>
-                                <td><?php echo date('M j, Y', strtotime($ticket['created_at'])); ?></td>
-                            </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            <?php else: ?>
-            <div class="info-card" style="margin-top: 2rem;">
-                <h2><i class="fas fa-ticket-alt"></i> Related Support Tickets</h2>
-                <div class="no-data">
-                    <i class="fas fa-inbox"></i>
-                    No support tickets related to this asset.
-                </div>
-            </div>
-            <?php endif; ?>
-
-            <!-- Action Buttons -->
-            <div class="info-card" style="margin-top: 2rem;">
-                <div class="action-buttons">
-                    <a href="managerAsset.php" class="btn btn-outline">
-                        <i class="fas fa-arrow-left"></i> Back to My Assets
-                    </a>
-                    <a href="managerCreateTicket.php?asset_id=<?php echo $asset_id; ?>" class="btn btn-primary">
-                        <i class="fas fa-ticket-alt"></i> Create Ticket for This Asset
-                    </a>
-                    <button onclick="window.print()" class="btn btn-outline">
-                        <i class="fas fa-print"></i> Print Details
-                    </button>
                 </div>
             </div>
         </div>
-    </main>
+    </div>
 
     <script>
-        // Smooth scroll to sections
-        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-            anchor.addEventListener('click', function (e) {
-                e.preventDefault();
-                const target = document.querySelector(this.getAttribute('href'));
-                if (target) {
-                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
+        // Tab switching
+        const tabButtons = document.querySelectorAll('.tab-button');
+        const tabContents = document.querySelectorAll('.tab-content');
+
+        tabButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const tabName = button.getAttribute('data-tab');
+
+                // Remove active class from all buttons and contents
+                tabButtons.forEach(btn => btn.classList.remove('active'));
+                tabContents.forEach(content => content.classList.remove('active'));
+
+                // Add active class to clicked button and corresponding content
+                button.classList.add('active');
+                document.getElementById(tabName + '-tab').classList.add('active');
             });
         });
-
-        // Add animation on scroll
-        const observerOptions = {
-            threshold: 0.1,
-            rootMargin: '0px 0px -100px 0px'
-        };
-
-        const observer = new IntersectionObserver(function(entries) {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.style.opacity = '1';
-                    entry.target.style.transform = 'translateY(0)';
-                }
-            });
-        }, observerOptions);
-
-        document.querySelectorAll('.info-card').forEach(card => {
-            card.style.opacity = '0';
-            card.style.transform = 'translateY(20px)';
-            card.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
-            observer.observe(card);
-        });
-
-        // Add copy functionality for asset code
-        document.querySelector('.asset-code-large').addEventListener('click', function() {
-            const assetCode = this.textContent.trim().replace('#', '').trim();
-            navigator.clipboard.writeText(assetCode).then(() => {
-                const originalText = this.innerHTML;
-                this.innerHTML = '<i class="fas fa-check"></i> Copied!';
-                this.style.background = 'linear-gradient(135deg, #10b981, #059669)';
-                
-                setTimeout(() => {
-                    this.innerHTML = originalText;
-                    this.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
-                }, 2000);
-            }).catch(err => {
-                console.error('Failed to copy: ', err);
-            });
-        });
-
-        // Keyboard shortcuts
-        document.addEventListener('keydown', function(e) {
-            // ESC to go back
-            if (e.key === 'Escape') {
-                window.location.href = 'managerAsset.php';
-            }
-            
-            // Ctrl/Cmd + P for print
-            if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
-                e.preventDefault();
-                window.print();
-            }
-
-            // Ctrl/Cmd + T to create ticket
-            if ((e.ctrlKey || e.metaKey) && e.key === 't') {
-                e.preventDefault();
-                window.location.href = 'managerCreateTicket.php?asset_id=<?php echo $asset_id; ?>';
-            }
-        });
-
-        // Add tooltip for shortcuts
-        const shortcutInfo = document.createElement('div');
-        shortcutInfo.style.cssText = 'position: fixed; bottom: 20px; right: 20px; background: rgba(0,0,0,0.8); color: white; padding: 10px 15px; border-radius: 8px; font-size: 12px; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 1000;';
-        shortcutInfo.innerHTML = '<strong>Keyboard Shortcuts:</strong><br>ESC - Back | Ctrl+P - Print | Ctrl+T - Create Ticket';
-        document.body.appendChild(shortcutInfo);
-
-        // Show shortcuts on ? key
-        document.addEventListener('keydown', function(e) {
-            if (e.key === '?') {
-                shortcutInfo.style.opacity = '1';
-                setTimeout(() => {
-                    shortcutInfo.style.opacity = '0';
-                }, 3000);
-            }
-        });
-
-        // Highlight urgent/warning items
-        document.addEventListener('DOMContentLoaded', function() {
-            // Check warranty expiry
-            const warrantyItem = document.querySelector('.detail-content:has(.detail-label:contains("Warranty Expiry"))');
-            
-            // Highlight maintenance count if high
-            const maintenanceCount = <?php echo count($maintenance_history); ?>;
-            if (maintenanceCount > 5) {
-                const maintenanceTitle = document.querySelector('h2:has(.fa-tools)');
-                if (maintenanceTitle) {
-                    const badge = document.createElement('span');
-                    badge.style.cssText = 'background: #fed7aa; color: #92400e; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-left: 0.5rem;';
-                    badge.textContent = 'Frequent Maintenance';
-                    maintenanceTitle.appendChild(badge);
-                }
-            }
-
-            // Highlight if asset is damaged or in maintenance
-            const status = '<?php echo strtolower($asset['status']); ?>';
-            if (status === 'damaged' || status === 'maintenance') {
-                const statusBanner = document.createElement('div');
-                statusBanner.className = 'info-banner warning';
-                statusBanner.innerHTML = '<i class="fas fa-exclamation-triangle"></i><div><strong>Attention:</strong> This asset requires attention and may not be available for regular use.</div>';
-                document.querySelector('.dashboard-content').insertBefore(statusBanner, document.querySelector('.content-grid'));
-            }
-        });
-
-        // Add interactive timeline markers
-        document.querySelectorAll('.timeline-item').forEach((item, index) => {
-            item.addEventListener('mouseenter', function() {
-                this.style.transform = 'translateX(5px)';
-                this.style.transition = 'transform 0.3s ease';
-            });
-            
-            item.addEventListener('mouseleave', function() {
-                this.style.transform = 'translateX(0)';
-            });
-
-            // Add animation delay
-            setTimeout(() => {
-                item.style.opacity = '1';
-                item.style.transform = 'translateX(0)';
-            }, index * 100);
-
-            item.style.opacity = '0';
-            item.style.transform = 'translateX(-20px)';
-            item.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
-        });
-
-        // Add hover effect to detail items
-        document.querySelectorAll('.detail-item').forEach(item => {
-            item.addEventListener('mouseenter', function() {
-                this.style.transform = 'translateX(5px)';
-            });
-            
-            item.addEventListener('mouseleave', function() {
-                this.style.transform = 'translateX(0)';
-            });
-        });
-
-        // Add click-to-expand for long descriptions
-        document.querySelectorAll('.timeline-description').forEach(desc => {
-            if (desc.scrollHeight > 100) {
-                desc.style.maxHeight = '100px';
-                desc.style.overflow = 'hidden';
-                desc.style.position = 'relative';
-                
-                const expandBtn = document.createElement('button');
-                expandBtn.textContent = 'Read more...';
-                expandBtn.style.cssText = 'background: none; border: none; color: #667eea; cursor: pointer; font-size: 0.875rem; margin-top: 0.5rem; padding: 0;';
-                
-                expandBtn.addEventListener('click', function() {
-                    if (desc.style.maxHeight === '100px') {
-                        desc.style.maxHeight = 'none';
-                        this.textContent = 'Read less';
-                    } else {
-                        desc.style.maxHeight = '100px';
-                        this.textContent = 'Read more...';
-                    }
-                });
-                
-                desc.after(expandBtn);
-            }
-        });
-
-
-        // Add success message if coming from ticket creation
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('ticket_created') === 'true') {
-            const successBanner = document.createElement('div');
-            successBanner.className = 'info-banner success';
-            successBanner.innerHTML = '<i class="fas fa-check-circle"></i><div><strong>Success!</strong> Your ticket has been created for this asset.</div>';
-            successBanner.style.animation = 'slideIn 0.5s ease';
-            document.querySelector('.dashboard-content').insertBefore(successBanner, document.querySelector('.page-header').nextSibling);
-            
-            setTimeout(() => {
-                successBanner.style.animation = 'slideOut 0.5s ease';
-                setTimeout(() => successBanner.remove(), 500);
-            }, 5000);
-        }
-
-        // Add CSS animations
-        const style = document.createElement('style');
-        style.textContent = `
-            @keyframes slideIn {
-                from { transform: translateY(-20px); opacity: 0; }
-                to { transform: translateY(0); opacity: 1; }
-            }
-            @keyframes slideOut {
-                from { transform: translateY(0); opacity: 1; }
-                to { transform: translateY(-20px); opacity: 0; }
-            }
-        `;
-        document.head.appendChild(style);
     </script>
 </body>
+
 </html>
