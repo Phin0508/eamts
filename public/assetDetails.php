@@ -71,9 +71,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_recurring'])) {
         // Calculate next due date
         $next_due_date = date('Y-m-d', strtotime($start_date . ' + ' . $frequency_days . ' days'));
 
-        $stmt = $pdo->prepare("INSERT INTO recurring_maintenance (asset_id, schedule_name, maintenance_type, frequency_days, start_date, next_due_date, assigned_to, notify_days_before, is_active, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
+        $stmt = $pdo->prepare("INSERT INTO recurring_maintenance (asset_id, schedule_name, maintenance_type, frequency_days, 
+        start_date, next_due_date, assigned_to, notify_days_before, is_active, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
 
-        if ($stmt->execute([$asset_id, $schedule_name, $maintenance_type, $frequency_days, $start_date, $next_due_date, $assigned_to, $notify_days_before, $is_active, $_SESSION['user_id']])) {
+        if ($stmt->execute([$asset_id, $schedule_name, $maintenance_type, $frequency_days, $start_date, $next_due_date, $assigned_to,
+         $notify_days_before, $is_active, $_SESSION['user_id']])) {
             $success_message = "Recurring maintenance schedule created successfully!";
         } else {
             $error_message = "Error creating recurring maintenance schedule.";
@@ -84,7 +86,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_recurring'])) {
 }
 
 // Update Recurring Maintenance Status
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recurring_id']) && isset($_POST['is_active']) && !isset($_POST['complete_recurring']) && !isset($_POST['add_maintenance']) && !isset($_POST['add_recurring'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recurring_id']) && isset($_POST['is_active']) 
+    && !isset($_POST['complete_recurring']) && !isset($_POST['add_maintenance']) && !isset($_POST['add_recurring'])) {
     $recurring_id = intval($_POST['recurring_id']);
     $is_active = intval($_POST['is_active']);
 
@@ -113,7 +116,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complete_recurring'])
 
         if ($recurring) {
             // Add maintenance record
-            $maint_stmt = $pdo->prepare("INSERT INTO asset_maintenance (asset_id, maintenance_type, maintenance_date, performed_by, cost, notes, created_by, created_at) VALUES (?, ?, NOW(), ?, ?, ?, ?, NOW())");
+            $maint_stmt = $pdo->prepare("INSERT INTO asset_maintenance (asset_id, maintenance_type,
+             maintenance_date, performed_by, cost, notes, created_by, created_at) VALUES (?, ?, NOW(), ?, ?, ?, ?, NOW())");
             $maint_stmt->execute([$asset_id, $recurring['maintenance_type'], $performed_by, $cost, $notes, $_SESSION['user_id']]);
 
             // Update next due date and last completed
@@ -128,7 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complete_recurring'])
     }
 }
 
-// Fetch asset details matching your schema
+// Fetch asset details 
 $asset = null;
 try {
     $query = "SELECT a.*, 

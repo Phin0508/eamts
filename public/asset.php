@@ -332,6 +332,8 @@ foreach ($assets as $asset) {
         $maintenance_assets++;
     }
 }
+
+
 // Calculate expiring warranties (within next 30 days)
 $expiring_assets = [];
 $expired_assets = [];
@@ -365,6 +367,72 @@ usort($expiring_assets, function ($a, $b) {
 usort($expired_assets, function ($a, $b) {
     return $b['days_since_expiry'] - $a['days_since_expiry'];
 });
+// ============= MAINTENANCE NOTIFICATIONS =============
+// Fetch upcoming maintenance for all assets
+$upcoming_maintenance_alerts = [];
+$overdue_maintenance_alerts = [];
+
+try {
+    // Get all active recurring maintenance schedules with asset details
+    $maintenance_query = "
+        SELECT 
+            r.*,
+            a.id as asset_id,
+            a.asset_name,
+            a.asset_code,
+            a.category,
+            a.department,
+            a.location,
+            u.first_name,
+            u.last_name,
+            u.email as assigned_email
+        FROM recurring_maintenance r
+        INNER JOIN assets a ON r.asset_id = a.id
+        LEFT JOIN users u ON r.assigned_to = u.user_id
+        WHERE r.is_active = 1
+        ORDER BY r.next_due_date ASC
+    ";
+    
+    $maintenance_result = $pdo->query($maintenance_query);
+    $all_maintenance = $maintenance_result->fetchAll(PDO::FETCH_ASSOC);
+    
+    $today = new DateTime();
+    
+    foreach ($all_maintenance as $maintenance) {
+        $due_date = new DateTime($maintenance['next_due_date']);
+        $interval = $today->diff($due_date);
+        $days_until = $interval->days * ($interval->invert ? -1 : 1);
+        
+        // Check if maintenance is overdue
+        if ($days_until < 0) {
+            $maintenance['days_overdue'] = abs($days_until);
+            $overdue_maintenance_alerts[] = $maintenance;
+        }
+        // Check if maintenance is due within notification period
+        elseif ($days_until <= $maintenance['notify_days_before']) {
+            $maintenance['days_until'] = $days_until;
+            $upcoming_maintenance_alerts[] = $maintenance;
+        }
+    }
+    
+    // Sort overdue by most overdue first
+    usort($overdue_maintenance_alerts, function($a, $b) {
+        return $b['days_overdue'] - $a['days_overdue'];
+    });
+    
+    // Sort upcoming by soonest first
+    usort($upcoming_maintenance_alerts, function($a, $b) {
+        return $a['days_until'] - $b['days_until'];
+    });
+    
+} catch (PDOException $e) {
+    error_log("Error fetching maintenance alerts: " . $e->getMessage());
+}
+// ============= END MAINTENANCE NOTIFICATIONS =============
+
+// Calculate maintenance statistics
+$total_overdue_maintenance = count($overdue_maintenance_alerts);
+$total_upcoming_maintenance = count($upcoming_maintenance_alerts);
 
 ?>
 
@@ -1636,6 +1704,14 @@ usort($expired_assets, function ($a, $b) {
                 <div class="stat-number"><?php echo $maintenance_assets; ?></div>
                 <div class="stat-label">Maintenance</div>
             </div>
+            <div class="stat-card" style="border-left-color: #ef4444;">
+                <div class="stat-number" style="color: #ef4444;"><?php echo $total_overdue_maintenance; ?></div>
+                <div class="stat-label">Overdue Maintenance</div>
+            </div>
+            <div class="stat-card" style="border-left-color: #f59e0b;">
+                <div class="stat-number" style="color: #f59e0b;"><?php echo $total_upcoming_maintenance; ?></div>
+                <div class="stat-label">Upcoming Maintenance</div>
+            </div>
         </div>
         <?php if (!empty($expiring_assets) || !empty($expired_assets)): ?>
             <div class="warranty-alerts-section" style="margin-bottom: 30px;">
@@ -1738,6 +1814,148 @@ usort($expired_assets, function ($a, $b) {
                                         <div class="alert-item-actions">
                                             <a href="assetEdit.php?id=<?php echo $asset['id']; ?>" class="btn btn-small btn-secondary">
                                                 <i class="fas fa-edit"></i> Update
+                                            </a>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    </div>
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
+         <!-- Maintenance Alerts Section -->
+        <?php if (!empty($overdue_maintenance_alerts) || !empty($upcoming_maintenance_alerts)): ?>
+            <div class="warranty-alerts-section" style="margin-bottom: 30px;">
+                <?php if (!empty($overdue_maintenance_alerts)): ?>
+                    <div class="alert-card expired">
+                        <div class="alert-header">
+                            <div class="alert-title">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <h3>Overdue Maintenance (<?php echo count($overdue_maintenance_alerts); ?>)</h3>
+                            </div>
+                            <button class="toggle-alert-btn" onclick="toggleAlert('overdue-maintenance')">
+                                <i class="fas fa-chevron-down"></i>
+                            </button>
+                        </div>
+                        <div class="alert-content" id="overdue-maintenance-alerts">
+                            <div class="alert-items">
+                                <?php foreach ($overdue_maintenance_alerts as $maint): ?>
+                                    <div class="alert-item">
+                                        <div class="alert-item-icon">🔧</div>
+                                        <div class="alert-item-content">
+                                            <div class="alert-item-header">
+                                                <a href="assetDetails.php?id=<?php echo $maint['asset_id']; ?>" class="alert-asset-name">
+                                                    <?php echo htmlspecialchars($maint['asset_name']); ?>
+                                                </a>
+                                                <span class="alert-code"><?php echo htmlspecialchars($maint['asset_code']); ?></span>
+                                            </div>
+                                            <div class="alert-item-details">
+                                                <span class="detail-item">
+                                                    <i class="fas fa-wrench"></i>
+                                                    <?php echo htmlspecialchars($maint['schedule_name']); ?>
+                                                </span>
+                                                <span class="detail-item">
+                                                    <i class="fas fa-tools"></i>
+                                                    <?php echo htmlspecialchars($maint['maintenance_type']); ?>
+                                                </span>
+                                                <span class="detail-item">
+                                                    <i class="fas fa-calendar-times"></i>
+                                                    Overdue by <?php echo $maint['days_overdue']; ?> day<?php echo $maint['days_overdue'] != 1 ? 's' : ''; ?>
+                                                </span>
+                                                <span class="detail-item">
+                                                    <i class="fas fa-clock"></i>
+                                                    Due: <?php echo date('M d, Y', strtotime($maint['next_due_date'])); ?>
+                                                </span>
+                                                <?php if ($maint['first_name']): ?>
+                                                    <span class="detail-item">
+                                                        <i class="fas fa-user"></i>
+                                                        Assigned to: <?php echo htmlspecialchars($maint['first_name'] . ' ' . $maint['last_name']); ?>
+                                                    </span>
+                                                <?php endif; ?>
+                                                <?php if ($maint['department']): ?>
+                                                    <span class="detail-item">
+                                                        <i class="fas fa-building"></i>
+                                                        <?php echo htmlspecialchars($maint['department']); ?>
+                                                    </span>
+                                                <?php endif; ?>
+                                            </div>
+                                        </div>
+                                        <div class="alert-item-actions">
+                                            <a href="assetDetails.php?id=<?php echo $maint['asset_id']; ?>" 
+                                               class="btn btn-small btn-danger">
+                                                <i class="fas fa-check-circle"></i> Complete Now
+                                            </a>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    </div>
+                <?php endif; ?>
+
+                <?php if (!empty($upcoming_maintenance_alerts)): ?>
+                    <div class="alert-card expiring">
+                        <div class="alert-header">
+                            <div class="alert-title">
+                                <i class="fas fa-bell"></i>
+                                <h3>Upcoming Maintenance (<?php echo count($upcoming_maintenance_alerts); ?>)</h3>
+                            </div>
+                            <button class="toggle-alert-btn" onclick="toggleAlert('upcoming-maintenance')">
+                                <i class="fas fa-chevron-down"></i>
+                            </button>
+                        </div>
+                        <div class="alert-content" id="upcoming-maintenance-alerts">
+                            <div class="alert-items">
+                                <?php foreach ($upcoming_maintenance_alerts as $maint): ?>
+                                    <div class="alert-item">
+                                        <div class="alert-item-icon">⏰</div>
+                                        <div class="alert-item-content">
+                                            <div class="alert-item-header">
+                                                <a href="assetDetails.php?id=<?php echo $maint['asset_id']; ?>" class="alert-asset-name">
+                                                    <?php echo htmlspecialchars($maint['asset_name']); ?>
+                                                </a>
+                                                <span class="alert-code"><?php echo htmlspecialchars($maint['asset_code']); ?></span>
+                                            </div>
+                                            <div class="alert-item-details">
+                                                <span class="detail-item">
+                                                    <i class="fas fa-wrench"></i>
+                                                    <?php echo htmlspecialchars($maint['schedule_name']); ?>
+                                                </span>
+                                                <span class="detail-item">
+                                                    <i class="fas fa-tools"></i>
+                                                    <?php echo htmlspecialchars($maint['maintenance_type']); ?>
+                                                </span>
+                                                <span class="detail-item">
+                                                    <i class="fas fa-calendar-check"></i>
+                                                    Due in <?php echo $maint['days_until']; ?> day<?php echo $maint['days_until'] != 1 ? 's' : ''; ?>
+                                                </span>
+                                                <span class="detail-item">
+                                                    <i class="fas fa-clock"></i>
+                                                    <?php echo date('M d, Y', strtotime($maint['next_due_date'])); ?>
+                                                </span>
+                                                <span class="detail-item">
+                                                    <i class="fas fa-repeat"></i>
+                                                    Every <?php echo $maint['frequency_days']; ?> days
+                                                </span>
+                                                <?php if ($maint['first_name']): ?>
+                                                    <span class="detail-item">
+                                                        <i class="fas fa-user"></i>
+                                                        Assigned to: <?php echo htmlspecialchars($maint['first_name'] . ' ' . $maint['last_name']); ?>
+                                                    </span>
+                                                <?php endif; ?>
+                                                <?php if ($maint['department']): ?>
+                                                    <span class="detail-item">
+                                                        <i class="fas fa-building"></i>
+                                                        <?php echo htmlspecialchars($maint['department']); ?>
+                                                    </span>
+                                                <?php endif; ?>
+                                            </div>
+                                        </div>
+                                        <div class="alert-item-actions">
+                                            <a href="assetDetails.php?id=<?php echo $maint['asset_id']; ?>" 
+                                               class="btn btn-small btn-secondary">
+                                                <i class="fas fa-eye"></i> View Details
                                             </a>
                                         </div>
                                     </div>
