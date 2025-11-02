@@ -23,6 +23,11 @@ $filter_type = $_GET['type'] ?? 'all';
 $filter_priority = $_GET['priority'] ?? 'all';
 $search = $_GET['search'] ?? '';
 
+// Pagination parameters
+$page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
+$records_per_page = 10; // You can change this value
+$offset = ($page - 1) * $records_per_page;
+
 // Build query - ONLY show tickets created by this user
 $where_clauses = ["t.requester_id = ?"];
 $params = [$user_id];
@@ -52,7 +57,14 @@ if (!empty($search)) {
 
 $where_sql = "WHERE " . implode(" AND ", $where_clauses);
 
-// Fetch user's tickets
+// Get total count for pagination
+$count_query = "SELECT COUNT(*) as total FROM tickets t $where_sql";
+$count_stmt = $pdo->prepare($count_query);
+$count_stmt->execute($params);
+$total_records = $count_stmt->fetch(PDO::FETCH_ASSOC)['total'];
+$total_pages = ceil($total_records / $records_per_page);
+
+// Fetch user's tickets with pagination
 $query = "
     SELECT 
         t.*,
@@ -63,17 +75,13 @@ $query = "
     LEFT JOIN users assigned ON t.assigned_to = assigned.user_id
     LEFT JOIN assets a ON t.asset_id = a.id
     $where_sql
-    ORDER BY 
-        CASE t.priority
-            WHEN 'urgent' THEN 1
-            WHEN 'high' THEN 2
-            WHEN 'medium' THEN 3
-            WHEN 'low' THEN 4
-        END,
-        t.created_at DESC
+    ORDER BY t.created_at DESC
+    LIMIT ? OFFSET ?
 ";
 
 $stmt = $pdo->prepare($query);
+$params[] = $records_per_page;
+$params[] = $offset;
 $stmt->execute($params);
 $tickets = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -94,6 +102,13 @@ $stats_query = "
 $stats_stmt = $pdo->prepare($stats_query);
 $stats_stmt->execute([$user_id]);
 $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
+
+// Function to build pagination URL
+function build_pagination_url($page_num) {
+    $params = $_GET;
+    $params['page'] = $page_num;
+    return '?' . http_build_query($params);
+}
 ?>
 
 <!DOCTYPE html>
@@ -107,6 +122,80 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
     <link rel="stylesheet" href="../auth/inc/navigation.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../style/ticket.css">
+    
+    <style>
+        /* Pagination Styles */
+        .pagination-wrapper {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 1.5rem;
+            padding: 1rem 0;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .pagination-info {
+            color: #64748b;
+            font-size: 0.9rem;
+        }
+
+        .pagination {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .pagination a,
+        .pagination span {
+            padding: 0.5rem 0.75rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.375rem;
+            text-decoration: none;
+            color: #334155;
+            background-color: #fff;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+            min-width: 2.5rem;
+            text-align: center;
+        }
+
+        .pagination a:hover {
+            background-color: #f1f5f9;
+            border-color: #cbd5e1;
+        }
+
+        .pagination .active {
+            background-color: #3b82f6;
+            color: white;
+            border-color: #3b82f6;
+            font-weight: 600;
+        }
+
+        .pagination .disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        .pagination .ellipsis {
+            border: none;
+            background: none;
+            padding: 0.5rem 0.25rem;
+        }
+
+        @media (max-width: 768px) {
+            .pagination-wrapper {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .pagination {
+                justify-content: center;
+            }
+        }
+    </style>
 </head>
 <body>
     
@@ -293,6 +382,89 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                         </tbody>
                     </table>
                 </div>
+
+                <!-- Pagination -->
+                <?php if ($total_pages > 1): ?>
+                <div class="pagination-wrapper">
+                    <div class="pagination-info">
+                        Showing <?php echo $offset + 1; ?> to <?php echo min($offset + $records_per_page, $total_records); ?> of <?php echo $total_records; ?> tickets
+                    </div>
+                    
+                    <div class="pagination">
+                        <!-- First Page -->
+                        <?php if ($page > 1): ?>
+                            <a href="<?php echo build_pagination_url(1); ?>" title="First Page">
+                                <i class="fas fa-angle-double-left"></i>
+                            </a>
+                        <?php else: ?>
+                            <span class="disabled">
+                                <i class="fas fa-angle-double-left"></i>
+                            </span>
+                        <?php endif; ?>
+
+                        <!-- Previous Page -->
+                        <?php if ($page > 1): ?>
+                            <a href="<?php echo build_pagination_url($page - 1); ?>" title="Previous Page">
+                                <i class="fas fa-angle-left"></i>
+                            </a>
+                        <?php else: ?>
+                            <span class="disabled">
+                                <i class="fas fa-angle-left"></i>
+                            </span>
+                        <?php endif; ?>
+
+                        <!-- Page Numbers -->
+                        <?php
+                        $start_page = max(1, $page - 2);
+                        $end_page = min($total_pages, $page + 2);
+                        
+                        if ($start_page > 1) {
+                            echo '<a href="' . build_pagination_url(1) . '">1</a>';
+                            if ($start_page > 2) {
+                                echo '<span class="ellipsis">...</span>';
+                            }
+                        }
+                        
+                        for ($i = $start_page; $i <= $end_page; $i++) {
+                            if ($i == $page) {
+                                echo '<span class="active">' . $i . '</span>';
+                            } else {
+                                echo '<a href="' . build_pagination_url($i) . '">' . $i . '</a>';
+                            }
+                        }
+                        
+                        if ($end_page < $total_pages) {
+                            if ($end_page < $total_pages - 1) {
+                                echo '<span class="ellipsis">...</span>';
+                            }
+                            echo '<a href="' . build_pagination_url($total_pages) . '">' . $total_pages . '</a>';
+                        }
+                        ?>
+
+                        <!-- Next Page -->
+                        <?php if ($page < $total_pages): ?>
+                            <a href="<?php echo build_pagination_url($page + 1); ?>" title="Next Page">
+                                <i class="fas fa-angle-right"></i>
+                            </a>
+                        <?php else: ?>
+                            <span class="disabled">
+                                <i class="fas fa-angle-right"></i>
+                            </span>
+                        <?php endif; ?>
+
+                        <!-- Last Page -->
+                        <?php if ($page < $total_pages): ?>
+                            <a href="<?php echo build_pagination_url($total_pages); ?>" title="Last Page">
+                                <i class="fas fa-angle-double-right"></i>
+                            </a>
+                        <?php else: ?>
+                            <span class="disabled">
+                                <i class="fas fa-angle-double-right"></i>
+                            </span>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <?php endif; ?>
             </div>
 
             <!-- Help Section -->

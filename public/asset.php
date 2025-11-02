@@ -1432,6 +1432,160 @@ usort($expired_assets, function ($a, $b) {
         .alert-content::-webkit-scrollbar-thumb:hover {
             background: #a0aec0;
         }
+        /* Pagination Styles */
+.pagination-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 24px 0;
+    border-top: 2px solid #e2e8f0;
+    margin-top: 24px;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+.pagination-info {
+    color: #718096;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.pagination-info strong {
+    color: #1a202c;
+    font-weight: 700;
+}
+
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.items-per-page {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.items-per-page label {
+    color: #2d3748;
+    font-weight: 600;
+    font-size: 14px;
+    white-space: nowrap;
+}
+
+.items-per-page select {
+    padding: 8px 32px 8px 12px;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #2d3748;
+    background: white;
+    cursor: pointer;
+    transition: all 0.3s;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23718096' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+}
+
+.items-per-page select:focus {
+    outline: none;
+    border-color: #7c3aed;
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+}
+
+.pagination-buttons {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.pagination-btn {
+    padding: 8px 12px;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    background: white;
+    color: #718096;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 40px;
+    justify-content: center;
+}
+
+.pagination-btn:hover:not(:disabled) {
+    background: #f7fafc;
+    border-color: #cbd5e0;
+    color: #2d3748;
+    transform: translateY(-1px);
+}
+
+.pagination-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.pagination-btn.active {
+    background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+    color: white;
+    border-color: #7c3aed;
+    box-shadow: 0 2px 8px rgba(124, 58, 237, 0.3);
+}
+
+.pagination-btn.active:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4);
+}
+
+.pagination-ellipsis {
+    padding: 8px 12px;
+    color: #718096;
+    font-weight: 600;
+    user-select: none;
+}
+
+/* Responsive Pagination */
+@media (max-width: 768px) {
+    .pagination-container {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .pagination-info {
+        text-align: center;
+    }
+
+    .pagination-controls {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .items-per-page {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .items-per-page select {
+        flex: 1;
+    }
+
+    .pagination-buttons {
+        width: 100%;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .pagination-btn {
+        flex: 1;
+        min-width: 45px;
+    }
+}
     </style>
     <link rel="stylesheet" href="../auth/inc/navigation.css">
 </head>
@@ -2293,6 +2447,193 @@ usort($expired_assets, function ($a, $b) {
                 }
             });
         });
+        // ============= PAGINATION FUNCTIONALITY =============
+(function() {
+    let currentPage = 1;
+    let itemsPerPage = 10;
+    let filteredRows = [];
+
+    const tableBody = document.getElementById('assetsTableBody');
+    const table = document.getElementById('assetsTable');
+    const noResults = document.getElementById('noResults');
+    
+    const tableContainer = table.closest('.table-container');
+    let paginationContainer = document.createElement('div');
+    paginationContainer.className = 'pagination-container';
+    paginationContainer.innerHTML = `
+        <div class="pagination-info">
+            Showing <strong id="pageStart">0</strong> to <strong id="pageEnd">0</strong> of <strong id="pageTotal">0</strong> assets
+        </div>
+        <div class="pagination-controls">
+            <div class="items-per-page">
+                <label for="itemsPerPage">Show:</label>
+                <select id="itemsPerPage">
+                    <option value="10">10 per page</option>
+                    <option value="25">25 per page</option>
+                    <option value="50">50 per page</option>
+                    <option value="100">100 per page</option>
+                    <option value="all">All</option>
+                </select>
+            </div>
+            <div class="pagination-buttons" id="paginationButtons"></div>
+        </div>
+    `;
+    
+    if (tableContainer.parentNode) {
+        tableContainer.parentNode.insertBefore(paginationContainer, tableContainer.nextSibling);
+    }
+
+    const pageStartEl = document.getElementById('pageStart');
+    const pageEndEl = document.getElementById('pageEnd');
+    const pageTotalEl = document.getElementById('pageTotal');
+    const itemsPerPageSelect = document.getElementById('itemsPerPage');
+    const paginationButtons = document.getElementById('paginationButtons');
+
+    function getFilteredRows() {
+        const allRows = Array.from(tableBody.querySelectorAll('tr'));
+        return allRows.filter(row => row.style.display !== 'none');
+    }
+
+    function renderPagination() {
+        filteredRows = getFilteredRows();
+        const totalItems = filteredRows.length;
+        
+        const effectiveItemsPerPage = itemsPerPage === 'all' ? totalItems : parseInt(itemsPerPage);
+        const totalPages = Math.ceil(totalItems / effectiveItemsPerPage);
+
+        if (currentPage > totalPages) {
+            currentPage = Math.max(1, totalPages);
+        }
+
+        filteredRows.forEach(row => row.style.display = 'none');
+
+        const startIndex = (currentPage - 1) * effectiveItemsPerPage;
+        const endIndex = Math.min(startIndex + effectiveItemsPerPage, totalItems);
+
+        for (let i = startIndex; i < endIndex; i++) {
+            filteredRows[i].style.display = '';
+        }
+
+        if (totalItems === 0) {
+            pageStartEl.textContent = '0';
+            pageEndEl.textContent = '0';
+            pageTotalEl.textContent = '0';
+        } else {
+            pageStartEl.textContent = startIndex + 1;
+            pageEndEl.textContent = endIndex;
+            pageTotalEl.textContent = totalItems;
+        }
+
+        generatePaginationButtons(totalPages);
+
+        if (totalItems === 0) {
+            paginationContainer.style.display = 'none';
+            table.style.display = 'none';
+            noResults.style.display = 'block';
+        } else {
+            paginationContainer.style.display = 'flex';
+            table.style.display = 'table';
+            noResults.style.display = 'none';
+        }
+    }
+
+    function generatePaginationButtons(totalPages) {
+        paginationButtons.innerHTML = '';
+
+        if (totalPages <= 1) return;
+
+        const prevBtn = createButton('prev', '<i class="fas fa-chevron-left"></i> Previous', currentPage === 1);
+        prevBtn.addEventListener('click', () => goToPage(currentPage - 1));
+        paginationButtons.appendChild(prevBtn);
+
+        const pagesToShow = getPageNumbers(currentPage, totalPages);
+        
+        pagesToShow.forEach((page) => {
+            if (page === '...') {
+                const ellipsis = document.createElement('span');
+                ellipsis.className = 'pagination-ellipsis';
+                ellipsis.textContent = '...';
+                paginationButtons.appendChild(ellipsis);
+            } else {
+                const pageBtn = createButton(`page-${page}`, page, false, page === currentPage);
+                pageBtn.addEventListener('click', () => goToPage(page));
+                paginationButtons.appendChild(pageBtn);
+            }
+        });
+
+        const nextBtn = createButton('next', 'Next <i class="fas fa-chevron-right"></i>', currentPage === totalPages);
+        nextBtn.addEventListener('click', () => goToPage(currentPage + 1));
+        paginationButtons.appendChild(nextBtn);
+    }
+
+    function createButton(id, html, disabled = false, active = false) {
+        const btn = document.createElement('button');
+        btn.className = 'pagination-btn';
+        if (active) btn.classList.add('active');
+        btn.innerHTML = html;
+        btn.disabled = disabled;
+        return btn;
+    }
+
+    function getPageNumbers(current, total) {
+        const pages = [];
+        const delta = 1;
+
+        if (total <= 7) {
+            for (let i = 1; i <= total; i++) {
+                pages.push(i);
+            }
+        } else {
+            pages.push(1);
+            const rangeStart = Math.max(2, current - delta);
+            const rangeEnd = Math.min(total - 1, current + delta);
+
+            if (rangeStart > 2) pages.push('...');
+            for (let i = rangeStart; i <= rangeEnd; i++) {
+                pages.push(i);
+            }
+            if (rangeEnd < total - 1) pages.push('...');
+            pages.push(total);
+        }
+
+        return pages;
+    }
+
+    function goToPage(page) {
+        const totalItems = filteredRows.length;
+        const effectiveItemsPerPage = itemsPerPage === 'all' ? totalItems : parseInt(itemsPerPage);
+        const totalPages = Math.ceil(totalItems / effectiveItemsPerPage);
+
+        if (page >= 1 && page <= totalPages) {
+            currentPage = page;
+            renderPagination();
+            table.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
+
+    itemsPerPageSelect.addEventListener('change', function() {
+        itemsPerPage = this.value;
+        currentPage = 1;
+        renderPagination();
+    });
+
+    const searchInput = document.getElementById('searchInput');
+    const categoryFilter = document.getElementById('categoryFilter');
+    const statusFilter = document.getElementById('statusFilter');
+    const departmentFilter = document.getElementById('departmentFilter');
+
+    [searchInput, categoryFilter, statusFilter, departmentFilter].forEach(el => {
+        if (el) {
+            el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', () => {
+                currentPage = 1;
+                setTimeout(renderPagination, 10);
+            });
+        }
+    });
+
+    renderPagination();
+    window.paginationRefresh = renderPagination;
+})();
     </script>
 </body>
 

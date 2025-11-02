@@ -84,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_recurring'])) {
 }
 
 // Update Recurring Maintenance Status
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['toggle_recurring'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recurring_id']) && isset($_POST['is_active']) && !isset($_POST['complete_recurring']) && !isset($_POST['add_maintenance']) && !isset($_POST['add_recurring'])) {
     $recurring_id = intval($_POST['recurring_id']);
     $is_active = intval($_POST['is_active']);
 
