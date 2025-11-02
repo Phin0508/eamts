@@ -496,6 +496,7 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             margin: 12px 0;
             display: -webkit-box;
             -webkit-line-clamp: 2;
+            line-clamp: 2;
             -webkit-box-orient: vertical;
             overflow: hidden;
         }
