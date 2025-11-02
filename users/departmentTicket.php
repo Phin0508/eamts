@@ -397,7 +397,7 @@ if (!empty($search)) {
 
 $where_sql = "WHERE " . implode(" AND ", $where_clauses);
 
-// Build ORDER BY clause based on sort selection
+// Build ORDER BY clause FIRST - before any queries
 $order_by_sql = "";
 switch ($sort_by) {
     case 'ticket_number':
@@ -435,8 +435,7 @@ switch ($sort_by) {
     case 'type':
         $order_by_sql = "ORDER BY t.ticket_type " . ($sort_order === 'asc' ? 'ASC' : 'DESC');
         break;
-    default: // 'default'
-        // Default sorting: pending first, then by priority, then by created date
+    default:
         $order_by_sql = "ORDER BY 
             CASE t.approval_status
                 WHEN 'pending' THEN 1
@@ -453,6 +452,28 @@ switch ($sort_by) {
         break;
 }
 
+// Pagination settings
+$items_per_page = 15;
+$current_page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
+$offset = ($current_page - 1) * $items_per_page;
+
+// Get total count for pagination
+$count_query = "
+    SELECT COUNT(*) as total
+    FROM tickets t
+    JOIN users requester ON t.requester_id = requester.user_id
+    LEFT JOIN users approver ON t.approved_by = approver.user_id
+    LEFT JOIN users assigned ON t.assigned_to = assigned.user_id
+    LEFT JOIN assets a ON t.asset_id = a.id
+    $where_sql
+";
+
+$count_stmt = $pdo->prepare($count_query);
+$count_stmt->execute($params);
+$total_tickets = $count_stmt->fetch(PDO::FETCH_ASSOC)['total'];
+$total_pages = ceil($total_tickets / $items_per_page);
+
+// Query with pagination - ONLY THIS ONE
 $query = "
     SELECT 
         t.*,
@@ -471,11 +492,29 @@ $query = "
     LEFT JOIN assets a ON t.asset_id = a.id
     $where_sql
     $order_by_sql
+    LIMIT $items_per_page OFFSET $offset
 ";
 
 $stmt = $pdo->prepare($query);
 $stmt->execute($params);
 $tickets = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Function to generate pagination URL
+function getPaginationUrl($page, $current_params) {
+    $params = $current_params;
+    $params['page'] = $page;
+    return '?' . http_build_query($params);
+}
+
+// Store current filter parameters
+$current_filters = [
+    'approval' => $filter_approval,
+    'status' => $filter_status,
+    'type' => $filter_type,
+    'search' => $search,
+    'sort' => $sort_by,
+    'order' => $sort_order
+];
 
 // Get statistics
 $stats_query = "
@@ -506,6 +545,108 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
+        /* Pagination Styles */
+.pagination-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 30px;
+    padding: 20px 0;
+    border-top: 2px solid #e2e8f0;
+}
+
+.pagination-info {
+    color: #718096;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.pagination-info strong {
+    color: #2d3748;
+    font-weight: 700;
+}
+
+.pagination {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.pagination a,
+.pagination span {
+    padding: 10px 16px;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    text-decoration: none;
+    color: #2d3748;
+    font-weight: 600;
+    font-size: 14px;
+    transition: all 0.3s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+}
+
+.pagination a:hover {
+    background: #7c3aed;
+    border-color: #7c3aed;
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+}
+
+.pagination .active {
+    background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+    border-color: #7c3aed;
+    color: white;
+    box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+}
+
+.pagination .disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.pagination .dots {
+    border: none;
+    padding: 10px 8px;
+    color: #718096;
+}
+
+.pagination .prev-next {
+    padding: 10px 20px;
+    font-weight: 700;
+}
+
+.pagination .prev-next i {
+    font-size: 12px;
+}
+
+@media (max-width: 768px) {
+    .pagination-container {
+        flex-direction: column;
+        gap: 20px;
+        text-align: center;
+    }
+
+    .pagination {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .pagination a,
+    .pagination span {
+        padding: 8px 12px;
+        min-width: 40px;
+        font-size: 13px;
+    }
+
+    .pagination .prev-next {
+        padding: 8px 16px;
+    }
+}
         * {
             margin: 0;
             padding: 0;
@@ -1283,7 +1424,7 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
 
         <!-- Tickets Table -->
         <div class="section">
-            <?php if (empty($tickets)): ?>
+    <?php if (empty($tickets)): ?>
             <div class="empty-state">
                 <div class="empty-state-icon">🎫</div>
                 <h3>No Tickets Found</h3>
@@ -1396,6 +1537,72 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                     </tbody>
                 </table>
             </div>
+
+            <!-- Pagination -->
+            <?php if ($total_pages > 1): ?>
+            <div class="pagination-container">
+                <div class="pagination-info">
+                    Showing <strong><?php echo $offset + 1; ?></strong> to 
+                    <strong><?php echo min($offset + $items_per_page, $total_tickets); ?></strong> of 
+                    <strong><?php echo $total_tickets; ?></strong> tickets
+                </div>
+                
+                <div class="pagination">
+                    <!-- Previous Button -->
+                    <?php if ($current_page > 1): ?>
+                        <a href="<?php echo getPaginationUrl($current_page - 1, $current_filters); ?>" class="prev-next">
+                            <i class="fas fa-chevron-left"></i> Prev
+                        </a>
+                    <?php else: ?>
+                        <span class="prev-next disabled">
+                            <i class="fas fa-chevron-left"></i> Prev
+                        </span>
+                    <?php endif; ?>
+
+                    <?php
+                    // Pagination logic
+                    $range = 2; // Number of pages to show on each side of current page
+                    $start_page = max(1, $current_page - $range);
+                    $end_page = min($total_pages, $current_page + $range);
+
+                    // First page
+                    if ($start_page > 1): ?>
+                        <a href="<?php echo getPaginationUrl(1, $current_filters); ?>">1</a>
+                        <?php if ($start_page > 2): ?>
+                            <span class="dots">...</span>
+                        <?php endif; ?>
+                    <?php endif; ?>
+
+                    <!-- Page numbers -->
+                    <?php for ($i = $start_page; $i <= $end_page; $i++): ?>
+                        <?php if ($i == $current_page): ?>
+                            <span class="active"><?php echo $i; ?></span>
+                        <?php else: ?>
+                            <a href="<?php echo getPaginationUrl($i, $current_filters); ?>"><?php echo $i; ?></a>
+                        <?php endif; ?>
+                    <?php endfor; ?>
+
+                    <!-- Last page -->
+                    <?php if ($end_page < $total_pages): ?>
+                        <?php if ($end_page < $total_pages - 1): ?>
+                            <span class="dots">...</span>
+                        <?php endif; ?>
+                        <a href="<?php echo getPaginationUrl($total_pages, $current_filters); ?>"><?php echo $total_pages; ?></a>
+                    <?php endif; ?>
+
+                    <!-- Next Button -->
+                    <?php if ($current_page < $total_pages): ?>
+                        <a href="<?php echo getPaginationUrl($current_page + 1, $current_filters); ?>" class="prev-next">
+                            Next <i class="fas fa-chevron-right"></i>
+                        </a>
+                    <?php else: ?>
+                        <span class="prev-next disabled">
+                            Next <i class="fas fa-chevron-right"></i>
+                        </span>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <?php endif; ?>
             <?php endif; ?>
         </div>
     </div>
@@ -1585,6 +1792,54 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                 row.style.cursor = 'pointer';
             });
         });
+        function sortTable(column) {
+    const url = new URL(window.location.href);
+    
+    // If clicking the same column, toggle order
+    if (currentSort === column) {
+        currentOrder = currentOrder === 'asc' ? 'desc' : 'asc';
+    } else {
+        // New column, default to descending (or ascending for text fields)
+        currentSort = column;
+        currentOrder = (column === 'subject' || column === 'requester' || column === 'type') ? 'asc' : 'desc';
+    }
+    
+    url.searchParams.set('sort', currentSort);
+    url.searchParams.set('order', currentOrder);
+    // Reset to page 1 when sorting
+    url.searchParams.set('page', '1');
+    
+    window.location.href = url.toString();
+}
+
+// Update filter form submission to reset to page 1
+document.addEventListener('DOMContentLoaded', function() {
+    const filterSelects = document.querySelectorAll('.filters-form select');
+    filterSelects.forEach(select => {
+        select.addEventListener('change', function() {
+            const form = this.closest('form');
+            // Add hidden input for page reset
+            const pageInput = document.createElement('input');
+            pageInput.type = 'hidden';
+            pageInput.name = 'page';
+            pageInput.value = '1';
+            form.appendChild(pageInput);
+        });
+    });
+
+    const searchInput = document.querySelector('input[name="search"]');
+    if (searchInput) {
+        const form = searchInput.closest('form');
+        form.addEventListener('submit', function() {
+            // Reset to page 1 on search
+            const pageInput = document.createElement('input');
+            pageInput.type = 'hidden';
+            pageInput.name = 'page';
+            pageInput.value = '1';
+            this.appendChild(pageInput);
+        });
+    }
+});
     </script>
 </body>
 </html>

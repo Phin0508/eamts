@@ -211,96 +211,171 @@ if ($user_role === 'admin') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Department Assets - E-Asset Management System</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../auth/inc/navigation.css">
-    <link rel="stylesheet" href="../style/asset.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
-        .page-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 2rem;
-            border-radius: 12px;
-            margin-bottom: 2rem;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8f9fc;
+            color: #2d3748;
+            min-height: 100vh;
+        }
+
+        .container {
+            margin-left: 260px;
+            padding: 30px;
+            transition: margin-left 0.3s ease;
+            min-height: 100vh;
+        }
+
+        .container.sidebar-collapsed {
+            margin-left: 80px;
+        }
+
+        .header {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+
+        .header-content {
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
-            gap: 1rem;
+            gap: 20px;
         }
 
-        .page-header h1 {
-            margin: 0 0 0.5rem 0;
-            font-size: 2rem;
+        .header-left h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1a202c;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
 
-        .page-header p {
-            margin: 0;
-            opacity: 0.95;
+        .header-left h1 i {
+            color: #7c3aed;
+        }
+
+        .header-left p {
+            color: #718096;
+            font-size: 15px;
         }
 
         .header-actions {
             display: flex;
-            gap: 1rem;
+            gap: 12px;
             flex-wrap: wrap;
+        }
+
+        .success-message, .error-message {
+            padding: 16px 20px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            animation: slideDown 0.3s ease;
+            font-weight: 500;
+        }
+
+        .success-message {
+            background: linear-gradient(135deg, #d4f4dd 0%, #c3e6cb 100%);
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+
+        .error-message {
+            background: linear-gradient(135deg, #ffe6e6 0%, #ffd4d4 100%);
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1.5rem;
-            margin-bottom: 2rem;
+            gap: 20px;
+            margin-bottom: 30px;
         }
 
         .stat-card {
             background: white;
-            padding: 1.5rem;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-            transition: transform 0.2s;
+            border-radius: 16px;
+            padding: 28px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            transition: all 0.3s;
+            border-left: 4px solid #7c3aed;
             cursor: pointer;
         }
 
         .stat-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            transform: translateY(-4px);
+            box-shadow: 0 8px 20px rgba(124, 58, 237, 0.15);
         }
 
-        .stat-card .stat-icon {
-            font-size: 2rem;
-            margin-bottom: 0.5rem;
+        .stat-icon {
+            font-size: 28px;
+            margin-bottom: 12px;
+            color: #7c3aed;
         }
 
-        .stat-card .stat-number {
-            font-size: 2rem;
-            font-weight: bold;
-            color: #2c3e50;
-            margin-bottom: 0.25rem;
+        .stat-number {
+            font-size: 36px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: #1a202c;
         }
 
-        .stat-card .stat-label {
-            color: #6c757d;
-            font-size: 0.9rem;
-        }
-
-        .stat-card .stat-value {
-            color: #059669;
-            font-size: 0.85rem;
+        .stat-label {
+            color: #718096;
+            font-size: 14px;
             font-weight: 600;
-            margin-top: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-value {
+            color: #059669;
+            font-size: 14px;
+            font-weight: 600;
+            margin-top: 8px;
         }
 
         .filters-section {
             background: white;
-            padding: 1.5rem;
-            border-radius: 12px;
-            margin-bottom: 2rem;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
         }
 
         .filters-form {
             display: flex;
-            gap: 1rem;
+            gap: 12px;
             flex-wrap: wrap;
             align-items: center;
         }
@@ -313,311 +388,354 @@ if ($user_role === 'admin') {
 
         .search-box i {
             position: absolute;
-            left: 1rem;
+            left: 16px;
             top: 50%;
             transform: translateY(-50%);
-            color: #6c757d;
+            color: #718096;
         }
 
         .search-box input {
             width: 100%;
-            padding: 0.75rem 1rem 0.75rem 2.5rem;
-            border: 1px solid #d1d5db;
-            border-radius: 8px;
-            font-size: 0.95rem;
+            padding: 12px 16px 12px 44px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 14px;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: #7c3aed;
+            box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.1);
         }
 
         .filters-form select {
-            padding: 0.75rem 1rem;
-            border: 1px solid #d1d5db;
-            border-radius: 8px;
-            font-size: 0.95rem;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 14px;
             background: white;
             cursor: pointer;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+
+        .filters-form select:focus {
+            outline: none;
+            border-color: #7c3aed;
+            box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.1);
         }
 
         .btn {
-            padding: 0.75rem 1.5rem;
+            padding: 12px 20px;
             border: none;
-            border-radius: 8px;
-            font-size: 0.95rem;
+            border-radius: 10px;
+            font-size: 14px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s;
             display: inline-flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: 8px;
             text-decoration: none;
         }
 
         .btn-primary {
-            background: #2563eb;
+            background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
             color: white;
+            box-shadow: 0 2px 8px rgba(124, 58, 237, 0.3);
         }
 
         .btn-primary:hover {
-            background: #1d4ed8;
-        }
-
-        .btn-secondary {
-            background: #6b7280;
-            color: white;
-        }
-
-        .btn-secondary:hover {
-            background: #4b5563;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4);
         }
 
         .btn-outline {
             background: white;
-            color: #374151;
-            border: 1px solid #d1d5db;
+            color: #718096;
+            border: 2px solid #e2e8f0;
         }
 
         .btn-outline:hover {
-            background: #f9fafb;
+            background: #f7fafc;
+            border-color: #cbd5e0;
         }
 
         .assets-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-            gap: 1.5rem;
-            margin-bottom: 2rem;
+            gap: 20px;
+            margin-bottom: 30px;
         }
 
         .asset-card {
             background: white;
-            border-radius: 12px;
-            padding: 1.5rem;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
             transition: all 0.3s;
             position: relative;
         }
 
         .asset-card:hover {
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+            transform: translateY(-4px);
         }
 
         .asset-card-header {
             display: flex;
             justify-content: space-between;
-            align-items: start;
-            margin-bottom: 1rem;
-            padding-bottom: 1rem;
+            align-items: flex-start;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
             border-bottom: 2px solid #f0f0f0;
         }
 
-        .asset-title {
-            flex: 1;
-        }
-
         .asset-title h3 {
-            margin: 0 0 0.5rem 0;
-            color: #2c3e50;
-            font-size: 1.1rem;
+            font-size: 18px;
+            font-weight: 700;
+            color: #1a202c;
+            margin-bottom: 8px;
         }
 
         .asset-code {
-            background: #667eea;
+            background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
             color: white;
-            padding: 0.25rem 0.75rem;
-            border-radius: 12px;
-            font-size: 0.75rem;
-            font-weight: 600;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
         }
 
         .status-badge {
-            padding: 0.375rem 0.75rem;
-            border-radius: 12px;
-            font-size: 0.75rem;
-            font-weight: 600;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
             text-transform: uppercase;
+            letter-spacing: 0.3px;
         }
 
-        .status-available { background: #d1fae5; color: #065f46; }
-        .status-in-use { background: #dbeafe; color: #1e40af; }
-        .status-maintenance { background: #fed7aa; color: #92400e; }
-        .status-retired { background: #e5e7eb; color: #374151; }
-        .status-damaged { background: #fecaca; color: #991b1b; }
+        .status-available { 
+            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+            color: #065f46;
+        }
+        .status-in-use { 
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+            color: #1e40af;
+        }
+        .status-maintenance { 
+            background: linear-gradient(135deg, #fed7aa 0%, #fdba74 100%);
+            color: #92400e;
+        }
+        .status-retired { 
+            background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);
+            color: #374151;
+        }
+        .status-damaged { 
+            background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%);
+            color: #991b1b;
+        }
 
         .asset-details {
             display: grid;
-            gap: 0.75rem;
-            margin-bottom: 1rem;
+            gap: 12px;
+            margin-bottom: 16px;
         }
 
         .asset-detail {
             display: flex;
             align-items: center;
-            gap: 0.5rem;
-            font-size: 0.875rem;
+            gap: 10px;
+            font-size: 14px;
             color: #4b5563;
         }
 
         .asset-detail i {
             width: 20px;
-            color: #6b7280;
+            color: #7c3aed;
+            font-size: 14px;
         }
 
         .asset-detail strong {
             color: #1f2937;
+            font-weight: 600;
         }
 
         .asset-assigned {
-            background: #f3f4f6;
-            padding: 0.75rem;
-            border-radius: 8px;
-            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #f7f4fe 0%, #ede9fe 100%);
+            padding: 16px;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            border-left: 3px solid #7c3aed;
         }
 
-        .asset-assigned .assigned-label {
-            font-size: 0.75rem;
-            color: #6b7280;
+        .assigned-label {
+            font-size: 11px;
+            color: #6d28d9;
             text-transform: uppercase;
-            font-weight: 600;
-            margin-bottom: 0.25rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            letter-spacing: 0.5px;
         }
 
-        .asset-assigned .assigned-name {
+        .assigned-name {
             font-weight: 600;
             color: #1f2937;
+            font-size: 15px;
+            margin-bottom: 4px;
         }
 
-        .asset-assigned .assigned-email {
-            font-size: 0.8rem;
+        .assigned-email {
+            font-size: 13px;
             color: #6b7280;
         }
 
         .unassigned-badge {
-            background: #fef3c7;
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
             color: #92400e;
-            padding: 0.5rem;
-            border-radius: 8px;
-            text-align: center;
-            font-size: 0.85rem;
-            font-weight: 600;
-            margin-bottom: 1rem;
-        }
-
-        .asset-actions {
-            display: flex;
-            gap: 0.5rem;
-            padding-top: 1rem;
-            border-top: 1px solid #e5e7eb;
-        }
-
-        .btn-sm {
-            padding: 0.5rem 1rem;
-            font-size: 0.85rem;
-            border-radius: 6px;
-            text-decoration: none;
-            border: none;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.375rem;
-            flex: 1;
-            justify-content: center;
-        }
-
-        .btn-view {
-            background: #dbeafe;
-            color: #1e40af;
-        }
-
-        .btn-view:hover {
-            background: #bfdbfe;
-        }
-
-        .btn-edit {
-            background: #fef3c7;
-            color: #92400e;
-        }
-
-        .btn-edit:hover {
-            background: #fde68a;
-        }
-
-        .no-assets {
-            text-align: center;
-            padding: 4rem 2rem;
-            background: white;
+            padding: 12px;
             border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        }
-
-        .no-assets i {
-            font-size: 4rem;
-            color: #d1d5db;
-            margin-bottom: 1rem;
-        }
-
-        .no-assets h3 {
-            color: #374151;
-            margin-bottom: 0.5rem;
-        }
-
-        .no-assets p {
-            color: #6b7280;
-        }
-
-        .alert {
-            padding: 1rem 1.5rem;
-            border-radius: 8px;
-            margin-bottom: 1.5rem;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-        }
-
-        .alert-success {
-            background: #d1fae5;
-            border-left: 4px solid #10b981;
-            color: #065f46;
-        }
-
-        .alert-error {
-            background: #fee2e2;
-            border-left: 4px solid #ef4444;
-            color: #991b1b;
+            text-align: center;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 16px;
         }
 
         .maintenance-info {
             display: flex;
-            gap: 1rem;
-            padding: 0.75rem;
+            gap: 16px;
+            padding: 12px;
             background: #f9fafb;
-            border-radius: 6px;
-            margin-top: 0.75rem;
-            font-size: 0.8rem;
+            border-radius: 10px;
+            margin-top: 12px;
+            font-size: 13px;
         }
 
         .maintenance-stat {
             display: flex;
             align-items: center;
-            gap: 0.375rem;
+            gap: 6px;
             color: #4b5563;
         }
 
+        .maintenance-stat i {
+            color: #7c3aed;
+        }
+
+        .asset-actions {
+            display: flex;
+            gap: 10px;
+            padding-top: 16px;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .btn-sm {
+            padding: 10px 18px;
+            font-size: 13px;
+            border-radius: 8px;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            flex: 1;
+            justify-content: center;
+            font-weight: 600;
+        }
+
+        .btn-view {
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+            color: #1e40af;
+        }
+
+        .btn-view:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .btn-edit {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            color: #92400e;
+        }
+
+        .btn-edit:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+        }
+
+        .no-assets {
+            text-align: center;
+            padding: 60px 20px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+
+        .no-assets-icon {
+            font-size: 64px;
+            color: #d1d5db;
+            margin-bottom: 20px;
+        }
+
+        .no-assets h3 {
+            font-size: 22px;
+            color: #1a202c;
+            margin-bottom: 12px;
+            font-weight: 700;
+        }
+
+        .no-assets p {
+            color: #718096;
+            font-size: 15px;
+            margin-bottom: 24px;
+        }
+
+        @media (max-width: 1024px) {
+            .container {
+                margin-left: 80px;
+            }
+
+            .container.sidebar-collapsed {
+                margin-left: 80px;
+            }
+        }
+
         @media (max-width: 768px) {
-            .stats-grid {
-                grid-template-columns: repeat(2, 1fr);
+            .container {
+                margin-left: 0;
+                padding: 20px;
             }
 
-            .assets-grid {
-                grid-template-columns: 1fr;
+            .container.sidebar-collapsed {
+                margin-left: 0;
             }
 
-            .page-header {
+            .header {
+                padding: 20px;
+            }
+
+            .header-content {
                 flex-direction: column;
                 align-items: flex-start;
             }
 
+            .header-left h1 {
+                font-size: 22px;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
             .filters-form {
                 flex-direction: column;
-                align-items: stretch;
             }
 
             .search-box {
@@ -627,10 +745,14 @@ if ($user_role === 'admin') {
             .filters-form select {
                 width: 100%;
             }
+
+            .assets-grid {
+                grid-template-columns: 1fr;
+            }
         }
 
         @media print {
-            .main-content {
+            .container {
                 margin: 0;
                 padding: 20px;
             }
@@ -643,9 +765,8 @@ if ($user_role === 'admin') {
                 display: none !important;
             }
 
-            .page-header {
+            .header {
                 background: white !important;
-                color: black !important;
                 border: 1px solid #ddd;
             }
 
@@ -665,11 +786,11 @@ if ($user_role === 'admin') {
 <body>
     <?php include("../auth/inc/Msidebar.php"); ?>
 
-    <main class="main-content">
-        <div class="dashboard-content">
-            <div class="page-header">
-                <div>
-                    <h1>📦 Department Assets</h1>
+    <div class="container" id="mainContainer">
+        <div class="header">
+            <div class="header-content">
+                <div class="header-left">
+                    <h1><i class="fas fa-box"></i> Department Assets</h1>
                     <p>
                         <?php if ($user_role === 'admin' && $dept_filter === 'all'): ?>
                             All Departments - Complete Asset Overview
@@ -678,243 +799,270 @@ if ($user_role === 'admin') {
                         <?php endif; ?>
                     </p>
                 </div>
-                </div>
-            </div>
-
-            <?php if (!empty($success_message)): ?>
-                <div class="alert alert-success">
-                    <i class="fas fa-check-circle"></i>
-                    <?php echo htmlspecialchars($success_message); ?>
-                </div>
-            <?php endif; ?>
-
-            <?php if (!empty($error_message)): ?>
-                <div class="alert alert-error">
-                    <i class="fas fa-exclamation-circle"></i>
-                    <?php echo htmlspecialchars($error_message); ?>
-                </div>
-            <?php endif; ?>
-
-            <!-- Statistics Cards -->
-            <div class="stats-grid">
-                <div class="stat-card" onclick="window.location.href='?status=all<?php echo $user_role === 'admin' ? '&department=' . urlencode($dept_filter) : ''; ?>'">
-                    <div class="stat-icon">📊</div>
-                    <div class="stat-number"><?php echo $stats['total']; ?></div>
-                    <div class="stat-label">Total Assets</div>
-                    <div class="stat-value">$<?php echo number_format($total_value, 2); ?></div>
-                </div>
-
-                <div class="stat-card" onclick="window.location.href='?status=Available<?php echo $user_role === 'admin' ? '&department=' . urlencode($dept_filter) : ''; ?>'">
-                    <div class="stat-icon">✅</div>
-                    <div class="stat-number"><?php echo $stats['available']; ?></div>
-                    <div class="stat-label">Available</div>
-                </div>
-
-                <div class="stat-card" onclick="window.location.href='?status=In Use<?php echo $user_role === 'admin' ? '&department=' . urlencode($dept_filter) : ''; ?>'">
-                    <div class="stat-icon">💼</div>
-                    <div class="stat-number"><?php echo $stats['in_use']; ?></div>
-                    <div class="stat-label">In Use</div>
-                </div>
-
-                <div class="stat-card" onclick="window.location.href='?status=Maintenance<?php echo $user_role === 'admin' ? '&department=' . urlencode($dept_filter) : ''; ?>'">
-                    <div class="stat-icon">🔧</div>
-                    <div class="stat-number"><?php echo $stats['maintenance']; ?></div>
-                    <div class="stat-label">Maintenance</div>
-                </div>
-
-                <div class="stat-card" onclick="window.location.href='?user=unassigned<?php echo $user_role === 'admin' ? '&department=' . urlencode($dept_filter) : ''; ?>'">
-                    <div class="stat-icon">📋</div>
-                    <div class="stat-number"><?php echo $stats['unassigned']; ?></div>
-                    <div class="stat-label">Unassigned</div>
-                </div>
-            </div>
-
-            <!-- Filters -->
-            <div class="filters-section">
-                <form method="GET" action="" class="filters-form">
-                    <?php if ($user_role === 'admin'): ?>
-                    <select name="department" onchange="this.form.submit()">
-                        <option value="all" <?php echo $dept_filter === 'all' ? 'selected' : ''; ?>>All Departments</option>
-                        <?php foreach ($departments_list as $dept): ?>
-                            <option value="<?php echo htmlspecialchars($dept['dept_name']); ?>" 
-                                    <?php echo $dept_filter === $dept['dept_name'] ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($dept['dept_name']); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                    <?php endif; ?>
-
-                    <div class="search-box">
-                        <i class="fas fa-search"></i>
-                        <input type="text" name="search" placeholder="Search assets..." value="<?php echo htmlspecialchars($search); ?>">
-                    </div>
-
-                    <select name="status" onchange="this.form.submit()">
-                        <option value="all" <?php echo $filter_status === 'all' ? 'selected' : ''; ?>>All Status</option>
-                        <option value="Available" <?php echo $filter_status === 'Available' ? 'selected' : ''; ?>>Available</option>
-                        <option value="In Use" <?php echo $filter_status === 'In Use' ? 'selected' : ''; ?>>In Use</option>
-                        <option value="Maintenance" <?php echo $filter_status === 'Maintenance' ? 'selected' : ''; ?>>Maintenance</option>
-                        <option value="Retired" <?php echo $filter_status === 'Retired' ? 'selected' : ''; ?>>Retired</option>
-                        <option value="Damaged" <?php echo $filter_status === 'Damaged' ? 'selected' : ''; ?>>Damaged</option>
-                    </select>
-
-                    <select name="category" onchange="this.form.submit()">
-                        <option value="all" <?php echo $filter_category === 'all' ? 'selected' : ''; ?>>All Categories</option>
-                        <?php foreach ($categories as $category): ?>
-                            <option value="<?php echo htmlspecialchars($category); ?>" <?php echo $filter_category === $category ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($category); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-
-                    <?php if (count($dept_employees) > 0): ?>
-                    <select name="user" onchange="this.form.submit()">
-                        <option value="all" <?php echo $assigned_user === 'all' ? 'selected' : ''; ?>>All Users</option>
-                        <option value="unassigned" <?php echo $assigned_user === 'unassigned' ? 'selected' : ''; ?>>Unassigned</option>
-                        <?php foreach ($dept_employees as $employee): ?>
-                            <option value="<?php echo $employee['user_id']; ?>" <?php echo $assigned_user == $employee['user_id'] ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($employee['first_name'] . ' ' . $employee['last_name']); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                    <?php endif; ?>
-
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-filter"></i> Filter
+                <div class="header-actions">
+                    <button onclick="window.print()" class="btn btn-outline">
+                        <i class="fas fa-print"></i> Print
                     </button>
-                    
-                    <a href="departmentAsset.php" class="btn btn-outline">
-                        <i class="fas fa-redo"></i> Reset
-                    </a>
-                </form>
+                    <button onclick="exportToCSV()" class="btn btn-outline">
+                        <i class="fas fa-file-csv"></i> Export
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <?php if (!empty($success_message)): ?>
+        <div class="success-message">
+            <i class="fas fa-check-circle"></i>
+            <span><?php echo htmlspecialchars($success_message); ?></span>
+        </div>
+        <?php endif; ?>
+
+        <?php if (!empty($error_message)): ?>
+        <div class="error-message">
+            <i class="fas fa-exclamation-circle"></i>
+            <span><?php echo htmlspecialchars($error_message); ?></span>
+        </div>
+        <?php endif; ?>
+
+        <div class="stats-grid">
+            <div class="stat-card" onclick="window.location.href='?status=all<?php echo $user_role === 'admin' ? '&department=' . urlencode($dept_filter) : ''; ?>'">
+                <div class="stat-icon"><i class="fas fa-chart-bar"></i></div>
+                <div class="stat-number"><?php echo $stats['total']; ?></div>
+                <div class="stat-label">Total Assets</div>
+                <div class="stat-value">$<?php echo number_format($total_value, 2); ?></div>
             </div>
 
-            <!-- Assets Grid -->
-            <?php if (count($assets) > 0): ?>
-                <div class="assets-grid">
-                    <?php foreach ($assets as $asset): ?>
-                        <div class="asset-card">
-                            <div class="asset-card-header">
-                                <div class="asset-title">
-                                    <h3><?php echo htmlspecialchars($asset['asset_name']); ?></h3>
-                                    <span class="asset-code"><?php echo htmlspecialchars($asset['asset_code']); ?></span>
-                                </div>
-                                <span class="status-badge status-<?php echo strtolower(str_replace(' ', '-', $asset['status'])); ?>">
-                                    <?php echo htmlspecialchars($asset['status']); ?>
-                                </span>
-                            </div>
+            <div class="stat-card" onclick="window.location.href='?status=Available<?php echo $user_role === 'admin' ? '&department=' . urlencode($dept_filter) : ''; ?>'">
+                <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+                <div class="stat-number"><?php echo $stats['available']; ?></div>
+                <div class="stat-label">Available</div>
+            </div>
 
-                            <div class="asset-details">
-                                <div class="asset-detail">
-                                    <i class="fas fa-tag"></i>
-                                    <span><strong>Category:</strong> <?php echo htmlspecialchars($asset['category']); ?></span>
-                                </div>
+            <div class="stat-card" onclick="window.location.href='?status=In Use<?php echo $user_role === 'admin' ? '&department=' . urlencode($dept_filter) : ''; ?>'">
+                <div class="stat-icon"><i class="fas fa-briefcase"></i></div>
+                <div class="stat-number"><?php echo $stats['in_use']; ?></div>
+                <div class="stat-label">In Use</div>
+            </div>
 
-                                <?php if ($asset['brand']): ?>
-                                    <div class="asset-detail">
-                                        <i class="fas fa-trademark"></i>
-                                        <span><strong>Brand:</strong> <?php echo htmlspecialchars($asset['brand']); ?></span>
-                                    </div>
-                                <?php endif; ?>
+            <div class="stat-card" onclick="window.location.href='?status=Maintenance<?php echo $user_role === 'admin' ? '&department=' . urlencode($dept_filter) : ''; ?>'">
+                <div class="stat-icon"><i class="fas fa-wrench"></i></div>
+                <div class="stat-number"><?php echo $stats['maintenance']; ?></div>
+                <div class="stat-label">Maintenance</div>
+            </div>
 
-                                <?php if ($asset['model']): ?>
-                                    <div class="asset-detail">
-                                        <i class="fas fa-cube"></i>
-                                        <span><strong>Model:</strong> <?php echo htmlspecialchars($asset['model']); ?></span>
-                                    </div>
-                                <?php endif; ?>
-
-                                <?php if ($asset['serial_number']): ?>
-                                    <div class="asset-detail">
-                                        <i class="fas fa-barcode"></i>
-                                        <span><strong>S/N:</strong> <?php echo htmlspecialchars($asset['serial_number']); ?></span>
-                                    </div>
-                                <?php endif; ?>
-
-                                <?php if ($asset['purchase_cost']): ?>
-                                    <div class="asset-detail">
-                                        <i class="fas fa-dollar-sign"></i>
-                                        <span><strong>Value:</strong> $<?php echo number_format($asset['purchase_cost'], 2); ?></span>
-                                    </div>
-                                <?php endif; ?>
-
-                                <?php if ($asset['location']): ?>
-                                    <div class="asset-detail">
-                                        <i class="fas fa-map-marker-alt"></i>
-                                        <span><?php echo htmlspecialchars($asset['location']); ?></span>
-                                    </div>
-                                <?php endif; ?>
-                            </div>
-
-                            <?php if ($asset['assigned_to']): ?>
-                                <div class="asset-assigned">
-                                    <div class="assigned-label">Assigned To</div>
-                                    <div class="assigned-name">
-                                        <i class="fas fa-user"></i>
-                                        <?php echo htmlspecialchars($asset['assigned_to_name']); ?>
-                                    </div>
-                                    <?php if ($asset['assigned_to_email']): ?>
-                                        <div class="assigned-email"><?php echo htmlspecialchars($asset['assigned_to_email']); ?></div>
-                                    <?php endif; ?>
-                                    <?php if ($asset['assigned_user_emp_id']): ?>
-                                        <div class="assigned-email">ID: <?php echo htmlspecialchars($asset['assigned_user_emp_id']); ?></div>
-                                    <?php endif; ?>
-                                </div>
-                            <?php else: ?>
-                                <div class="unassigned-badge">
-                                    <i class="fas fa-info-circle"></i> Not Assigned
-                                </div>
-                            <?php endif; ?>
-
-                            <?php if ($asset['maintenance_count'] > 0 || $asset['last_maintenance_date']): ?>
-                                <div class="maintenance-info">
-                                    <?php if ($asset['maintenance_count'] > 0): ?>
-                                        <div class="maintenance-stat">
-                                            <i class="fas fa-wrench"></i>
-                                            <span><?php echo $asset['maintenance_count']; ?> maintenance(s)</span>
-                                        </div>
-                                    <?php endif; ?>
-                                    <?php if ($asset['last_maintenance_date']): ?>
-                                        <div class="maintenance-stat">
-                                            <i class="fas fa-calendar"></i>
-                                            <span>Last: <?php echo date('M d, Y', strtotime($asset['last_maintenance_date'])); ?></span>
-                                        </div>
-                                    <?php endif; ?>
-                                </div>
-                            <?php endif; ?>
-
-                            <div class="asset-actions">
-                                <a href="departmentAssetDetails.php?id=<?php echo $asset['id']; ?>" class="btn-sm btn-view">
-                                    <i class="fas fa-eye"></i> View
-                                </a>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-            <?php else: ?>
-                <div class="no-assets">
-                    <i class="fas fa-box-open"></i>
-                    <h3>No Assets Found</h3>
-                    <p>No assets match your current filters. Try adjusting your search criteria.</p>
-                    <a href="departmentAsset.php" class="btn btn-primary" style="margin-top: 1rem;">
-                        <i class="fas fa-redo"></i> Reset Filters
-                    </a>
-                </div>
-            <?php endif; ?>
+            <div class="stat-card" onclick="window.location.href='?user=unassigned<?php echo $user_role === 'admin' ? '&department=' . urlencode($dept_filter) : ''; ?>'">
+                <div class="stat-icon"><i class="fas fa-clipboard-list"></i></div>
+                <div class="stat-number"><?php echo $stats['unassigned']; ?></div>
+                <div class="stat-label">Unassigned</div>
+            </div>
         </div>
-    </main>
+
+        <div class="filters-section">
+            <form method="GET" action="" class="filters-form">
+                <?php if ($user_role === 'admin'): ?>
+                <select name="department" onchange="this.form.submit()">
+                    <option value="all" <?php echo $dept_filter === 'all' ? 'selected' : ''; ?>>All Departments</option>
+                    <?php foreach ($departments_list as $dept): ?>
+                        <option value="<?php echo htmlspecialchars($dept['dept_name']); ?>" 
+                                <?php echo $dept_filter === $dept['dept_name'] ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($dept['dept_name']); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <?php endif; ?>
+
+                <div class="search-box">
+                    <i class="fas fa-search"></i>
+                    <input type="text" name="search" placeholder="Search assets..." value="<?php echo htmlspecialchars($search); ?>">
+                </div>
+
+                <select name="status" onchange="this.form.submit()">
+                    <option value="all" <?php echo $filter_status === 'all' ? 'selected' : ''; ?>>All Status</option>
+                    <option value="Available" <?php echo $filter_status === 'Available' ? 'selected' : ''; ?>>Available</option>
+                    <option value="In Use" <?php echo $filter_status === 'In Use' ? 'selected' : ''; ?>>In Use</option>
+                    <option value="Maintenance" <?php echo $filter_status === 'Maintenance' ? 'selected' : ''; ?>>Maintenance</option>
+                    <option value="Retired" <?php echo $filter_status === 'Retired' ? 'selected' : ''; ?>>Retired</option>
+                    <option value="Damaged" <?php echo $filter_status === 'Damaged' ? 'selected' : ''; ?>>Damaged</option>
+                </select>
+
+                <select name="category" onchange="this.form.submit()">
+                    <option value="all" <?php echo $filter_category === 'all' ? 'selected' : ''; ?>>All Categories</option>
+                    <?php foreach ($categories as $category): ?>
+                        <option value="<?php echo htmlspecialchars($category); ?>" <?php echo $filter_category === $category ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($category); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+
+                <?php if (count($dept_employees) > 0): ?>
+                <select name="user" onchange="this.form.submit()">
+                    <option value="all" <?php echo $assigned_user === 'all' ? 'selected' : ''; ?>>All Users</option>
+                    <option value="unassigned" <?php echo $assigned_user === 'unassigned' ? 'selected' : ''; ?>>Unassigned</option>
+                    <?php foreach ($dept_employees as $employee): ?>
+                        <option value="<?php echo $employee['user_id']; ?>" <?php echo $assigned_user == $employee['user_id'] ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($employee['first_name'] . ' ' . $employee['last_name']); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <?php endif; ?>
+
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-filter"></i> Filter
+                </button>
+                
+                <a href="managerAsset.php" class="btn btn-outline">
+                    <i class="fas fa-redo"></i> Reset
+                </a>
+            </form>
+        </div>
+
+        <?php if (count($assets) > 0): ?>
+            <div class="assets-grid">
+                <?php foreach ($assets as $asset): ?>
+                    <div class="asset-card">
+                        <div class="asset-card-header">
+                            <div class="asset-title">
+                                <h3><?php echo htmlspecialchars($asset['asset_name']); ?></h3>
+                                <span class="asset-code"><?php echo htmlspecialchars($asset['asset_code']); ?></span>
+                            </div>
+                            <span class="status-badge status-<?php echo strtolower(str_replace(' ', '-', $asset['status'])); ?>">
+                                <?php echo htmlspecialchars($asset['status']); ?>
+                            </span>
+                        </div>
+
+                        <div class="asset-details">
+                            <div class="asset-detail">
+                                <i class="fas fa-tag"></i>
+                                <span><strong>Category:</strong> <?php echo htmlspecialchars($asset['category']); ?></span>
+                            </div>
+
+                            <?php if ($asset['brand']): ?>
+                                <div class="asset-detail">
+                                    <i class="fas fa-trademark"></i>
+                                    <span><strong>Brand:</strong> <?php echo htmlspecialchars($asset['brand']); ?></span>
+                                </div>
+                            <?php endif; ?>
+
+                            <?php if ($asset['model']): ?>
+                                <div class="asset-detail">
+                                    <i class="fas fa-cube"></i>
+                                    <span><strong>Model:</strong> <?php echo htmlspecialchars($asset['model']); ?></span>
+                                </div>
+                            <?php endif; ?>
+
+                            <?php if ($asset['serial_number']): ?>
+                                <div class="asset-detail">
+                                    <i class="fas fa-barcode"></i>
+                                    <span><strong>S/N:</strong> <?php echo htmlspecialchars($asset['serial_number']); ?></span>
+                                </div>
+                            <?php endif; ?>
+
+                            <?php if ($asset['purchase_cost']): ?>
+                                <div class="asset-detail">
+                                    <i class="fas fa-dollar-sign"></i>
+                                    <span><strong>Value:</strong> $<?php echo number_format($asset['purchase_cost'], 2); ?></span>
+                                </div>
+                            <?php endif; ?>
+
+                            <?php if ($asset['location']): ?>
+                                <div class="asset-detail">
+                                    <i class="fas fa-map-marker-alt"></i>
+                                    <span><?php echo htmlspecialchars($asset['location']); ?></span>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+
+                        <?php if ($asset['assigned_to']): ?>
+                            <div class="asset-assigned">
+                                <div class="assigned-label">Assigned To</div>
+                                <div class="assigned-name">
+                                    <i class="fas fa-user"></i>
+                                    <?php echo htmlspecialchars($asset['assigned_to_name']); ?>
+                                </div>
+                                <?php if ($asset['assigned_to_email']): ?>
+                                    <div class="assigned-email"><?php echo htmlspecialchars($asset['assigned_to_email']); ?></div>
+                                <?php endif; ?>
+                                <?php if ($asset['assigned_user_emp_id']): ?>
+                                    <div class="assigned-email">ID: <?php echo htmlspecialchars($asset['assigned_user_emp_id']); ?></div>
+                                <?php endif; ?>
+                            </div>
+                        <?php else: ?>
+                            <div class="unassigned-badge">
+                                <i class="fas fa-info-circle"></i> Not Assigned
+                            </div>
+                        <?php endif; ?>
+
+                        <?php if ($asset['maintenance_count'] > 0 || $asset['last_maintenance_date']): ?>
+                            <div class="maintenance-info">
+                                <?php if ($asset['maintenance_count'] > 0): ?>
+                                    <div class="maintenance-stat">
+                                        <i class="fas fa-wrench"></i>
+                                        <span><?php echo $asset['maintenance_count']; ?> maintenance(s)</span>
+                                    </div>
+                                <?php endif; ?>
+                                <?php if ($asset['last_maintenance_date']): ?>
+                                    <div class="maintenance-stat">
+                                        <i class="fas fa-calendar"></i>
+                                        <span>Last: <?php echo date('M d, Y', strtotime($asset['last_maintenance_date'])); ?></span>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        <?php endif; ?>
+
+                        <div class="asset-actions">
+                            <a href="departmentAssetDetails.php?id=<?php echo $asset['id']; ?>" class="btn-sm btn-view">
+                                <i class="fas fa-eye"></i> View
+                            </a>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php else: ?>
+            <div class="no-assets">
+                <div class="no-assets-icon"><i class="fas fa-box-open"></i></div>
+                <h3>No Assets Found</h3>
+                <p>No assets match your current filters. Try adjusting your search criteria.</p>
+                <a href="managerAsset.php" class="btn btn-primary">
+                    <i class="fas fa-redo"></i> Reset Filters
+                </a>
+            </div>
+        <?php endif; ?>
+    </div>
 
     <script>
-        // Auto-dismiss alerts after 5 seconds
+        function updateMainContainer() {
+            const mainContainer = document.getElementById('mainContainer');
+            const sidebar = document.querySelector('.sidebar');
+            
+            if (sidebar && sidebar.classList.contains('collapsed')) {
+                mainContainer.classList.add('sidebar-collapsed');
+            } else {
+                mainContainer.classList.remove('sidebar-collapsed');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', updateMainContainer);
+
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('.toggle-sidebar')) {
+                setTimeout(updateMainContainer, 50);
+            }
+        });
+
+        const observer = new MutationObserver(updateMainContainer);
+        const sidebar = document.querySelector('.sidebar');
+        if (sidebar) {
+            observer.observe(sidebar, { attributes: true, attributeFilter: ['class'] });
+        }
+
         setTimeout(() => {
-            document.querySelectorAll('.alert').forEach(alert => {
+            document.querySelectorAll('.success-message, .error-message').forEach(alert => {
                 alert.style.transition = 'opacity 0.5s';
                 alert.style.opacity = '0';
                 setTimeout(() => alert.remove(), 500);
             });
         }, 5000);
 
-        // Confirm before navigating to edit
         document.querySelectorAll('.btn-edit').forEach(btn => {
             btn.addEventListener('click', function(e) {
                 if (!confirm('Do you want to edit this asset?')) {
@@ -923,7 +1071,6 @@ if ($user_role === 'admin') {
             });
         });
 
-        // Add keyboard shortcut for search (Ctrl+K or Cmd+K)
         document.addEventListener('keydown', function(e) {
             if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
                 e.preventDefault();
@@ -931,7 +1078,6 @@ if ($user_role === 'admin') {
             }
         });
 
-        // Real-time search with debounce
         let searchTimeout;
         const searchInput = document.querySelector('.search-box input');
         
@@ -946,7 +1092,6 @@ if ($user_role === 'admin') {
             });
         }
 
-        // Add loading state to filter buttons
         document.querySelectorAll('select').forEach(select => {
             select.addEventListener('change', function() {
                 const form = this.closest('form');
@@ -958,38 +1103,30 @@ if ($user_role === 'admin') {
             });
         });
 
-        // Highlight selected filters
         document.addEventListener('DOMContentLoaded', function() {
             const urlParams = new URLSearchParams(window.location.search);
             
             document.querySelectorAll('select').forEach(select => {
                 const paramValue = urlParams.get(select.name);
                 if (paramValue && paramValue !== 'all') {
-                    select.style.borderColor = '#2563eb';
-                    select.style.backgroundColor = '#eff6ff';
+                    select.style.borderColor = '#7c3aed';
+                    select.style.backgroundColor = '#faf5ff';
                 }
             });
 
             const searchValue = urlParams.get('search');
             if (searchValue && searchInput) {
-                searchInput.style.borderColor = '#2563eb';
-                searchInput.style.backgroundColor = '#eff6ff';
+                searchInput.style.borderColor = '#7c3aed';
+                searchInput.style.backgroundColor = '#faf5ff';
             }
         });
 
-        // Add tooltips for truncated text
         document.querySelectorAll('.asset-detail span').forEach(span => {
             if (span.scrollWidth > span.clientWidth) {
                 span.title = span.textContent;
             }
         });
 
-        // Print functionality
-        function printAssets() {
-            window.print();
-        }
-
-        // Export to CSV
         function exportToCSV() {
             const assets = <?php echo json_encode($assets); ?>;
             
@@ -1018,28 +1155,25 @@ if ($user_role === 'admin') {
             window.URL.revokeObjectURL(url);
         }
 
-        // Keyboard shortcuts
         document.addEventListener('keydown', function(e) {
             if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
                 e.preventDefault();
-                printAssets();
+                window.print();
             }
         });
 
-        // Smooth scroll to top when clicking stat cards
         document.querySelectorAll('.stat-card').forEach(card => {
             card.addEventListener('click', function() {
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             });
         });
 
-        // Add animation to cards on scroll
         const observerOptions = {
             threshold: 0.1,
             rootMargin: '0px 0px -50px 0px'
         };
 
-        const observer = new IntersectionObserver(function(entries) {
+        const cardObserver = new IntersectionObserver(function(entries) {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
                     entry.target.style.opacity = '1';
@@ -1052,11 +1186,10 @@ if ($user_role === 'admin') {
             card.style.opacity = '0';
             card.style.transform = 'translateY(20px)';
             card.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
-            observer.observe(card);
+            cardObserver.observe(card);
         });
 
-        // Quick stats summary in console
-        console.log('%cDepartment Assets Summary:', 'font-weight: bold; font-size: 16px; color: #667eea;');
+        console.log('%cDepartment Assets Summary:', 'font-weight: bold; font-size: 16px; color: #7c3aed;');
         console.log('Total Assets: <?php echo $stats['total']; ?>');
         console.log('Total Value: $<?php echo number_format($total_value, 2); ?>');
         console.log('Available: <?php echo $stats['available']; ?>');

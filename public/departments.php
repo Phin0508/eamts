@@ -169,7 +169,6 @@ $total_employees = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
             min-height: 100vh;
         }
 
-        /* Main Container */
         .container {
             margin-left: 260px;
             padding: 30px;
@@ -181,7 +180,6 @@ $total_employees = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
             margin-left: 80px;
         }
 
-        /* Header */
         .header {
             background: white;
             border-radius: 16px;
@@ -234,7 +232,6 @@ $total_employees = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
             gap: 10px;
         }
 
-        /* Messages */
         .success-message, .error-message {
             padding: 16px 20px;
             border-radius: 12px;
@@ -269,7 +266,6 @@ $total_employees = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
             }
         }
 
-        /* Stats Grid */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -298,9 +294,10 @@ $total_employees = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 24px;
+            font-size: 20px;
             margin-bottom: 16px;
             background: linear-gradient(135deg, #f7f4fe 0%, #ede9fe 100%);
+            color: #7c3aed;
         }
 
         .stat-card .stat-number {
@@ -323,7 +320,6 @@ $total_employees = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
             letter-spacing: 0.5px;
         }
 
-        /* Buttons */
         .btn {
             padding: 10px 18px;
             border: none;
@@ -409,7 +405,6 @@ $total_employees = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
             font-size: 12px;
         }
 
-        /* Section */
         .section {
             background: white;
             border-radius: 16px;
@@ -439,7 +434,6 @@ $total_employees = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
             font-size: 14px;
         }
 
-        /* Departments Grid */
         .departments-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
@@ -453,6 +447,7 @@ $total_employees = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
             padding: 25px;
             transition: all 0.3s;
             position: relative;
+            cursor: pointer;
         }
 
         .department-card:hover {
@@ -466,6 +461,16 @@ $total_employees = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
             background: #f9fafb;
         }
 
+        .dept-card-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 1;
+            text-decoration: none;
+        }
+
         .dept-icon {
             width: 56px;
             height: 56px;
@@ -474,8 +479,11 @@ $total_employees = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 28px;
+            font-size: 24px;
             margin-bottom: 16px;
+            color: white;
+            position: relative;
+            z-index: 2;
         }
 
         .dept-header {
@@ -483,6 +491,8 @@ $total_employees = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
             justify-content: space-between;
             align-items: start;
             margin-bottom: 15px;
+            position: relative;
+            z-index: 2;
         }
 
         .dept-title h3 {
@@ -508,6 +518,8 @@ $total_employees = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
             line-height: 1.6;
             margin: 15px 0;
             min-height: 40px;
+            position: relative;
+            z-index: 2;
         }
 
         .dept-stats {
@@ -517,6 +529,8 @@ $total_employees = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
             border-top: 1px solid #e5e7eb;
             border-bottom: 1px solid #e5e7eb;
             margin: 15px 0;
+            position: relative;
+            z-index: 2;
         }
 
         .dept-stat {
@@ -545,6 +559,8 @@ $total_employees = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
             padding: 15px;
             background: #f9fafb;
             border-radius: 8px;
+            position: relative;
+            z-index: 2;
         }
 
         .dept-info-item {
@@ -575,6 +591,8 @@ $total_employees = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
             gap: 8px;
             margin-top: 15px;
             flex-wrap: wrap;
+            position: relative;
+            z-index: 3;
         }
 
         .badge {
@@ -597,7 +615,6 @@ $total_employees = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
             color: #991b1b;
         }
 
-        /* Modal */
         .modal {
             display: none;
             position: fixed;
@@ -724,7 +741,6 @@ $total_employees = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
             border-left: 4px solid #dc3545;
         }
 
-        /* Empty State */
         .empty-state {
             text-align: center;
             padding: 80px 20px;
@@ -732,6 +748,7 @@ $total_employees = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
 
         .empty-state-icon {
             font-size: 64px;
+            color: #cbd5e0;
             margin-bottom: 20px;
         }
 
@@ -747,13 +764,8 @@ $total_employees = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
             font-size: 15px;
         }
 
-        /* Responsive Design */
         @media (max-width: 1024px) {
             .container {
-                margin-left: 80px;
-            }
-
-            .container.sidebar-collapsed {
                 margin-left: 80px;
             }
         }
@@ -762,10 +774,6 @@ $total_employees = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
             .container {
                 margin-left: 0;
                 padding: 20px;
-            }
-
-            .container.sidebar-collapsed {
-                margin-left: 0;
             }
 
             .header {
@@ -868,31 +876,29 @@ $total_employees = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
         </div>
         <?php endif; ?>
 
-        <!-- Statistics -->
         <div class="stats-grid">
             <div class="stat-card">
-                <div class="stat-icon">🏢</div>
+                <div class="stat-icon"><i class="fas fa-building"></i></div>
                 <div class="stat-number total"><?php echo $stats['total_departments']; ?></div>
                 <div class="stat-label">Total Departments</div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon">✓</div>
+                <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
                 <div class="stat-number active"><?php echo $stats['active_departments']; ?></div>
                 <div class="stat-label">Active Departments</div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon">👥</div>
+                <div class="stat-icon"><i class="fas fa-users"></i></div>
                 <div class="stat-number employees"><?php echo $total_employees; ?></div>
                 <div class="stat-label">Total Employees</div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon">💰</div>
+                <div class="stat-icon"><i class="fas fa-dollar-sign"></i></div>
                 <div class="stat-number budget">$<?php echo number_format($stats['total_budget'] ?? 0, 0); ?></div>
                 <div class="stat-label">Combined Budget</div>
             </div>
         </div>
 
-        <!-- Departments Section -->
         <div class="section">
             <div class="section-header">
                 <h2><i class="fas fa-th-large"></i> All Departments</h2>
@@ -903,7 +909,9 @@ $total_employees = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
             <div class="departments-grid">
                 <?php foreach ($departments as $dept): ?>
                 <div class="department-card <?php echo $dept['is_active'] ? '' : 'inactive'; ?>">
-                    <div class="dept-icon">🏢</div>
+                    <a href="departmentAsset.php?dept_id=<?php echo $dept['dept_id']; ?>" class="dept-card-overlay"></a>
+                    
+                    <div class="dept-icon"><i class="fas fa-building"></i></div>
                     
                     <div class="dept-header">
                         <div class="dept-title">
@@ -950,10 +958,10 @@ $total_employees = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
 
                     <?php if ($_SESSION['role'] === 'admin'): ?>
                     <div class="dept-actions">
-                        <button onclick='openEditModal(<?php echo json_encode($dept); ?>)' class="btn btn-sm btn-info">
+                        <button onclick='event.stopPropagation(); openEditModal(<?php echo json_encode($dept); ?>)' class="btn btn-sm btn-info">
                             <i class="fas fa-edit"></i> Edit
                         </button>
-                        <form method="POST" style="display: inline; width: 100%;">
+                        <form method="POST" style="display: inline; width: 100%;" onsubmit="event.stopPropagation();">
                             <input type="hidden" name="action" value="toggle_status">
                             <input type="hidden" name="dept_id" value="<?php echo $dept['dept_id']; ?>">
                             <input type="hidden" name="new_status" value="<?php echo $dept['is_active'] ? 0 : 1; ?>">
@@ -962,7 +970,7 @@ $total_employees = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
                                 <?php echo $dept['is_active'] ? 'Deactivate' : 'Activate'; ?>
                             </button>
                         </form>
-                        <button onclick="confirmDelete(<?php echo $dept['dept_id']; ?>, '<?php echo htmlspecialchars($dept['dept_name']); ?>', <?php echo $dept['employee_count']; ?>)" 
+                        <button onclick="event.stopPropagation(); confirmDelete(<?php echo $dept['dept_id']; ?>, '<?php echo htmlspecialchars($dept['dept_name']); ?>', <?php echo $dept['employee_count']; ?>)" 
                                 class="btn btn-sm btn-danger">
                             <i class="fas fa-trash-alt"></i> Delete
                         </button>
@@ -973,7 +981,7 @@ $total_employees = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
             </div>
             <?php else: ?>
             <div class="empty-state">
-                <div class="empty-state-icon">🏢</div>
+                <div class="empty-state-icon"><i class="fas fa-building"></i></div>
                 <h3>No departments found</h3>
                 <p>Start by creating your first department</p>
             </div>
@@ -981,7 +989,6 @@ $total_employees = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
         </div>
     </div>
 
-    <!-- Add/Edit Department Modal -->
     <div id="departmentModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -1040,7 +1047,6 @@ $total_employees = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
         </div>
     </div>
 
-    <!-- Delete Confirmation Modal -->
     <div id="deleteModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -1064,7 +1070,6 @@ $total_employees = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
     </div>
 
     <script>
-        // Handle sidebar toggle
         function updateMainContainer() {
             const mainContainer = document.getElementById('mainContainer');
             const sidebar = document.querySelector('.sidebar');
@@ -1076,17 +1081,14 @@ $total_employees = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
             }
         }
 
-        // Check on load
         document.addEventListener('DOMContentLoaded', updateMainContainer);
 
-        // Listen for sidebar changes
         document.addEventListener('click', function(e) {
             if (e.target.closest('.toggle-sidebar')) {
                 setTimeout(updateMainContainer, 50);
             }
         });
 
-        // Observe sidebar changes
         const observer = new MutationObserver(updateMainContainer);
         const sidebar = document.querySelector('.sidebar');
         if (sidebar) {
@@ -1152,7 +1154,6 @@ $total_employees = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
             document.body.style.overflow = 'auto';
         }
 
-        // Close modals when clicking outside
         document.querySelectorAll('.modal').forEach(modal => {
             modal.addEventListener('click', function(e) {
                 if (e.target === this) {
@@ -1162,7 +1163,6 @@ $total_employees = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
             });
         });
 
-        // Close modals with Escape key
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
                 closeModal();
@@ -1170,7 +1170,6 @@ $total_employees = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
             }
         });
 
-        // Auto-hide success/error messages
         setTimeout(() => {
             const successMsg = document.querySelector('.success-message');
             const errorMsg = document.querySelector('.error-message');

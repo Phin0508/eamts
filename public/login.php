@@ -274,66 +274,171 @@ if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && $_SERVE
 
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #f8f9fc;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
             padding: 20px;
-        }
-
-        .login-container {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            max-width: 480px;
-            width: 100%;
+            position: relative;
             overflow: hidden;
         }
 
-        .login-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 50px 40px;
-            text-align: center;
+        /* Animated Background */
+        body::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(135deg, 
+                rgba(124, 58, 237, 0.05) 0%, 
+                rgba(109, 40, 217, 0.05) 25%,
+                rgba(124, 58, 237, 0.03) 50%,
+                rgba(109, 40, 217, 0.03) 75%,
+                rgba(124, 58, 237, 0.05) 100%);
+            animation: rotate 20s linear infinite;
+            z-index: 0;
         }
 
-        .login-header .logo {
-            width: 80px;
-            height: 80px;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 50%;
-            margin: 0 auto 20px;
+        @keyframes rotate {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .login-wrapper {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 1100px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+        }
+
+        /* Left Side - Branding */
+        .login-branding {
+            background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+            padding: 60px 50px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            color: white;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .login-branding::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+            animation: pulse 15s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 0.5; }
+            50% { transform: scale(1.2); opacity: 0.8; }
+        }
+
+        .brand-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .brand-logo {
+            width: 100px;
+            height: 100px;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            border-radius: 24px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 40px;
+            font-size: 48px;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
         }
 
-        .login-header h1 {
-            font-size: 32px;
-            margin-bottom: 10px;
+        .brand-content h1 {
+            font-size: 36px;
             font-weight: 700;
+            margin-bottom: 16px;
+            line-height: 1.2;
+        }
+
+        .brand-content p {
+            font-size: 16px;
+            opacity: 0.9;
+            line-height: 1.6;
+            margin-bottom: 40px;
+        }
+
+        .feature-list {
+            list-style: none;
+        }
+
+        .feature-list li {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            font-size: 15px;
+            opacity: 0.95;
+        }
+
+        .feature-list li i {
+            width: 32px;
+            height: 32px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        /* Right Side - Login Form */
+        .login-container {
+            padding: 60px 50px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .login-header {
+            margin-bottom: 40px;
+        }
+
+        .login-header h2 {
+            font-size: 32px;
+            font-weight: 700;
+            color: #1a202c;
+            margin-bottom: 8px;
         }
 
         .login-header p {
-            opacity: 0.9;
+            color: #718096;
             font-size: 15px;
-        }
-
-        .login-body {
-            padding: 40px;
         }
 
         .alert {
             padding: 14px 18px;
-            border-radius: 10px;
+            border-radius: 12px;
             margin-bottom: 24px;
             font-size: 14px;
             display: flex;
             align-items: center;
             gap: 10px;
             animation: slideDown 0.3s ease;
+            font-weight: 500;
         }
 
         @keyframes slideDown {
@@ -360,19 +465,20 @@ if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && $_SERVE
         }
 
         .redirect-notice {
-            background: linear-gradient(135deg, #e7f3ff 0%, #d4e9ff 100%);
-            border-left: 4px solid #2196F3;
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+            border-left: 4px solid #3b82f6;
             padding: 16px 18px;
-            border-radius: 10px;
+            border-radius: 12px;
             margin-bottom: 24px;
             font-size: 14px;
-            color: #1976D2;
+            color: #1e40af;
         }
 
         .redirect-notice strong {
             display: block;
             margin-bottom: 5px;
             font-size: 15px;
+            font-weight: 700;
         }
 
         .form-group {
@@ -397,7 +503,7 @@ if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && $_SERVE
 
         .input-icon {
             position: absolute;
-            left: 16px;
+            left: 18px;
             top: 50%;
             transform: translateY(-50%);
             color: #718096;
@@ -406,18 +512,19 @@ if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && $_SERVE
 
         .form-group input {
             width: 100%;
-            padding: 14px 16px 14px 46px;
+            padding: 14px 18px 14px 50px;
             border: 2px solid #e2e8f0;
-            border-radius: 10px;
+            border-radius: 12px;
             font-size: 14px;
             transition: all 0.3s;
             font-family: inherit;
+            background: white;
         }
 
         .form-group input:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+            border-color: #7c3aed;
+            box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.1);
         }
 
         .password-wrapper {
@@ -426,17 +533,18 @@ if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && $_SERVE
 
         .password-toggle {
             position: absolute;
-            right: 16px;
+            right: 18px;
             top: 50%;
             transform: translateY(-50%);
             cursor: pointer;
             color: #718096;
             font-size: 18px;
             transition: color 0.3s;
+            z-index: 1;
         }
 
         .password-toggle:hover {
-            color: #667eea;
+            color: #7c3aed;
         }
 
         .form-options {
@@ -457,43 +565,49 @@ if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && $_SERVE
             width: 18px;
             height: 18px;
             cursor: pointer;
+            accent-color: #7c3aed;
         }
 
         .checkbox-group label {
             cursor: pointer;
             color: #2d3748;
             margin: 0;
+            font-weight: 500;
         }
 
         .forgot-password {
-            color: #667eea;
+            color: #7c3aed;
             text-decoration: none;
             font-weight: 600;
             transition: color 0.3s;
         }
 
         .forgot-password:hover {
-            color: #764ba2;
+            color: #6d28d9;
             text-decoration: underline;
         }
 
         .btn-login {
             width: 100%;
             padding: 16px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
             color: white;
             border: none;
-            border-radius: 10px;
+            border-radius: 12px;
             font-size: 16px;
             font-weight: 700;
             cursor: pointer;
             transition: all 0.3s;
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 4px 14px rgba(124, 58, 237, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
         }
 
         .btn-login:hover {
             transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+            box-shadow: 0 6px 20px rgba(124, 58, 237, 0.5);
         }
 
         .btn-login:active {
@@ -504,7 +618,7 @@ if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && $_SERVE
             display: flex;
             align-items: center;
             text-align: center;
-            margin: 30px 0;
+            margin: 32px 0;
             color: #718096;
             font-size: 14px;
         }
@@ -517,7 +631,7 @@ if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && $_SERVE
         }
 
         .divider span {
-            padding: 0 15px;
+            padding: 0 16px;
             font-weight: 600;
         }
 
@@ -528,32 +642,35 @@ if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && $_SERVE
         }
 
         .signup-link a {
-            color: #667eea;
+            color: #7c3aed;
             text-decoration: none;
             font-weight: 700;
             transition: color 0.3s;
         }
 
         .signup-link a:hover {
-            color: #764ba2;
+            color: #6d28d9;
             text-decoration: underline;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 968px) {
+            .login-wrapper {
+                grid-template-columns: 1fr;
+            }
+
+            .login-branding {
+                display: none;
+            }
         }
 
         @media (max-width: 600px) {
             .login-container {
-                max-width: 100%;
-            }
-
-            .login-header {
                 padding: 40px 30px;
             }
 
-            .login-header h1 {
+            .login-header h2 {
                 font-size: 26px;
-            }
-
-            .login-body {
-                padding: 30px 25px;
             }
 
             .form-options {
@@ -561,20 +678,52 @@ if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && $_SERVE
                 align-items: flex-start;
                 gap: 15px;
             }
+
+            body {
+                padding: 10px;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="login-container">
-        <div class="login-header">
-            <div class="logo">
-                🔐
+    <div class="login-wrapper">
+        <!-- Left Side - Branding -->
+        <div class="login-branding">
+            <div class="brand-content">
+                <div class="brand-logo">
+                    🔐
+                </div>
+                <h1>E-Asset Management System</h1>
+                <p>Streamline your asset tracking and management with our comprehensive solution.</p>
+                
+                <ul class="feature-list">
+                    <li>
+                        <i class="fas fa-check"></i>
+                        <span>Real-time asset tracking</span>
+                    </li>
+                    <li>
+                        <i class="fas fa-check"></i>
+                        <span>Comprehensive reporting</span>
+                    </li>
+                    <li>
+                        <i class="fas fa-check"></i>
+                        <span>Multi-department support</span>
+                    </li>
+                    <li>
+                        <i class="fas fa-check"></i>
+                        <span>Secure & reliable</span>
+                    </li>
+                </ul>
             </div>
-            <h1>Welcome Back</h1>
-            <p>Sign in to E-Asset Management System</p>
         </div>
 
-        <div class="login-body">
+        <!-- Right Side - Login Form -->
+        <div class="login-container">
+            <div class="login-header">
+                <h2>Welcome Back</h2>
+                <p>Enter your credentials to access your account</p>
+            </div>
+
             <?php if (!empty($success_message)): ?>
             <div class="alert alert-success">
                 <i class="fas fa-check-circle"></i>

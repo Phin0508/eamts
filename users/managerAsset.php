@@ -139,298 +139,61 @@ try {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
-        .page-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 2rem;
-            border-radius: 12px;
-            margin-bottom: 2rem;
-        }
-
-        .page-header h1 {
-            margin: 0 0 0.5rem 0;
-            font-size: 2rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .page-header p {
-            margin: 0;
-            opacity: 0.95;
-        }
-
-        .stats-grid {
+        /* Clean Stats Container */
+        .stats-container {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1.5rem;
-            margin-bottom: 2rem;
+            gap: 20px;
+            margin-bottom: 30px;
         }
 
+        /* Clean White Stat Cards */
         .stat-card {
             background: white;
-            padding: 1.5rem;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-            transition: transform 0.2s;
+            padding: 28px;
+            border-radius: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            transition: all 0.3s;
+            border-left: 4px solid #667eea;
             cursor: pointer;
         }
 
         .stat-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            transform: translateY(-4px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.15);
         }
 
-        .stat-card .stat-icon {
-            font-size: 2rem;
-            margin-bottom: 0.5rem;
+        .stat-card h3 {
+            font-size: 14px;
+            margin: 0 0 12px 0;
+            color: #718096;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         .stat-card .stat-number {
-            font-size: 2rem;
-            font-weight: bold;
-            color: #2c3e50;
-            margin-bottom: 0.25rem;
+            font-size: 36px;
+            font-weight: 700;
+            margin: 0;
+            color: #1a202c;
+            margin-bottom: 8px;
         }
 
         .stat-card .stat-label {
-            color: #6c757d;
-            font-size: 0.9rem;
-        }
-
-        .stat-card .stat-value {
-            color: #059669;
-            font-size: 0.85rem;
-            font-weight: 600;
-            margin-top: 0.5rem;
-        }
-
-        .filters-section {
-            background: white;
-            padding: 1.5rem;
-            border-radius: 12px;
-            margin-bottom: 2rem;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        }
-
-        .filters-form {
-            display: flex;
-            gap: 1rem;
-            flex-wrap: wrap;
-            align-items: center;
-        }
-
-        .search-box {
-            flex: 1;
-            min-width: 250px;
-            position: relative;
-        }
-
-        .search-box i {
-            position: absolute;
-            left: 1rem;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #6c757d;
-        }
-
-        .search-box input {
-            width: 100%;
-            padding: 0.75rem 1rem 0.75rem 2.5rem;
-            border: 1px solid #d1d5db;
-            border-radius: 8px;
-            font-size: 0.95rem;
-        }
-
-        .filters-form select {
-            padding: 0.75rem 1rem;
-            border: 1px solid #d1d5db;
-            border-radius: 8px;
-            font-size: 0.95rem;
-            background: white;
-            cursor: pointer;
-        }
-
-        .btn {
-            padding: 0.75rem 1.5rem;
-            border: none;
-            border-radius: 8px;
-            font-size: 0.95rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            text-decoration: none;
-        }
-
-        .btn-primary {
-            background: #2563eb;
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background: #1d4ed8;
-        }
-
-        .btn-outline {
-            background: white;
-            color: #374151;
-            border: 1px solid #d1d5db;
-        }
-
-        .btn-outline:hover {
-            background: #f9fafb;
-        }
-
-        .assets-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-            gap: 1.5rem;
-            margin-bottom: 2rem;
-        }
-
-        .asset-card {
-            background: white;
-            border-radius: 12px;
-            padding: 1.5rem;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-            transition: all 0.3s;
-            position: relative;
-        }
-
-        .asset-card:hover {
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-            transform: translateY(-2px);
-        }
-
-        .asset-card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: start;
-            margin-bottom: 1rem;
-            padding-bottom: 1rem;
-            border-bottom: 2px solid #f0f0f0;
-        }
-
-        .asset-title {
-            flex: 1;
-        }
-
-        .asset-title h3 {
-            margin: 0 0 0.5rem 0;
-            color: #2c3e50;
-            font-size: 1.1rem;
-        }
-
-        .asset-code {
-            background: #667eea;
-            color: white;
-            padding: 0.25rem 0.75rem;
-            border-radius: 12px;
-            font-size: 0.75rem;
-            font-weight: 600;
-        }
-
-        .status-badge {
-            padding: 0.375rem 0.75rem;
-            border-radius: 12px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            text-transform: uppercase;
-        }
-
-        .status-available { background: #d1fae5; color: #065f46; }
-        .status-in-use { background: #dbeafe; color: #1e40af; }
-        .status-maintenance { background: #fed7aa; color: #92400e; }
-        .status-retired { background: #e5e7eb; color: #374151; }
-        .status-damaged { background: #fecaca; color: #991b1b; }
-
-        .asset-details {
-            display: grid;
-            gap: 0.75rem;
-            margin-bottom: 1rem;
-        }
-
-        .asset-detail {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            font-size: 0.875rem;
-            color: #4b5563;
-        }
-
-        .asset-detail i {
-            width: 20px;
-            color: #6b7280;
-        }
-
-        .asset-detail strong {
-            color: #1f2937;
-        }
-
-        .asset-actions {
-            display: flex;
-            gap: 0.5rem;
-            padding-top: 1rem;
-            border-top: 1px solid #e5e7eb;
-        }
-
-        .btn-sm {
-            padding: 0.5rem 1rem;
-            font-size: 0.85rem;
-            border-radius: 6px;
-            text-decoration: none;
-            border: none;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.375rem;
-            flex: 1;
-            justify-content: center;
-        }
-
-        .btn-view {
-            background: #dbeafe;
-            color: #1e40af;
-        }
-
-        .btn-view:hover {
-            background: #bfdbfe;
-        }
-
-        .no-assets {
-            text-align: center;
-            padding: 4rem 2rem;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        }
-
-        .no-assets i {
-            font-size: 4rem;
-            color: #d1d5db;
-            margin-bottom: 1rem;
-        }
-
-        .no-assets h3 {
-            color: #374151;
-            margin-bottom: 0.5rem;
-        }
-
-        .no-assets p {
-            color: #6b7280;
+            font-size: 13px;
+            color: #a0aec0;
+            margin-top: 8px;
+            font-weight: 500;
         }
 
         .alert {
-            padding: 1rem 1.5rem;
+            padding: 15px 20px;
             border-radius: 8px;
-            margin-bottom: 1.5rem;
+            margin-bottom: 20px;
             display: flex;
             align-items: center;
-            gap: 0.75rem;
+            gap: 10px;
         }
 
         .alert-success {
@@ -445,46 +208,301 @@ try {
             color: #991b1b;
         }
 
-        .maintenance-info {
-            display: flex;
-            gap: 1rem;
-            padding: 0.75rem;
-            background: #f9fafb;
-            border-radius: 6px;
-            margin-top: 0.75rem;
-            font-size: 0.8rem;
+        .inventory-header {
+            margin-bottom: 30px;
         }
 
-        .maintenance-stat {
-            display: flex;
-            align-items: center;
-            gap: 0.375rem;
-            color: #4b5563;
+        .inventory-header h1 {
+            font-size: 32px;
+            margin: 0 0 10px 0;
+            color: #1a202c;
+            font-weight: 700;
         }
 
         .info-banner {
             background: #eff6ff;
             border-left: 4px solid #2563eb;
-            padding: 1rem 1.5rem;
+            padding: 15px 20px;
             border-radius: 8px;
-            margin-bottom: 2rem;
+            margin-bottom: 30px;
             display: flex;
             align-items: center;
-            gap: 0.75rem;
+            gap: 12px;
+            font-size: 14px;
+            color: #1e40af;
         }
 
         .info-banner i {
-            color: #2563eb;
-            font-size: 1.25rem;
+            font-size: 18px;
+        }
+
+        /* Filters Section */
+        .filters-section {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+
+        .filters-form {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .search-box {
+            flex: 1;
+            min-width: 250px;
+            position: relative;
+        }
+
+        .search-box i {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #718096;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 12px 15px 12px 45px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .filters-form select {
+            padding: 12px 15px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .filters-form select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-outline {
+            background: white;
+            color: #4a5568;
+            border: 1px solid #e2e8f0;
+        }
+
+        .btn-outline:hover {
+            background: #f7fafc;
+            border-color: #cbd5e0;
+        }
+
+        /* Asset Cards */
+        .asset-details-card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            transition: all 0.3s;
+        }
+
+        .asset-details-card:hover {
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+            transform: translateY(-2px);
+        }
+
+        .asset-details-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #f7fafc;
+        }
+
+        .asset-details-title {
+            flex: 1;
+        }
+
+        .asset-details-title h3 {
+            margin: 0 0 8px 0;
+            color: #1a202c;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .asset-code-badge {
+            background: #667eea;
+            color: white;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .status-badge {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-available { background: #d1fae5; color: #065f46; }
+        .status-in-use { background: #dbeafe; color: #1e40af; }
+        .status-maintenance { background: #fed7aa; color: #92400e; }
+        .status-retired { background: #e5e7eb; color: #374151; }
+        .status-damaged { background: #fecaca; color: #991b1b; }
+
+        .asset-details-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .detail-item {
+            padding: 12px;
+            background: #f7fafc;
+            border-radius: 8px;
+        }
+
+        .detail-label {
+            font-size: 11px;
+            color: #718096;
+            margin-bottom: 6px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .detail-value {
+            font-size: 14px;
+            color: #1a202c;
+            font-weight: 500;
+        }
+
+        .asset-maintenance-info {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #f0f0f0;
+        }
+
+        .maintenance-stat {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #718096;
+        }
+
+        .maintenance-stat .icon {
+            font-size: 16px;
+        }
+
+        .asset-actions {
+            display: flex;
+            gap: 10px;
+            padding-top: 20px;
+            border-top: 1px solid #f0f0f0;
+        }
+
+        .btn-sm {
+            padding: 10px 20px;
+            font-size: 13px;
+            border-radius: 8px;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+            justify-content: center;
+            font-weight: 600;
+        }
+
+        .btn-view {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .btn-view:hover {
+            background: #bfdbfe;
+            transform: translateY(-1px);
+        }
+
+        .no-assets-message {
+            text-align: center;
+            padding: 60px 20px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+
+        .no-assets-message .icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+
+        .no-assets-message h2 {
+            color: #1a202c;
+            margin-bottom: 10px;
+            font-size: 24px;
+        }
+
+        .no-assets-message p {
+            color: #718096;
+            font-size: 16px;
+            line-height: 1.6;
         }
 
         @media (max-width: 768px) {
-            .stats-grid {
+            .stats-container {
                 grid-template-columns: repeat(2, 1fr);
-            }
-
-            .assets-grid {
-                grid-template-columns: 1fr;
             }
 
             .filters-form {
@@ -498,6 +516,15 @@ try {
 
             .filters-form select {
                 width: 100%;
+            }
+
+            .asset-details-header {
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            .asset-details-grid {
+                grid-template-columns: 1fr;
             }
         }
 
@@ -514,13 +541,7 @@ try {
                 display: none !important;
             }
 
-            .page-header {
-                background: white !important;
-                color: black !important;
-                border: 1px solid #ddd;
-            }
-
-            .asset-card {
+            .asset-details-card {
                 break-inside: avoid;
                 page-break-inside: avoid;
                 margin-bottom: 20px;
@@ -533,11 +554,11 @@ try {
     <?php include("../auth/inc/Msidebar.php"); ?>
 
     <main class="main-content">
-        <div class="dashboard-content">
-            <div class="page-header">
-                <div>
-                    <h1><i class="fas fa-user-circle"></i> My Assets</h1>
-                    <p>Assets assigned to <?php echo htmlspecialchars($user_name); ?> (<?php echo htmlspecialchars($department); ?> Department)</p>
+        <div class="inventory-container">
+            <div class="inventory-header">
+                <h1>💼 My Assets</h1>
+                <div style="color: #718096; font-size: 14px;">
+                    <strong><?php echo htmlspecialchars($user_name); ?></strong> - <?php echo htmlspecialchars($department); ?> Department
                 </div>
             </div>
 
@@ -564,30 +585,26 @@ try {
             </div>
 
             <!-- Statistics Cards -->
-            <div class="stats-grid">
+            <div class="stats-container">
                 <div class="stat-card" onclick="window.location.href='?status=all'">
-                    <div class="stat-icon">📦</div>
-                    <div class="stat-number"><?php echo $stats['total']; ?></div>
-                    <div class="stat-label">My Total Assets</div>
-                    <div class="stat-value">$<?php echo number_format($total_value, 2); ?></div>
+                    <h3>Total Assets</h3>
+                    <p class="stat-number"><?php echo $stats['total']; ?></p>
+                    <p class="stat-label">$<?php echo number_format($total_value, 2); ?></p>
                 </div>
 
                 <div class="stat-card" onclick="window.location.href='?status=Available'">
-                    <div class="stat-icon">✅</div>
-                    <div class="stat-number"><?php echo $stats['available']; ?></div>
-                    <div class="stat-label">Available</div>
+                    <h3>Available</h3>
+                    <p class="stat-number"><?php echo $stats['available']; ?></p>
                 </div>
 
                 <div class="stat-card" onclick="window.location.href='?status=In Use'">
-                    <div class="stat-icon">💼</div>
-                    <div class="stat-number"><?php echo $stats['in_use']; ?></div>
-                    <div class="stat-label">In Use</div>
+                    <h3>In Use</h3>
+                    <p class="stat-number"><?php echo $stats['in_use']; ?></p>
                 </div>
 
                 <div class="stat-card" onclick="window.location.href='?status=Maintenance'">
-                    <div class="stat-icon">🔧</div>
-                    <div class="stat-number"><?php echo $stats['maintenance']; ?></div>
-                    <div class="stat-label">Maintenance</div>
+                    <h3>Maintenance</h3>
+                    <p class="stat-number"><?php echo $stats['maintenance']; ?></p>
                 </div>
             </div>
 
@@ -627,102 +644,114 @@ try {
                 </form>
             </div>
 
-            <!-- Assets Grid -->
+            <!-- Assets List -->
             <?php if (count($assets) > 0): ?>
-                <div class="assets-grid">
-                    <?php foreach ($assets as $asset): ?>
-                        <div class="asset-card">
-                            <div class="asset-card-header">
-                                <div class="asset-title">
-                                    <h3><?php echo htmlspecialchars($asset['asset_name']); ?></h3>
-                                    <span class="asset-code"><?php echo htmlspecialchars($asset['asset_code']); ?></span>
-                                </div>
-                                <span class="status-badge status-<?php echo strtolower(str_replace(' ', '-', $asset['status'])); ?>">
-                                    <?php echo htmlspecialchars($asset['status']); ?>
-                                </span>
+                <?php foreach ($assets as $asset): ?>
+                    <div class="asset-details-card">
+                        <div class="asset-details-header">
+                            <div class="asset-details-title">
+                                <h3><?php echo htmlspecialchars($asset['asset_name']); ?></h3>
+                                <span class="asset-code-badge"><?php echo htmlspecialchars($asset['asset_code']); ?></span>
                             </div>
+                            <span class="status-badge status-<?php echo strtolower(str_replace(' ', '-', $asset['status'])); ?>">
+                                <?php echo htmlspecialchars($asset['status']); ?>
+                            </span>
+                        </div>
 
-                            <div class="asset-details">
-                                <div class="asset-detail">
-                                    <i class="fas fa-tag"></i>
-                                    <span><strong>Category:</strong> <?php echo htmlspecialchars($asset['category']); ?></span>
-                                </div>
-
-                                <?php if ($asset['brand']): ?>
-                                    <div class="asset-detail">
-                                        <i class="fas fa-trademark"></i>
-                                        <span><strong>Brand:</strong> <?php echo htmlspecialchars($asset['brand']); ?></span>
+                        <?php if ($asset['maintenance_count'] > 0 || $asset['last_maintenance_date']): ?>
+                            <div class="asset-maintenance-info">
+                                <?php if ($asset['maintenance_count'] > 0): ?>
+                                    <div class="maintenance-stat">
+                                        <span class="icon">🔧</span>
+                                        <span><?php echo $asset['maintenance_count']; ?> maintenance record(s)</span>
                                     </div>
                                 <?php endif; ?>
-
-                                <?php if ($asset['model']): ?>
-                                    <div class="asset-detail">
-                                        <i class="fas fa-cube"></i>
-                                        <span><strong>Model:</strong> <?php echo htmlspecialchars($asset['model']); ?></span>
-                                    </div>
-                                <?php endif; ?>
-
-                                <?php if ($asset['serial_number']): ?>
-                                    <div class="asset-detail">
-                                        <i class="fas fa-barcode"></i>
-                                        <span><strong>S/N:</strong> <?php echo htmlspecialchars($asset['serial_number']); ?></span>
-                                    </div>
-                                <?php endif; ?>
-
-                                <?php if ($asset['purchase_cost']): ?>
-                                    <div class="asset-detail">
-                                        <i class="fas fa-dollar-sign"></i>
-                                        <span><strong>Value:</strong> $<?php echo number_format($asset['purchase_cost'], 2); ?></span>
-                                    </div>
-                                <?php endif; ?>
-
-                                <?php if ($asset['location']): ?>
-                                    <div class="asset-detail">
-                                        <i class="fas fa-map-marker-alt"></i>
-                                        <span><?php echo htmlspecialchars($asset['location']); ?></span>
-                                    </div>
-                                <?php endif; ?>
-
-                                <?php if ($asset['department']): ?>
-                                    <div class="asset-detail">
-                                        <i class="fas fa-building"></i>
-                                        <span><strong>Department:</strong> <?php echo htmlspecialchars($asset['department']); ?></span>
+                                <?php if ($asset['last_maintenance_date']): ?>
+                                    <div class="maintenance-stat">
+                                        <span class="icon">📅</span>
+                                        <span>Last: <?php echo date('M d, Y', strtotime($asset['last_maintenance_date'])); ?></span>
                                     </div>
                                 <?php endif; ?>
                             </div>
+                        <?php endif; ?>
 
-                            <?php if ($asset['maintenance_count'] > 0 || $asset['last_maintenance_date']): ?>
-                                <div class="maintenance-info">
-                                    <?php if ($asset['maintenance_count'] > 0): ?>
-                                        <div class="maintenance-stat">
-                                            <i class="fas fa-wrench"></i>
-                                            <span><?php echo $asset['maintenance_count']; ?> maintenance(s)</span>
-                                        </div>
-                                    <?php endif; ?>
-                                    <?php if ($asset['last_maintenance_date']): ?>
-                                        <div class="maintenance-stat">
-                                            <i class="fas fa-calendar"></i>
-                                            <span>Last: <?php echo date('M d, Y', strtotime($asset['last_maintenance_date'])); ?></span>
-                                        </div>
-                                    <?php endif; ?>
+                        <div class="asset-details-grid">
+                            <div class="detail-item">
+                                <div class="detail-label">Category</div>
+                                <div class="detail-value"><?php echo htmlspecialchars($asset['category']); ?></div>
+                            </div>
+
+                            <?php if ($asset['brand']): ?>
+                                <div class="detail-item">
+                                    <div class="detail-label">Brand</div>
+                                    <div class="detail-value"><?php echo htmlspecialchars($asset['brand']); ?></div>
                                 </div>
                             <?php endif; ?>
 
-                            <div class="asset-actions">
-                                <a href="assetDetails.php?id=<?php echo $asset['id']; ?>" class="btn-sm btn-view">
-                                    <i class="fas fa-eye"></i> View Details
-                                </a>
-                            </div>
+                            <?php if ($asset['model']): ?>
+                                <div class="detail-item">
+                                    <div class="detail-label">Model</div>
+                                    <div class="detail-value"><?php echo htmlspecialchars($asset['model']); ?></div>
+                                </div>
+                            <?php endif; ?>
+
+                            <?php if ($asset['serial_number']): ?>
+                                <div class="detail-item">
+                                    <div class="detail-label">Serial Number</div>
+                                    <div class="detail-value"><?php echo htmlspecialchars($asset['serial_number']); ?></div>
+                                </div>
+                            <?php endif; ?>
+
+                            <?php if ($asset['purchase_date']): ?>
+                                <div class="detail-item">
+                                    <div class="detail-label">Purchase Date</div>
+                                    <div class="detail-value"><?php echo date('M d, Y', strtotime($asset['purchase_date'])); ?></div>
+                                </div>
+                            <?php endif; ?>
+
+                            <?php if ($asset['purchase_cost']): ?>
+                                <div class="detail-item">
+                                    <div class="detail-label">Purchase Cost</div>
+                                    <div class="detail-value">$<?php echo number_format($asset['purchase_cost'], 2); ?></div>
+                                </div>
+                            <?php endif; ?>
+
+                            <?php if ($asset['location']): ?>
+                                <div class="detail-item">
+                                    <div class="detail-label">Location</div>
+                                    <div class="detail-value"><?php echo htmlspecialchars($asset['location']); ?></div>
+                                </div>
+                            <?php endif; ?>
+
+                            <?php if ($asset['department']): ?>
+                                <div class="detail-item">
+                                    <div class="detail-label">Department</div>
+                                    <div class="detail-value"><?php echo htmlspecialchars($asset['department']); ?></div>
+                                </div>
+                            <?php endif; ?>
+
+                            <?php if ($asset['description']): ?>
+                                <div class="detail-item" style="grid-column: 1 / -1;">
+                                    <div class="detail-label">Description</div>
+                                    <div class="detail-value"><?php echo nl2br(htmlspecialchars($asset['description'])); ?></div>
+                                </div>
+                            <?php endif; ?>
                         </div>
-                    <?php endforeach; ?>
-                </div>
+
+                        <div class="asset-actions">
+                            <a href="assetDetails.php?id=<?php echo $asset['id']; ?>" class="btn-sm btn-view">
+                                <i class="fas fa-eye"></i> View Details
+                            </a>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
             <?php else: ?>
-                <div class="no-assets">
-                    <i class="fas fa-inbox"></i>
-                    <h3>No Assets Assigned</h3>
+                <div class="no-assets-message">
+                    <div class="icon">📦</div>
+                    <h2>No Assets Assigned</h2>
                     <p>You currently don't have any assets assigned to you<?php echo !empty($search) || $filter_status !== 'all' || $filter_category !== 'all' ? ' that match your filters' : ''; ?>.</p>
                     <?php if (!empty($search) || $filter_status !== 'all' || $filter_category !== 'all'): ?>
-                        <a href="managerAsset.php" class="btn btn-primary" style="margin-top: 1rem;">
+                        <a href="managerAsset.php" class="btn btn-primary" style="margin-top: 20px;">
                             <i class="fas fa-redo"></i> Reset Filters
                         </a>
                     <?php endif; ?>
@@ -783,15 +812,15 @@ try {
             document.querySelectorAll('select').forEach(select => {
                 const paramValue = urlParams.get(select.name);
                 if (paramValue && paramValue !== 'all') {
-                    select.style.borderColor = '#2563eb';
-                    select.style.backgroundColor = '#eff6ff';
+                    select.style.borderColor = '#667eea';
+                    select.style.backgroundColor = '#f7fafc';
                 }
             });
 
             const searchValue = urlParams.get('search');
             if (searchValue && searchInput) {
-                searchInput.style.borderColor = '#2563eb';
-                searchInput.style.backgroundColor = '#eff6ff';
+                searchInput.style.borderColor = '#667eea';
+                searchInput.style.backgroundColor = '#f7fafc';
             }
         });
 
@@ -817,7 +846,7 @@ try {
             });
         }, observerOptions);
 
-        document.querySelectorAll('.asset-card').forEach(card => {
+        document.querySelectorAll('.asset-details-card').forEach(card => {
             card.style.opacity = '0';
             card.style.transform = 'translateY(20px)';
             card.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
@@ -838,7 +867,4 @@ try {
         console.log('Total Value: $<?php echo number_format($total_value, 2); ?>');
         console.log('Available: <?php echo $stats['available']; ?>');
         console.log('In Use: <?php echo $stats['in_use']; ?>');
-        console.log('Maintenance: <?php echo $stats['maintenance']; ?>');
-    </script>
-</body>
-</html>
+        console.log('Maintenance: <?php echo $stats['maintenance']; ?>'); 

@@ -121,7 +121,7 @@ try {
     error_log("Manager dashboard stats error: " . $e->getMessage());
 }
 
-// Fetch department employees
+// Fetch department employees - UPDATED to exclude inactive users
 $department_employees = [];
 try {
     $stmt = $pdo->prepare("
@@ -129,8 +129,8 @@ try {
                (SELECT COUNT(*) FROM assets WHERE assigned_to = users.user_id) as asset_count,
                (SELECT COUNT(*) FROM tickets WHERE requester_id = users.user_id) as ticket_count
         FROM users 
-        WHERE department = ?
-        ORDER BY is_active DESC, first_name ASC
+        WHERE department = ? AND is_active = 1
+        ORDER BY first_name ASC
         LIMIT 20
     ");
     $stmt->execute([$department]);

@@ -170,59 +170,73 @@ foreach ($upcoming_maintenance as $reminder) {
     <link rel="stylesheet" href="../auth/inc/navigation.css">
     <style>
         .stats-container {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
 
-        .stat-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 25px;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            transition: transform 0.2s;
-        }
+/* Clean White Stat Cards */
+.stat-card {
+    background: white;
+    padding: 28px;
+    border-radius: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    transition: all 0.3s;
+    border-left: 4px solid #667eea;
+    cursor: pointer;
+}
 
-        .stat-card:hover {
-            transform: translateY(-5px);
-        }
+.stat-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 20px rgba(102, 126, 234, 0.15);
+}
 
-        .stat-card.total {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-        }
+/* Remove individual gradient classes */
+.stat-card.total,
+.stat-card.value,
+.stat-card.in-use,
+.stat-card.maintenance-due {
+    background: white;
+    color: inherit;
+}
 
-        .stat-card.value {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-        }
+.stat-card h3 {
+    font-size: 14px;
+    margin: 0 0 12px 0;
+    color: #718096;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
 
-        .stat-card.in-use {
-            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
-        }
+.stat-card .stat-number {
+    font-size: 36px;
+    font-weight: 700;
+    margin: 0;
+    color: #1a202c;
+    margin-bottom: 8px;
+}
 
-        .stat-card.maintenance-due {
-            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
-        }
+.stat-card .stat-label {
+    font-size: 13px;
+    color: #a0aec0;
+    margin-top: 8px;
+    font-weight: 500;
+}
 
-        .stat-card h3 {
-            font-size: 14px;
-            margin: 0 0 10px 0;
-            opacity: 0.9;
-            font-weight: 500;
-        }
+/* Optional: Add icon styling if you want to add icons */
+.stat-card-icon {
+    font-size: 28px;
+    margin-bottom: 12px;
+    color: #667eea;
+}
 
-        .stat-card .stat-number {
-            font-size: 32px;
-            font-weight: bold;
-            margin: 0;
-        }
-
-        .stat-card .stat-label {
-            font-size: 12px;
-            opacity: 0.8;
-            margin-top: 5px;
-        }
+@media (max-width: 768px) {
+    .stats-container {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
 
         .alert {
             padding: 15px 20px;

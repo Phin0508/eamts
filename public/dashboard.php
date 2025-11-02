@@ -271,42 +271,162 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
             margin-bottom: 30px;
         }
 
-        .stat-card {
-            background: white;
-            border-radius: 16px;
-            padding: 28px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-            transition: all 0.3s;
-            border-left: 4px solid #7c3aed;
-            cursor: pointer;
-        }
+            /* Enhanced Stat Cards with Colors */
+    .stat-card {
+        background: white;
+        border-radius: 16px;
+        padding: 28px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        transition: all 0.3s;
+        cursor: pointer;
+        position: relative;
+        overflow: hidden;
+    }
 
-        .stat-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 8px 20px rgba(124, 58, 237, 0.15);
-        }
+    .stat-card::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -50%;
+        width: 200px;
+        height: 200px;
+        border-radius: 50%;
+        transition: all 0.3s;
+        opacity: 0.1;
+    }
 
-        .stat-icon {
-            font-size: 32px;
-            color: #7c3aed;
-            margin-bottom: 16px;
-            display: block;
-        }
+    .stat-card:hover {
+        transform: translateY(-4px);
+    }
 
-        .stat-number {
-            font-size: 36px;
-            font-weight: 700;
-            color: #1a202c;
-            margin-bottom: 8px;
-        }
+    .stat-card:hover::before {
+        transform: scale(1.2);
+        opacity: 0.15;
+    }
 
-        .stat-label {
-            color: #718096;
-            font-size: 14px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
+    /* Color variants for different stat types */
+    .stat-card.stat-purple {
+        border-left: 4px solid #7c3aed;
+    }
+
+    .stat-card.stat-purple::before {
+        background: linear-gradient(135deg, #7c3aed, #6d28d9);
+    }
+
+    .stat-card.stat-purple:hover {
+        box-shadow: 0 8px 20px rgba(124, 58, 237, 0.2);
+    }
+
+    .stat-card.stat-purple .stat-icon {
+        color: #7c3aed;
+    }
+
+    .stat-card.stat-green {
+        border-left: 4px solid #10b981;
+    }
+
+    .stat-card.stat-green::before {
+        background: linear-gradient(135deg, #10b981, #059669);
+    }
+
+    .stat-card.stat-green:hover {
+        box-shadow: 0 8px 20px rgba(16, 185, 129, 0.2);
+    }
+
+    .stat-card.stat-green .stat-icon {
+        color: #10b981;
+    }
+
+    .stat-card.stat-blue {
+        border-left: 4px solid #3b82f6;
+    }
+
+    .stat-card.stat-blue::before {
+        background: linear-gradient(135deg, #3b82f6, #2563eb);
+    }
+
+    .stat-card.stat-blue:hover {
+        box-shadow: 0 8px 20px rgba(59, 130, 246, 0.2);
+    }
+
+    .stat-card.stat-blue .stat-icon {
+        color: #3b82f6;
+    }
+
+    .stat-card.stat-orange {
+        border-left: 4px solid #f59e0b;
+    }
+
+    .stat-card.stat-orange::before {
+        background: linear-gradient(135deg, #f59e0b, #d97706);
+    }
+
+    .stat-card.stat-orange:hover {
+        box-shadow: 0 8px 20px rgba(245, 158, 11, 0.2);
+    }
+
+    .stat-card.stat-orange .stat-icon {
+        color: #f59e0b;
+    }
+
+    .stat-card.stat-red {
+        border-left: 4px solid #ef4444;
+    }
+
+    .stat-card.stat-red::before {
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+    }
+
+    .stat-card.stat-red:hover {
+        box-shadow: 0 8px 20px rgba(239, 68, 68, 0.2);
+    }
+
+    .stat-card.stat-red .stat-icon {
+        color: #ef4444;
+    }
+
+    .stat-card.stat-gray {
+        border-left: 4px solid #6b7280;
+    }
+
+    .stat-card.stat-gray::before {
+        background: linear-gradient(135deg, #6b7280, #4b5563);
+    }
+
+    .stat-card.stat-gray:hover {
+        box-shadow: 0 8px 20px rgba(107, 114, 128, 0.2);
+    }
+
+    .stat-card.stat-gray .stat-icon {
+        color: #6b7280;
+    }
+
+    .stat-icon {
+        font-size: 32px;
+        margin-bottom: 16px;
+        display: block;
+        position: relative;
+        z-index: 1;
+    }
+
+    .stat-number {
+        font-size: 36px;
+        font-weight: 700;
+        color: #1a202c;
+        margin-bottom: 8px;
+        position: relative;
+        z-index: 1;
+    }
+
+    .stat-label {
+        color: #718096;
+        font-size: 14px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        position: relative;
+        z-index: 1;
+    }
 
         /* Section */
         .section {
@@ -766,48 +886,53 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
             <p>Welcome back, <?php echo htmlspecialchars($_SESSION['first_name']); ?>! Here's what's happening with your assets and tickets today.</p>
         </div>
 
-        <!-- Statistics -->
         <div class="stats-grid">
-            <div class="stat-card" onclick="window.location.href='../public/asset.php'">
-                <i class="fas fa-boxes stat-icon"></i>
-                <div class="stat-number"><?php echo $stats['my_assets']; ?></div>
-                <div class="stat-label">My Assets</div>
-            </div>
+    <!-- My Assets - Purple -->
+    <div class="stat-card stat-purple" onclick="window.location.href='../public/asset.php'">
+        <i class="fas fa-boxes stat-icon"></i>
+        <div class="stat-number"><?php echo $stats['my_assets']; ?></div>
+        <div class="stat-label">My Assets</div>
+    </div>
 
-            <?php if ($role === 'admin'): ?>
-                <div class="stat-card" onclick="window.location.href='../public/userV.php'">
-                    <i class="fas fa-user-check stat-icon"></i>
-                    <div class="stat-number"><?php echo $stats['pending_requests']; ?></div>
-                    <div class="stat-label">Pending Verifications</div>
-                </div>
-            <?php else: ?>
-                <div class="stat-card" onclick="window.location.href='../public/tickets.php'">
-                    <i class="fas fa-ticket-alt stat-icon"></i>
-                    <div class="stat-number"><?php echo $stats['total_tickets']; ?></div>
-                    <div class="stat-label">Total Tickets</div>
-                </div>
-            <?php endif; ?>
-
-            <div class="stat-card" onclick="window.location.href='../public/assetDetails.php'">
-                <i class="fas fa-tools stat-icon"></i>
-                <div class="stat-number"><?php echo $stats['maintenance_due']; ?></div>
-                <div class="stat-label">Maintenance Status</div>
-            </div>
-
-            <?php if ($role === 'admin' || $role === 'manager'): ?>
-                <div class="stat-card" onclick="window.location.href='../public/asset.php'">
-                    <i class="fas fa-chart-line stat-icon"></i>
-                    <div class="stat-number"><?php echo $stats['total_assets']; ?></div>
-                    <div class="stat-label">Total Assets</div>
-                </div>
-            <?php else: ?>
-                <div class="stat-card" onclick="window.location.href='../public/tickets.php'">
-                    <i class="fas fa-exclamation-circle stat-icon"></i>
-                    <div class="stat-number"><?php echo $stats['urgent_tickets']; ?></div>
-                    <div class="stat-label">Urgent Tickets</div>
-                </div>
-            <?php endif; ?>
+    <?php if ($role === 'admin'): ?>
+        <!-- Pending Verifications - Orange -->
+        <div class="stat-card stat-orange" onclick="window.location.href='../public/userV.php'">
+            <i class="fas fa-user-check stat-icon"></i>
+            <div class="stat-number"><?php echo $stats['pending_requests']; ?></div>
+            <div class="stat-label">Pending Verifications</div>
         </div>
+    <?php else: ?>
+        <!-- Total Tickets - Blue -->
+        <div class="stat-card stat-blue" onclick="window.location.href='../public/tickets.php'">
+            <i class="fas fa-ticket-alt stat-icon"></i>
+            <div class="stat-number"><?php echo $stats['total_tickets']; ?></div>
+            <div class="stat-label">Total Tickets</div>
+        </div>
+    <?php endif; ?>
+
+    <!-- Maintenance Status - Orange/Red depending on count -->
+    <div class="stat-card <?php echo $stats['maintenance_due'] > 5 ? 'stat-red' : 'stat-orange'; ?>" onclick="window.location.href='../public/assetDetails.php'">
+        <i class="fas fa-tools stat-icon"></i>
+        <div class="stat-number"><?php echo $stats['maintenance_due']; ?></div>
+        <div class="stat-label">Maintenance Status</div>
+    </div>
+
+    <?php if ($role === 'admin' || $role === 'manager'): ?>
+        <!-- Total Assets - Green -->
+        <div class="stat-card stat-green" onclick="window.location.href='../public/asset.php'">
+            <i class="fas fa-chart-line stat-icon"></i>
+            <div class="stat-number"><?php echo $stats['total_assets']; ?></div>
+            <div class="stat-label">Total Assets</div>
+        </div>
+    <?php else: ?>
+        <!-- Urgent Tickets - Red -->
+        <div class="stat-card stat-red" onclick="window.location.href='../public/tickets.php'">
+            <i class="fas fa-exclamation-circle stat-icon"></i>
+            <div class="stat-number"><?php echo $stats['urgent_tickets']; ?></div>
+            <div class="stat-label">Urgent Tickets</div>
+        </div>
+    <?php endif; ?>
+</div>
 
         <!-- Charts Section -->
         <?php if ($role === 'admin' || $role === 'manager'): ?>
@@ -1099,197 +1224,93 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
     </div>
 
     <script>
-        // Handle sidebar toggle
-        function updateMainContainer() {
-            const mainContainer = document.getElementById('mainContainer');
-            const sidebar = document.querySelector('.sidebar');
-            
-            if (sidebar && sidebar.classList.contains('collapsed')) {
-                mainContainer.classList.add('sidebar-collapsed');
-            } else {
-                mainContainer.classList.remove('sidebar-collapsed');
-            }
-        }
+    // ===== COLOR PALETTES - MUST BE AT THE VERY TOP =====
+    const statusColors = {
+        // Capitalized versions (for display)
+        'Available': '#10b981',
+        'In Use': '#3b82f6',
+        'Maintenance': '#f59e0b',
+        'Retired': '#6b7280',
+        'Damaged': '#ef4444',
+        // Lowercase versions (from database)
+        'available': '#10b981',
+        'in_use': '#3b82f6',
+        'in use': '#3b82f6',
+        'maintenance': '#f59e0b',
+        'retired': '#6b7280',
+        'damaged': '#ef4444'
+    };
 
-        // Check on load
-        document.addEventListener('DOMContentLoaded', updateMainContainer);
+    const ticketStatusColors = {
+        'open': '#3b82f6',
+        'in_progress': '#f59e0b',
+        'pending': '#eab308',
+        'resolved': '#10b981',
+        'closed': '#6b7280'
+    };
 
-        // Listen for sidebar changes
-        document.addEventListener('click', function(e) {
-            if (e.target.closest('.toggle-sidebar')) {
-                setTimeout(updateMainContainer, 50);
-            }
-        });
+    const priorityColors = {
+        'low': '#10b981',
+        'medium': '#f59e0b',
+        'high': '#ef4444',
+        'urgent': '#dc2626'
+    };
 
-        // Observe sidebar changes
-        const observer = new MutationObserver(updateMainContainer);
+    // ===== SIDEBAR TOGGLE FUNCTIONS =====
+    function updateMainContainer() {
+        const mainContainer = document.getElementById('mainContainer');
         const sidebar = document.querySelector('.sidebar');
-        if (sidebar) {
-            observer.observe(sidebar, { attributes: true, attributeFilter: ['class'] });
+        
+        if (sidebar && sidebar.classList.contains('collapsed')) {
+            mainContainer.classList.add('sidebar-collapsed');
+        } else {
+            mainContainer.classList.remove('sidebar-collapsed');
         }
+    }
 
-        // Color palettes
-        const statusColors = {
-            'Available': '#10b981',
-            'In Use': '#3b82f6',
-            'Maintenance': '#f59e0b',
-            'Retired': '#6b7280',
-            'Damaged': '#ef4444'
-        };
+    // Check on load
+    document.addEventListener('DOMContentLoaded', updateMainContainer);
 
-        const ticketStatusColors = {
-            'open': '#3b82f6',
-            'in_progress': '#f59e0b',
-            'pending': '#eab308',
-            'resolved': '#10b981',
-            'closed': '#6b7280'
-        };
+    // Listen for sidebar changes
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.toggle-sidebar')) {
+            setTimeout(updateMainContainer, 50);
+        }
+    });
 
-        const priorityColors = {
-            'low': '#10b981',
-            'medium': '#f59e0b',
-            'high': '#ef4444',
-            'urgent': '#dc2626'
-        };
+    // Observe sidebar changes
+    const observer = new MutationObserver(updateMainContainer);
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar) {
+        observer.observe(sidebar, { attributes: true, attributeFilter: ['class'] });
+    }
 
-        // Chart.js default settings
-        Chart.defaults.font.family = "'Inter', sans-serif";
-        Chart.defaults.color = '#718096';
+    // ===== CHART.JS DEFAULT SETTINGS =====
+    Chart.defaults.font.family = "'Inter', sans-serif";
+    Chart.defaults.color = '#718096';
 
-        <?php if ($role === 'admin' || $role === 'manager'): ?>
-            // Asset Status Pie Chart
-            const assetStatusCtx = document.getElementById('assetStatusChart');
-            if (assetStatusCtx) {
-                const assetStatusLabels = <?php echo $asset_status_labels; ?>;
-                const assetStatusData = <?php echo $asset_status_values; ?>;
+    // ===== ASSET STATUS PIE CHART (Admin/Manager Only) =====
+    <?php if ($role === 'admin' || $role === 'manager'): ?>
+        const assetStatusCtx = document.getElementById('assetStatusChart');
+        if (assetStatusCtx) {
+            const assetStatusLabels = <?php echo $asset_status_labels; ?>;
+            const assetStatusData = <?php echo $asset_status_values; ?>;
 
-                new Chart(assetStatusCtx, {
-                    type: 'doughnut',
-                    data: {
-                        labels: assetStatusLabels,
-                        datasets: [{
-                            data: assetStatusData,
-                            backgroundColor: assetStatusLabels.map(label => statusColors[label] || '#6b7280'),
-                            borderWidth: 3,
-                            borderColor: '#fff',
-                            hoverOffset: 8
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                position: 'bottom',
-                                labels: {
-                                    padding: 20,
-                                    font: {
-                                        size: 13,
-                                        weight: 500
-                                    },
-                                    usePointStyle: true,
-                                    pointStyle: 'circle'
-                                }
-                            },
-                            tooltip: {
-                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                                padding: 12,
-                                titleFont: {
-                                    size: 14,
-                                    weight: 600
-                                },
-                                bodyFont: {
-                                    size: 13
-                                },
-                                cornerRadius: 8
-                            }
-                        }
-                    }
-                });
-            }
+            // Map colors to labels
+            const assetColors = assetStatusLabels.map(label => statusColors[label] || '#6b7280');
 
-            // Asset Category Bar Chart
-            const assetCategoryCtx = document.getElementById('assetCategoryChart');
-            if (assetCategoryCtx) {
-                const assetCategoryLabels = <?php echo $asset_category_labels; ?>;
-                const assetCategoryData = <?php echo $asset_category_values; ?>;
+            // Debug logs
+            console.log('Asset Status Labels:', assetStatusLabels);
+            console.log('Asset Status Data:', assetStatusData);
+            console.log('Colors being used:', assetColors);
 
-                new Chart(assetCategoryCtx, {
-                    type: 'bar',
-                    data: {
-                        labels: assetCategoryLabels,
-                        datasets: [{
-                            label: 'Number of Assets',
-                            data: assetCategoryData,
-                            backgroundColor: 'rgba(124, 58, 237, 0.8)',
-                            borderColor: 'rgba(124, 58, 237, 1)',
-                            borderWidth: 0,
-                            borderRadius: 8,
-                            hoverBackgroundColor: 'rgba(109, 40, 217, 0.9)'
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                ticks: {
-                                    stepSize: 1,
-                                    font: {
-                                        size: 12
-                                    }
-                                },
-                                grid: {
-                                    color: 'rgba(0, 0, 0, 0.05)'
-                                }
-                            },
-                            x: {
-                                ticks: {
-                                    font: {
-                                        size: 12
-                                    }
-                                },
-                                grid: {
-                                    display: false
-                                }
-                            }
-                        },
-                        plugins: {
-                            legend: {
-                                display: false
-                            },
-                            tooltip: {
-                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                                padding: 12,
-                                titleFont: {
-                                    size: 14,
-                                    weight: 600
-                                },
-                                bodyFont: {
-                                    size: 13
-                                },
-                                cornerRadius: 8
-                            }
-                        }
-                    }
-                });
-            }
-        <?php endif; ?>
-
-        // Ticket Status Pie Chart
-        const ticketStatusCtx = document.getElementById('ticketStatusChart');
-        if (ticketStatusCtx) {
-            const ticketStatusLabels = <?php echo $ticket_status_labels; ?>;
-            const ticketStatusData = <?php echo $ticket_status_values; ?>;
-
-            new Chart(ticketStatusCtx, {
+            new Chart(assetStatusCtx, {
                 type: 'doughnut',
                 data: {
-                    labels: ticketStatusLabels.map(label => label.replace('_', ' ').toUpperCase()),
+                    labels: assetStatusLabels,
                     datasets: [{
-                        data: ticketStatusData,
-                        backgroundColor: ticketStatusLabels.map(label => ticketStatusColors[label] || '#6b7280'),
+                        data: assetStatusData,
+                        backgroundColor: assetColors,
                         borderWidth: 3,
                         borderColor: '#fff',
                         hoverOffset: 8
@@ -1328,22 +1349,24 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
             });
         }
 
-        // Ticket Priority Bar Chart
-        const ticketPriorityCtx = document.getElementById('ticketPriorityChart');
-        if (ticketPriorityCtx) {
-            const ticketPriorityLabels = <?php echo $ticket_priority_labels; ?>;
-            const ticketPriorityData = <?php echo $ticket_priority_values; ?>;
+        // ===== ASSET CATEGORY BAR CHART =====
+        const assetCategoryCtx = document.getElementById('assetCategoryChart');
+        if (assetCategoryCtx) {
+            const assetCategoryLabels = <?php echo $asset_category_labels; ?>;
+            const assetCategoryData = <?php echo $asset_category_values; ?>;
 
-            new Chart(ticketPriorityCtx, {
+            new Chart(assetCategoryCtx, {
                 type: 'bar',
                 data: {
-                    labels: ticketPriorityLabels.map(label => label.toUpperCase()),
+                    labels: assetCategoryLabels,
                     datasets: [{
-                        label: 'Number of Tickets',
-                        data: ticketPriorityData,
-                        backgroundColor: ticketPriorityLabels.map(label => priorityColors[label] || '#6b7280'),
+                        label: 'Number of Assets',
+                        data: assetCategoryData,
+                        backgroundColor: 'rgba(124, 58, 237, 0.8)',
+                        borderColor: 'rgba(124, 58, 237, 1)',
                         borderWidth: 0,
-                        borderRadius: 8
+                        borderRadius: 8,
+                        hoverBackgroundColor: 'rgba(109, 40, 217, 0.9)'
                     }]
                 },
                 options: {
@@ -1393,6 +1416,124 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
                 }
             });
         }
-    </script>
+    <?php endif; ?>
+
+    // ===== TICKET STATUS PIE CHART =====
+    const ticketStatusCtx = document.getElementById('ticketStatusChart');
+    if (ticketStatusCtx) {
+        const ticketStatusLabels = <?php echo $ticket_status_labels; ?>;
+        const ticketStatusData = <?php echo $ticket_status_values; ?>;
+
+        new Chart(ticketStatusCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ticketStatusLabels.map(label => label.replace('_', ' ').toUpperCase()),
+                datasets: [{
+                    data: ticketStatusData,
+                    backgroundColor: ticketStatusLabels.map(label => ticketStatusColors[label] || '#6b7280'),
+                    borderWidth: 3,
+                    borderColor: '#fff',
+                    hoverOffset: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            padding: 20,
+                            font: {
+                                size: 13,
+                                weight: 500
+                            },
+                            usePointStyle: true,
+                            pointStyle: 'circle'
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        padding: 12,
+                        titleFont: {
+                            size: 14,
+                            weight: 600
+                        },
+                        bodyFont: {
+                            size: 13
+                        },
+                        cornerRadius: 8
+                    }
+                }
+            }
+        });
+    }
+
+    // ===== TICKET PRIORITY BAR CHART =====
+    const ticketPriorityCtx = document.getElementById('ticketPriorityChart');
+    if (ticketPriorityCtx) {
+        const ticketPriorityLabels = <?php echo $ticket_priority_labels; ?>;
+        const ticketPriorityData = <?php echo $ticket_priority_values; ?>;
+
+        new Chart(ticketPriorityCtx, {
+            type: 'bar',
+            data: {
+                labels: ticketPriorityLabels.map(label => label.toUpperCase()),
+                datasets: [{
+                    label: 'Number of Tickets',
+                    data: ticketPriorityData,
+                    backgroundColor: ticketPriorityLabels.map(label => priorityColors[label] || '#6b7280'),
+                    borderWidth: 0,
+                    borderRadius: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1,
+                            font: {
+                                size: 12
+                            }
+                        },
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)'
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            font: {
+                                size: 12
+                            }
+                        },
+                        grid: {
+                            display: false
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        padding: 12,
+                        titleFont: {
+                            size: 14,
+                            weight: 600
+                        },
+                        bodyFont: {
+                            size: 13
+                        },
+                        cornerRadius: 8
+                    }
+                }
+            }
+        });
+    }
+</script>
 </body>
 </html>
