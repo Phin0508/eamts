@@ -21,7 +21,7 @@ if (!in_array($user_role, ['admin', 'manager', 'superadmin'])) {
 $filter_status = $_GET['status'] ?? 'all';
 $filter_type = $_GET['type'] ?? 'all';
 $filter_priority = $_GET['priority'] ?? 'all';
-$filter_approval = $_GET['approval'] ?? 'all'; // NEW: Approval status filter
+$filter_approval = $_GET['approval'] ?? 'all'; 
 $filter_date_from = $_GET['date_from'] ?? '';
 $filter_date_to = $_GET['date_to'] ?? '';
 $search = $_GET['search'] ?? '';
@@ -591,7 +591,7 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             <header class="page-header">
                 <div class="header-left">
                     <h1><i class="fas fa-history"></i> Ticket History</h1>
-                    <p>View and analyze all past tickets including rejected ones</p> <!-- Updated text -->
+                    <p>View and analyze all past tickets including rejected ones</p> 
                 </div>
                 <div class="header-right">
                     <a href="ticket.php" class="btn btn-outline">
@@ -769,7 +769,8 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                     <h3>
                         Ticket Records 
                         <span style="color: #718096; font-size: 0.875rem; font-weight: normal;">
-                            (Showing <?php echo min($offset + 1, $total_records); ?>-<?php echo min($offset + $per_page, $total_records); ?> of <?php echo $total_records; ?>)
+                            (Showing <?php echo min($offset + 1, $total_records); ?>-<?php 
+                            echo min($offset + $per_page, $total_records); ?> of <?php echo $total_records; ?>)
                         </span>
                     </h3>
                 </div>
@@ -784,7 +785,7 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                                 <th>Type</th>
                                 <th>Priority</th>
                                 <th>Status</th>
-                                <th>Approval</th> <!-- NEW COLUMN -->
+                                <th>Approval</th> 
                                 <th>Created</th>
                                 <th>Activity</th>
                                 <th>Actions</th>
@@ -879,10 +880,12 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                 <?php if ($total_pages > 1): ?>
                 <div class="pagination">
                     <?php if ($page > 1): ?>
-                        <a href="?page=1&status=<?php echo $filter_status; ?>&type=<?php echo $filter_type; ?>&priority=<?php echo $filter_priority; ?>&date_from=<?php echo $filter_date_from; ?>&date_to=<?php echo $filter_date_to; ?>&search=<?php echo urlencode($search); ?>">
+                        <a href="?page=1&status=<?php echo $filter_status; ?>&type=<?php echo $filter_type; ?>&priority=<?php echo 
+                        $filter_priority; ?>&date_from=<?php echo $filter_date_from; ?>&date_to=<?php echo $filter_date_to; ?>&search=<?php echo urlencode($search); ?>">
                             <i class="fas fa-angle-double-left"></i>
                         </a>
-                        <a href="?page=<?php echo $page - 1; ?>&status=<?php echo $filter_status; ?>&type=<?php echo $filter_type; ?>&priority=<?php echo $filter_priority; ?>&date_from=<?php echo $filter_date_from; ?>&date_to=<?php echo $filter_date_to; ?>&search=<?php echo urlencode($search); ?>">
+                        <a href="?page=<?php echo $page - 1; ?>&status=<?php echo $filter_status; ?>&type=<?php echo $filter_type; ?>&priority=<?php echo
+                         $filter_priority; ?>&date_from=<?php echo $filter_date_from; ?>&date_to=<?php echo $filter_date_to; ?>&search=<?php echo urlencode($search); ?>">
                             <i class="fas fa-angle-left"></i>
                         </a>
                     <?php endif; ?>
@@ -893,17 +896,20 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                     
                     for ($i = $start_page; $i <= $end_page; $i++):
                     ?>
-                        <a href="?page=<?php echo $i; ?>&status=<?php echo $filter_status; ?>&type=<?php echo $filter_type; ?>&priority=<?php echo $filter_priority; ?>&date_from=<?php echo $filter_date_from; ?>&date_to=<?php echo $filter_date_to; ?>&search=<?php echo urlencode($search); ?>" 
+                        <a href="?page=<?php echo $i; ?>&status=<?php echo $filter_status; ?>&type=<?php echo $filter_type; ?>&priority=<?php echo 
+                        $filter_priority; ?>&date_from=<?php echo $filter_date_from; ?>&date_to=<?php echo $filter_date_to; ?>&search=<?php echo urlencode($search); ?>" 
                            class="<?php echo $i === $page ? 'active' : ''; ?>">
                             <?php echo $i; ?>
                         </a>
                     <?php endfor; ?>
 
                     <?php if ($page < $total_pages): ?>
-                        <a href="?page=<?php echo $page + 1; ?>&status=<?php echo $filter_status; ?>&type=<?php echo $filter_type; ?>&priority=<?php echo $filter_priority; ?>&date_from=<?php echo $filter_date_from; ?>&date_to=<?php echo $filter_date_to; ?>&search=<?php echo urlencode($search); ?>">
+                        <a href="?page=<?php echo $page + 1; ?>&status=<?php echo $filter_status; ?>&type=<?php echo $filter_type; ?>&priority=<?php echo 
+                        $filter_priority; ?>&date_from=<?php echo $filter_date_from; ?>&date_to=<?php echo $filter_date_to; ?>&search=<?php echo urlencode($search); ?>">
                             <i class="fas fa-angle-right"></i>
                         </a>
-                        <a href="?page=<?php echo $total_pages; ?>&status=<?php echo $filter_status; ?>&type=<?php echo $filter_type; ?>&priority=<?php echo $filter_priority; ?>&date_from=<?php echo $filter_date_from; ?>&date_to=<?php echo $filter_date_to; ?>&search=<?php echo urlencode($search); ?>">
+                        <a href="?page=<?php echo $total_pages; ?>&status=<?php echo $filter_status; ?>&type=<?php echo $filter_type; ?>&priority=<?php echo 
+                        $filter_priority; ?>&date_from=<?php echo $filter_date_from; ?>&date_to=<?php echo $filter_date_to; ?>&search=<?php echo urlencode($search); ?>">
                             <i class="fas fa-angle-double-right"></i>
                         </a>
                     <?php endif; ?>
@@ -920,7 +926,8 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             let csv = [];
             
             // Headers - added Approval Status
-            const headers = ['Ticket #', 'Subject', 'Requester', 'Department', 'Type', 'Priority', 'Status', 'Approval Status', 'Created Date', 'Comments', 'Attachments'];
+            const headers = ['Ticket #', 'Subject', 'Requester', 'Department', 'Type', 'Priority',
+             'Status', 'Approval Status', 'Created Date', 'Comments', 'Attachments'];
             csv.push(headers.join(','));
             
             // Data rows

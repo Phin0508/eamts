@@ -11,6 +11,11 @@ if (!isset($_SESSION['user_id'])) {
 $user_id = $_SESSION['user_id'];
 $user_role = $_SESSION['role'] ?? 'employee';
 
+// Pagination settings
+$items_per_page = isset($_GET['per_page']) ? (int)$_GET['per_page'] : 10;
+$current_page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+$offset = ($current_page - 1) * $items_per_page;
+
 // Fetch user's tickets or all tickets based on role
 $filter_status = $_GET['status'] ?? 'all';
 $filter_type = $_GET['type'] ?? 'all';
@@ -79,6 +84,22 @@ if (!empty($search)) {
 
 $where_sql = !empty($where_clauses) ? "WHERE " . implode(" AND ", $where_clauses) : "";
 
+// Count total tickets for pagination
+$count_query = "
+    SELECT COUNT(*) as total
+    FROM tickets t
+    JOIN users requester ON t.requester_id = requester.user_id
+    LEFT JOIN users assigned ON t.assigned_to = assigned.user_id
+    LEFT JOIN assets a ON t.asset_id = a.id
+    $where_sql
+";
+
+$count_stmt = $pdo->prepare($count_query);
+$count_stmt->execute($params);
+$total_tickets = $count_stmt->fetch(PDO::FETCH_ASSOC)['total'];
+$total_pages = ceil($total_tickets / $items_per_page);
+
+// Fetch tickets with pagination
 $query = "
     SELECT 
         t.*,
@@ -101,9 +122,12 @@ $query = "
             WHEN 'low' THEN 4
         END,
         t.created_at DESC
+    LIMIT ? OFFSET ?
 ";
 
 $stmt = $pdo->prepare($query);
+$params[] = $items_per_page;
+$params[] = $offset;
 $stmt->execute($params);
 $tickets = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -137,6 +161,14 @@ if ($user_role === 'employee') {
 }
 
 $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
+
+// Function to build pagination URL
+function buildPaginationUrl($page, $per_page) {
+    $params = $_GET;
+    $params['page'] = $page;
+    $params['per_page'] = $per_page;
+    return '?' . http_build_query($params);
+}
 ?>
 
 <!DOCTYPE html>
@@ -578,6 +610,109 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             font-size: 15px;
         }
 
+        /* Pagination Styles */
+        .pagination-wrapper {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 2px solid #e2e8f0;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .pagination-info {
+            color: #718096;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .per-page-selector {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .per-page-selector label {
+            color: #718096;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .per-page-selector select {
+            padding: 8px 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            background: white;
+            transition: all 0.3s;
+        }
+
+        .per-page-selector select:focus {
+            outline: none;
+            border-color: #7c3aed;
+            box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.1);
+        }
+
+        .pagination {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .pagination a,
+        .pagination span {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 40px;
+            height: 40px;
+            padding: 0 12px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+
+        .pagination a {
+            background: white;
+            border: 2px solid #e2e8f0;
+            color: #718096;
+        }
+
+        .pagination a:hover {
+            background: #7c3aed;
+            border-color: #7c3aed;
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        .pagination .active {
+            background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+            border: 2px solid #7c3aed;
+            color: white;
+            box-shadow: 0 2px 8px rgba(124, 58, 237, 0.3);
+        }
+
+        .pagination .disabled {
+            background: #f7fafc;
+            border: 2px solid #e2e8f0;
+            color: #cbd5e0;
+            cursor: not-allowed;
+        }
+
+        .pagination .dots {
+            background: none;
+            border: none;
+            color: #718096;
+            cursor: default;
+        }
+
         /* Responsive Design */
         @media (max-width: 1024px) {
             .container {
@@ -627,6 +762,20 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
 
             .section {
                 padding: 20px;
+            }
+
+            .pagination-wrapper {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .pagination {
+                justify-content: center;
+                flex-wrap: wrap;
+            }
+
+            .per-page-selector {
+                justify-content: center;
             }
         }
     </style>
@@ -697,25 +846,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                     <input type="text" name="search" placeholder="Search tickets..." value="<?php echo htmlspecialchars($search); ?>">
                 </div>
                 
-                <select name="status" onchange="this.form.submit()">
-                    <option value="all" <?php echo $filter_status === 'all' ? 'selected' : ''; ?>>All Status</option>
-                    <option value="open" <?php echo $filter_status === 'open' ? 'selected' : ''; ?>>Open</option>
-                    <option value="in_progress" <?php echo $filter_status === 'in_progress' ? 'selected' : ''; ?>>In Progress</option>
-                    <option value="pending" <?php echo $filter_status === 'pending' ? 'selected' : ''; ?>>Pending</option>
-                    <option value="resolved" <?php echo $filter_status === 'resolved' ? 'selected' : ''; ?>>Resolved</option>
-                    <option value="closed" <?php echo $filter_status === 'closed' ? 'selected' : ''; ?>>Closed</option>
-                </select>
-
-                <select name="type" onchange="this.form.submit()">
-                    <option value="all" <?php echo $filter_type === 'all' ? 'selected' : ''; ?>>All Types</option>
-                    <option value="repair" <?php echo $filter_type === 'repair' ? 'selected' : ''; ?>>Repair</option>
-                    <option value="maintenance" <?php echo $filter_type === 'maintenance' ? 'selected' : ''; ?>>Maintenance</option>
-                    <option value="request_item" <?php echo $filter_type === 'request_item' ? 'selected' : ''; ?>>Request Item</option>
-                    <option value="request_replacement" <?php echo $filter_type === 'request_replacement' ? 'selected' : ''; ?>>Request Replacement</option>
-                    <option value="inquiry" <?php echo $filter_type === 'inquiry' ? 'selected' : ''; ?>>Inquiry</option>
-                    <option value="other" <?php echo $filter_type === 'other' ? 'selected' : ''; ?>>Other</option>
-                </select>
-
                 <select name="priority" onchange="this.form.submit()">
                     <option value="all" <?php echo $filter_priority === 'all' ? 'selected' : ''; ?>>All Priorities</option>
                     <option value="urgent" <?php echo $filter_priority === 'urgent' ? 'selected' : ''; ?>>Urgent</option>
@@ -723,6 +853,9 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                     <option value="medium" <?php echo $filter_priority === 'medium' ? 'selected' : ''; ?>>Medium</option>
                     <option value="low" <?php echo $filter_priority === 'low' ? 'selected' : ''; ?>>Low</option>
                 </select>
+
+                <input type="hidden" name="page" value="<?php echo $current_page; ?>">
+                <input type="hidden" name="per_page" value="<?php echo $items_per_page; ?>">
 
                 <button type="submit" class="btn btn-secondary">
                     <i class="fas fa-filter"></i> Filter
@@ -810,11 +943,98 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                     </tbody>
                 </table>
             </div>
-            <?php endif; ?>
+
+            <!-- Pagination -->
+            <div class="pagination-wrapper">
+                <div class="pagination-info">
+                    <span>
+                        Showing <strong><?php echo $offset + 1; ?></strong> to 
+                        <strong><?php echo min($offset + $items_per_page, $total_tickets); ?></strong> of 
+                        <strong><?php echo $total_tickets; ?></strong> tickets
+                    </span>
                 </div>
+
+                <div class="per-page-selector">
+                    <label for="per_page">Show:</label>
+                    <select id="per_page" name="per_page" onchange="changePerPage(this.value)">
+                        <option value="10" <?php echo $items_per_page == 10 ? 'selected' : ''; ?>>10</option>
+                        <option value="25" <?php echo $items_per_page == 25 ? 'selected' : ''; ?>>25</option>
+                        <option value="50" <?php echo $items_per_page == 50 ? 'selected' : ''; ?>>50</option>
+                        <option value="100" <?php echo $items_per_page == 100 ? 'selected' : ''; ?>>100</option>
+                    </select>
+                </div>
+
+                <?php if ($total_pages > 1): ?>
+                <div class="pagination">
+                    <!-- Previous Button -->
+                    <?php if ($current_page > 1): ?>
+                        <a href="<?php echo buildPaginationUrl($current_page - 1, $items_per_page); ?>" title="Previous">
+                            <i class="fas fa-chevron-left"></i>
+                        </a>
+                    <?php else: ?>
+                        <span class="disabled">
+                            <i class="fas fa-chevron-left"></i>
+                        </span>
+                    <?php endif; ?>
+
+                    <!-- Page Numbers -->
+                    <?php
+                    $range = 2; // Number of pages to show on each side of current page
+                    $start = max(1, $current_page - $range);
+                    $end = min($total_pages, $current_page + $range);
+
+                    // Show first page
+                    if ($start > 1) {
+                        echo '<a href="' . buildPaginationUrl(1, $items_per_page) . '">1</a>';
+                        if ($start > 2) {
+                            echo '<span class="dots">...</span>';
+                        }
+                    }
+
+                    // Show page numbers
+                    for ($i = $start; $i <= $end; $i++) {
+                        if ($i == $current_page) {
+                            echo '<span class="active">' . $i . '</span>';
+                        } else {
+                            echo '<a href="' . buildPaginationUrl($i, $items_per_page) . '">' . $i . '</a>';
+                        }
+                    }
+
+                    // Show last page
+                    if ($end < $total_pages) {
+                        if ($end < $total_pages - 1) {
+                            echo '<span class="dots">...</span>';
+                        }
+                        echo '<a href="' . buildPaginationUrl($total_pages, $items_per_page) . '">' . $total_pages . '</a>';
+                    }
+                    ?>
+
+                    <!-- Next Button -->
+                    <?php if ($current_page < $total_pages): ?>
+                        <a href="<?php echo buildPaginationUrl($current_page + 1, $items_per_page); ?>" title="Next">
+                            <i class="fas fa-chevron-right"></i>
+                        </a>
+                    <?php else: ?>
+                        <span class="disabled">
+                            <i class="fas fa-chevron-right"></i>
+                        </span>
+                    <?php endif; ?>
+                </div>
+                <?php endif; ?>
+            </div>
+            <?php endif; ?>
+        </div>
     </div>
 
     <script>
+        // Function to change items per page
+        function changePerPage(perPage) {
+            const url = new URL(window.location.href);
+            url.searchParams.set('per_page', perPage);
+            url.searchParams.set('page', '1'); // Reset to first page
+            window.location.href = url.toString();
+        }
+
         // Sidebar toggle functionality
         document.addEventListener('DOMContentLoaded', function() {
             const sidebar = document.getElementById('sidebar');

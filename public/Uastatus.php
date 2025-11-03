@@ -32,7 +32,7 @@ $stmt = $pdo->prepare($query);
 $stmt->execute();
 $sessions = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Calculate analytics - count unique users but all sessions
+// Calculate analytics
 $unique_users = array_unique(array_column($sessions, 'user_id'));
 $total_users = count($unique_users);
 $online_users = count(array_filter($sessions, fn($s) => $s['status'] === 'Online'));
@@ -73,7 +73,6 @@ $os_list = array_count_values(array_filter(array_column($sessions, 'os_name')));
             min-height: 100vh;
         }
 
-        /* Main Container */
         .container {
             margin-left: 260px;
             padding: 30px;
@@ -85,7 +84,6 @@ $os_list = array_count_values(array_filter(array_column($sessions, 'os_name')));
             margin-left: 80px;
         }
 
-        /* Header */
         .header {
             background: white;
             border-radius: 16px;
@@ -127,7 +125,6 @@ $os_list = array_count_values(array_filter(array_column($sessions, 'os_name')));
             align-items: center;
         }
 
-        /* Auto Refresh Indicator */
         .auto-refresh-indicator {
             display: flex;
             align-items: center;
@@ -154,7 +151,6 @@ $os_list = array_count_values(array_filter(array_column($sessions, 'os_name')));
             to { transform: rotate(360deg); }
         }
 
-        /* Buttons */
         .btn {
             padding: 12px 20px;
             border: none;
@@ -191,7 +187,6 @@ $os_list = array_count_values(array_filter(array_column($sessions, 'os_name')));
             border-color: #7c3aed;
         }
 
-        /* Stats Grid */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -284,7 +279,6 @@ $os_list = array_count_values(array_filter(array_column($sessions, 'os_name')));
             letter-spacing: 0.5px;
         }
 
-        /* Charts Container */
         .charts-container {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
@@ -318,7 +312,6 @@ $os_list = array_count_values(array_filter(array_column($sessions, 'os_name')));
             color: #7c3aed;
         }
 
-        /* Section */
         .section {
             background: white;
             border-radius: 16px;
@@ -351,7 +344,6 @@ $os_list = array_count_values(array_filter(array_column($sessions, 'os_name')));
             gap: 10px;
         }
 
-        /* Table */
         .table-container {
             overflow-x: auto;
             padding: 30px;
@@ -377,12 +369,13 @@ $os_list = array_count_values(array_filter(array_column($sessions, 'os_name')));
             border-bottom: 2px solid #e2e8f0;
         }
 
-        .table tbody tr {
+        .table tbody tr.main-row {
             border-bottom: 1px solid #e2e8f0;
             transition: all 0.2s;
+            cursor: pointer;
         }
 
-        .table tbody tr:hover {
+        .table tbody tr.main-row:hover {
             background: #fafbfc;
         }
 
@@ -392,7 +385,212 @@ $os_list = array_count_values(array_filter(array_column($sessions, 'os_name')));
             color: #2d3748;
         }
 
-        /* User Info */
+        /* Expandable Row Styles */
+        .expand-btn {
+            background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%);
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: #7c3aed;
+            font-size: 16px;
+        }
+
+        .expand-btn:hover {
+            background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+            color: white;
+            transform: scale(1.1);
+        }
+
+        .expand-btn i {
+            transition: transform 0.3s;
+        }
+
+        .expand-btn.expanded i {
+            transform: rotate(180deg);
+        }
+
+        .details-row {
+            display: none;
+            background: #f9fafb;
+        }
+
+        .details-row.show {
+            display: table-row;
+        }
+
+        .details-content {
+            padding: 30px;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .details-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .detail-section {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .detail-section h4 {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1a202c;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .detail-section h4 i {
+            color: #7c3aed;
+        }
+
+        .detail-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .detail-item:last-child {
+            border-bottom: none;
+        }
+
+        .detail-label {
+            font-size: 13px;
+            color: #718096;
+            font-weight: 600;
+        }
+
+        .detail-value {
+            font-size: 13px;
+            color: #2d3748;
+            font-weight: 500;
+            text-align: right;
+        }
+
+        /* Battery indicator */
+        .battery-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 13px;
+        }
+
+        .battery-indicator.charging {
+            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+            color: #065f46;
+        }
+
+        .battery-indicator.high {
+            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+            color: #065f46;
+        }
+
+        .battery-indicator.medium {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            color: #92400e;
+        }
+
+        .battery-indicator.low {
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            color: #991b1b;
+        }
+
+        .battery-bar {
+            width: 60px;
+            height: 8px;
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .battery-fill {
+            height: 100%;
+            transition: width 0.3s;
+        }
+
+        .battery-fill.high {
+            background: linear-gradient(90deg, #10b981, #059669);
+        }
+
+        .battery-fill.medium {
+            background: linear-gradient(90deg, #f59e0b, #d97706);
+        }
+
+        .battery-fill.low {
+            background: linear-gradient(90deg, #ef4444, #dc2626);
+        }
+
+        /* Network speed indicator */
+        .speed-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .speed-indicator.fast {
+            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+            color: #065f46;
+        }
+
+        .speed-indicator.medium {
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+            color: #1e40af;
+        }
+
+        .speed-indicator.slow {
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            color: #991b1b;
+        }
+
+        /* Progress bar */
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #e5e7eb;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #7c3aed, #6d28d9);
+            transition: width 0.3s;
+        }
+
         .user-info {
             display: flex;
             align-items: center;
@@ -425,7 +623,6 @@ $os_list = array_count_values(array_filter(array_column($sessions, 'os_name')));
             color: #718096;
         }
 
-        /* Status Badge */
         .status-badge {
             display: inline-flex;
             align-items: center;
@@ -469,7 +666,6 @@ $os_list = array_count_values(array_filter(array_column($sessions, 'os_name')));
             50% { opacity: 0.7; transform: scale(0.9); }
         }
 
-        /* Device Badge */
         .device-badge {
             display: inline-flex;
             align-items: center;
@@ -502,7 +698,6 @@ $os_list = array_count_values(array_filter(array_column($sessions, 'os_name')));
             font-family: 'Courier New', monospace;
         }
 
-        /* Tech Badge */
         .tech-badge {
             display: inline-block;
             padding: 5px 10px;
@@ -514,7 +709,6 @@ $os_list = array_count_values(array_filter(array_column($sessions, 'os_name')));
             margin: 2px;
         }
 
-        /* IP Badge */
         .ip-badge {
             font-family: 'Courier New', monospace;
             font-size: 13px;
@@ -552,23 +746,6 @@ $os_list = array_count_values(array_filter(array_column($sessions, 'os_name')));
             color: #991b1b;
         }
 
-        .location-info {
-            font-size: 13px;
-            color: #4b5563;
-        }
-
-        .location-info i {
-            color: #9ca3af;
-            margin-right: 4px;
-        }
-
-        .language-info {
-            font-size: 11px;
-            color: #9ca3af;
-            margin-top: 4px;
-        }
-
-        /* Empty State */
         .empty-state {
             text-align: center;
             padding: 80px 20px;
@@ -591,13 +768,8 @@ $os_list = array_count_values(array_filter(array_column($sessions, 'os_name')));
             font-size: 15px;
         }
 
-        /* Responsive Design */
         @media (max-width: 1024px) {
             .container {
-                margin-left: 80px;
-            }
-
-            .container.sidebar-collapsed {
                 margin-left: 80px;
             }
         }
@@ -608,72 +780,8 @@ $os_list = array_count_values(array_filter(array_column($sessions, 'os_name')));
                 padding: 20px;
             }
 
-            .container.sidebar-collapsed {
-                margin-left: 0;
-            }
-
-            .header {
-                padding: 20px;
-            }
-
-            .header-content {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-
-            .header-title h1 {
-                font-size: 22px;
-            }
-
-            .header-actions {
-                width: 100%;
-                flex-direction: column;
-            }
-
-            .header-actions .btn,
-            .auto-refresh-indicator {
-                width: 100%;
-                justify-content: center;
-            }
-
-            .stats-grid {
+            .details-grid {
                 grid-template-columns: 1fr;
-            }
-
-            .charts-container {
-                grid-template-columns: 1fr;
-            }
-
-            .section-header {
-                padding: 20px;
-                flex-direction: column;
-                align-items: flex-start;
-            }
-
-            .section-actions {
-                width: 100%;
-                flex-direction: column;
-            }
-
-            .section-actions .btn {
-                width: 100%;
-                justify-content: center;
-            }
-
-            .table-container {
-                padding: 20px;
-                overflow-x: auto;
-                -webkit-overflow-scrolling: touch;
-            }
-
-            .table {
-                min-width: 1000px;
-            }
-
-            .user-info {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 8px;
             }
         }
     </style>
@@ -682,7 +790,6 @@ $os_list = array_count_values(array_filter(array_column($sessions, 'os_name')));
     <?php include("../auth/inc/sidebar.php"); ?>
 
     <div class="container" id="mainContainer">
-        <!-- Header -->
         <div class="header">
             <div class="header-content">
                 <div class="header-title">
@@ -692,7 +799,7 @@ $os_list = array_count_values(array_filter(array_column($sessions, 'os_name')));
                 <div class="header-actions">
                     <div class="auto-refresh-indicator">
                         <div class="refresh-spinner"></div>
-                        <span>Auto-refresh: 30s</span>
+                        <span>Auto-refresh: 60s</span>
                     </div>
                     <button class="btn btn-primary" onclick="location.reload()">
                         <i class="fas fa-sync-alt"></i> Refresh Now
@@ -701,7 +808,6 @@ $os_list = array_count_values(array_filter(array_column($sessions, 'os_name')));
             </div>
         </div>
 
-        <!-- Statistics -->
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="stat-card-header">
@@ -752,7 +858,6 @@ $os_list = array_count_values(array_filter(array_column($sessions, 'os_name')));
             </div>
         </div>
 
-        <!-- Charts -->
         <div class="charts-container">
             <div class="chart-card">
                 <div class="chart-header">
@@ -776,7 +881,6 @@ $os_list = array_count_values(array_filter(array_column($sessions, 'os_name')));
             </div>
         </div>
 
-        <!-- Active Sessions Table -->
         <div class="section">
             <div class="section-header">
                 <h2><i class="fas fa-users-cog"></i> Active Sessions</h2>
@@ -792,18 +896,23 @@ $os_list = array_count_values(array_filter(array_column($sessions, 'os_name')));
                     <table class="table">
                         <thead>
                             <tr>
+                                <th style="width: 60px;"></th>
                                 <th>Status</th>
                                 <th>User</th>
                                 <th>Device</th>
                                 <th>Browser & OS</th>
                                 <th>IP Address</th>
-                                <th>Location</th>
                                 <th>Last Active</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($sessions as $session): ?>
-                                <tr>
+                            <?php foreach ($sessions as $index => $session): ?>
+                                <tr class="main-row" onclick="toggleDetails(<?php echo $index; ?>)">
+                                    <td>
+                                        <button class="expand-btn" id="expand-btn-<?php echo $index; ?>">
+                                            <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                    </td>
                                     <td>
                                         <span class="status-badge <?php echo strtolower($session['status']); ?>">
                                             <span class="status-dot"></span>
@@ -865,20 +974,6 @@ $os_list = array_count_values(array_filter(array_column($sessions, 'os_name')));
                                         <?php endif; ?>
                                     </td>
                                     <td>
-                                        <?php if ($session['timezone']): ?>
-                                            <div class="location-info">
-                                                <i class="fas fa-map-marker-alt"></i>
-                                                <?php echo htmlspecialchars($session['timezone']); ?>
-                                            </div>
-                                        <?php endif; ?>
-                                        <?php if ($session['language']): ?>
-                                            <div class="language-info">
-                                                <i class="fas fa-language"></i>
-                                                <?php echo htmlspecialchars($session['language']); ?>
-                                            </div>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td>
                                         <?php 
                                         if ($session['status'] === 'Online') {
                                             echo '<strong style="color: #10b981;">Now</strong>';
@@ -900,21 +995,248 @@ $os_list = array_count_values(array_filter(array_column($sessions, 'os_name')));
                                         ?>
                                     </td>
                                 </tr>
+                                
+                                <!-- Expandable Details Row -->
+                                <tr class="details-row" id="details-<?php echo $index; ?>">
+                                    <td colspan="7">
+                                        <div class="details-content">
+                                            <div class="details-grid">
+                                                <!-- Battery Information -->
+                                                <?php 
+                                                $battery = $session['battery_info'] ? json_decode($session['battery_info'], true) : null;
+                                                if ($battery): 
+                                                ?>
+                                                <div class="detail-section">
+                                                    <h4><i class="fas fa-battery-three-quarters"></i> Battery Status</h4>
+                                                    <div class="detail-item">
+                                                        <span class="detail-label">Battery Level</span>
+                                                        <span class="detail-value">
+                                                            <?php 
+                                                            $level = $battery['level'];
+                                                            $levelClass = $level > 60 ? 'high' : ($level > 20 ? 'medium' : 'low');
+                                                            ?>
+                                                            <span class="battery-indicator <?php echo $battery['charging'] ? 'charging' : $levelClass; ?>">
+                                                                <i class="fas fa-<?php echo $battery['charging'] ? 'bolt' : 'battery-' . $levelClass; ?>"></i>
+                                                                <?php echo $level; ?>%
+                                                            </span>
+                                                            <div class="battery-bar">
+                                                                <div class="battery-fill <?php echo $levelClass; ?>" style="width: <?php echo $level; ?>%"></div>
+                                                            </div>
+                                                        </span>
+                                                    </div>
+                                                    <div class="detail-item">
+                                                        <span class="detail-label">Charging Status</span>
+                                                        <span class="detail-value">
+                                                            <?php echo $battery['charging'] ? '⚡ Charging' : '🔋 On Battery'; ?>
+                                                        </span>
+                                                    </div>
+                                                    <?php if (!$battery['charging'] && $battery['dischargingTime'] && $battery['dischargingTime'] != 'Infinity'): ?>
+                                                    <div class="detail-item">
+                                                        <span class="detail-label">Time Remaining</span>
+                                                        <span class="detail-value">
+                                                            <?php echo round($battery['dischargingTime'] / 60); ?> minutes
+                                                        </span>
+                                                    </div>
+                                                    <?php endif; ?>
+                                                </div>
+                                                <?php endif; ?>
+
+                                                <!-- Network Information -->
+                                                <?php 
+                                                $connection = $session['connection_info'] ? json_decode($session['connection_info'], true) : null;
+                                                if ($connection): 
+                                                ?>
+                                                <div class="detail-section">
+                                                    <h4><i class="fas fa-wifi"></i> Network Connection</h4>
+                                                    <div class="detail-item">
+                                                        <span class="detail-label">Connection Type</span>
+                                                        <span class="detail-value">
+                                                            <?php 
+                                                            $effectiveType = strtoupper($connection['effectiveType']);
+                                                            $speedClass = in_array($effectiveType, ['4G', '5G']) ? 'fast' : 
+                                                                         ($effectiveType == '3G' ? 'medium' : 'slow');
+                                                            ?>
+                                                            <span class="speed-indicator <?php echo $speedClass; ?>">
+                                                                <i class="fas fa-signal"></i>
+                                                                <?php echo $effectiveType; ?>
+                                                            </span>
+                                                        </span>
+                                                    </div>
+                                                    <?php if ($connection['downlink'] > 0): ?>
+                                                    <div class="detail-item">
+                                                        <span class="detail-label">Download Speed</span>
+                                                        <span class="detail-value">
+                                                            <?php echo number_format($connection['downlink'], 1); ?> Mbps
+                                                        </span>
+                                                    </div>
+                                                    <?php endif; ?>
+                                                    <?php if ($connection['rtt'] > 0): ?>
+                                                    <div class="detail-item">
+                                                        <span class="detail-label">Latency (RTT)</span>
+                                                        <span class="detail-value">
+                                                            <?php echo $connection['rtt']; ?> ms
+                                                        </span>
+                                                    </div>
+                                                    <?php endif; ?>
+                                                    <div class="detail-item">
+                                                        <span class="detail-label">Data Saver</span>
+                                                        <span class="detail-value">
+                                                            <?php echo $connection['saveData'] ? '✅ Enabled' : '❌ Disabled'; ?>
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <?php endif; ?>
+
+                                                <!-- Screen & Display Information -->
+                                                <div class="detail-section">
+                                                    <h4><i class="fas fa-desktop"></i> Screen & Display</h4>
+                                                    <div class="detail-item">
+                                                        <span class="detail-label">Screen Resolution</span>
+                                                        <span class="detail-value">
+                                                            <?php echo htmlspecialchars($session['screen_resolution'] ?? 'N/A'); ?>
+                                                        </span>
+                                                    </div>
+                                                    <div class="detail-item">
+                                                        <span class="detail-label">Color Depth</span>
+                                                        <span class="detail-value">
+                                                            <?php echo htmlspecialchars($session['color_depth'] ?? 'N/A'); ?> bit
+                                                        </span>
+                                                    </div>
+                                                    <div class="detail-item">
+                                                        <span class="detail-label">Pixel Ratio</span>
+                                                        <span class="detail-value">
+                                                            <?php echo htmlspecialchars($session['pixel_ratio'] ?? '1'); ?>x
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                <!-- System Information -->
+                                                <div class="detail-section">
+                                                    <h4><i class="fas fa-microchip"></i> System Hardware</h4>
+                                                    <div class="detail-item">
+                                                        <span class="detail-label">CPU Cores</span>
+                                                        <span class="detail-value">
+                                                            <?php echo $session['cpu_cores'] ? $session['cpu_cores'] . ' cores' : 'N/A'; ?>
+                                                        </span>
+                                                    </div>
+                                                    <div class="detail-item">
+                                                        <span class="detail-label">Platform</span>
+                                                        <span class="detail-value">
+                                                            <?php echo htmlspecialchars($session['platform'] ?? 'N/A'); ?>
+                                                        </span>
+                                                    </div>
+                                                    <div class="detail-item">
+                                                        <span class="detail-label">Timezone</span>
+                                                        <span class="detail-value">
+                                                            <?php echo htmlspecialchars($session['timezone'] ?? 'N/A'); ?>
+                                                        </span>
+                                                    </div>
+                                                    <div class="detail-item">
+                                                        <span class="detail-label">Language</span>
+                                                        <span class="detail-value">
+                                                            <?php echo htmlspecialchars($session['language'] ?? 'N/A'); ?>
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                <!-- Session Information -->
+                                                <div class="detail-section">
+                                                    <h4><i class="fas fa-clock"></i> Session Details</h4>
+                                                    <div class="detail-item">
+                                                        <span class="detail-label">Login Time</span>
+                                                        <span class="detail-value">
+                                                            <?php echo date('M d, Y H:i:s', strtotime($session['login_time'])); ?>
+                                                        </span>
+                                                    </div>
+                                                    <div class="detail-item">
+                                                        <span class="detail-label">Last Activity</span>
+                                                        <span class="detail-value">
+                                                            <?php echo date('M d, Y H:i:s', strtotime($session['last_activity'])); ?>
+                                                        </span>
+                                                    </div>
+                                                    <div class="detail-item">
+                                                        <span class="detail-label">Session Duration</span>
+                                                        <span class="detail-value">
+                                                            <?php 
+                                                            $login = strtotime($session['login_time']);
+                                                            $last = strtotime($session['last_activity']);
+                                                            $duration = $last - $login;
+                                                            
+                                                            $hours = floor($duration / 3600);
+                                                            $minutes = floor(($duration % 3600) / 60);
+                                                            echo $hours . 'h ' . $minutes . 'm';
+                                                            ?>
+                                                        </span>
+                                                    </div>
+                                                    <?php if ($session['current_page']): ?>
+                                                    <div class="detail-item">
+                                                        <span class="detail-label">Current Page</span>
+                                                        <span class="detail-value" style="font-size: 11px; max-width: 200px; overflow: hidden; text-overflow: ellipsis;">
+                                                            <?php echo htmlspecialchars(basename($session['current_page'])); ?>
+                                                        </span>
+                                                    </div>
+                                                    <?php endif; ?>
+                                                    <?php if ($session['referrer'] && $session['referrer'] != 'direct'): ?>
+                                                    <div class="detail-item">
+                                                        <span class="detail-label">Referrer</span>
+                                                        <span class="detail-value" style="font-size: 11px;">
+                                                            <?php echo htmlspecialchars(parse_url($session['referrer'], PHP_URL_HOST) ?? 'Direct'); ?>
+                                                        </span>
+                                                    </div>
+                                                    <?php endif; ?>
+                                                </div>
+
+                                                <!-- Device Fingerprint -->
+                                                <div class="detail-section">
+                                                    <h4><i class="fas fa-fingerprint"></i> Device Fingerprint</h4>
+                                                    <div class="detail-item">
+                                                        <span class="detail-label">Device Serial</span>
+                                                        <span class="detail-value" style="font-family: 'Courier New', monospace; font-size: 11px;">
+                                                            <?php echo htmlspecialchars($session['device_serial'] ?? 'N/A'); ?>
+                                                        </span>
+                                                    </div>
+                                                    <div class="detail-item">
+                                                        <span class="detail-label">User Agent</span>
+                                                        <span class="detail-value" style="font-size: 10px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="<?php echo htmlspecialchars($session['user_agent']); ?>">
+                                                            <?php echo htmlspecialchars(substr($session['user_agent'], 0, 30)) . '...'; ?>
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
                             <?php endforeach; ?>
                         </tbody>
                     </table>
                 <?php else: ?>
                     <div class="empty-state">
-                        <i class="fas fa-user-slash"></i>
+                        <div class="empty-state-icon">
+                            <i class="fas fa-user-slash"></i>
+                        </div>
                         <h3>No Active Sessions</h3>
                         <p>No users are currently logged in</p>
                     </div>
                 <?php endif; ?>
             </div>
         </div>
-    </main>
+    </div>
 
     <script>
+        // Toggle expandable row
+        function toggleDetails(index) {
+            const detailsRow = document.getElementById('details-' + index);
+            const expandBtn = document.getElementById('expand-btn-' + index);
+            
+            if (detailsRow.classList.contains('show')) {
+                detailsRow.classList.remove('show');
+                expandBtn.classList.remove('expanded');
+            } else {
+                detailsRow.classList.add('show');
+                expandBtn.classList.add('expanded');
+            }
+        }
+
         // Device Types Chart
         const deviceCtx = document.getElementById('deviceChart');
         if (deviceCtx) {
@@ -925,7 +1247,7 @@ $os_list = array_count_values(array_filter(array_column($sessions, 'os_name')));
                     datasets: [{
                         data: <?php echo json_encode(array_values($device_types)); ?>,
                         backgroundColor: [
-                            'rgba(102, 126, 234, 0.8)',
+                            'rgba(124, 58, 237, 0.8)',
                             'rgba(239, 68, 68, 0.8)',
                             'rgba(245, 158, 11, 0.8)',
                             'rgba(16, 185, 129, 0.8)'
@@ -943,7 +1265,7 @@ $os_list = array_count_values(array_filter(array_column($sessions, 'os_name')));
                                 padding: 15,
                                 font: {
                                     size: 12,
-                                    family: "'Segoe UI', sans-serif"
+                                    family: "'Inter', sans-serif"
                                 }
                             }
                         }
@@ -962,7 +1284,7 @@ $os_list = array_count_values(array_filter(array_column($sessions, 'os_name')));
                     datasets: [{
                         label: 'Users',
                         data: <?php echo json_encode(array_values($browsers)); ?>,
-                        backgroundColor: 'rgba(102, 126, 234, 0.8)',
+                        backgroundColor: 'rgba(124, 58, 237, 0.8)',
                         borderRadius: 8,
                         borderSkipped: false
                     }]
@@ -1016,7 +1338,7 @@ $os_list = array_count_values(array_filter(array_column($sessions, 'os_name')));
                                 padding: 15,
                                 font: {
                                     size: 12,
-                                    family: "'Segoe UI', sans-serif"
+                                    family: "'Inter', sans-serif"
                                 }
                             }
                         }
@@ -1031,15 +1353,27 @@ $os_list = array_count_values(array_filter(array_column($sessions, 'os_name')));
             if (!table) return;
 
             let csv = [];
-            const rows = table.querySelectorAll('tr');
+            const rows = table.querySelectorAll('tr.main-row');
+
+            // Headers
+            csv.push(['Status', 'User', 'Email', 'Role', 'Device Type', 'Browser', 'OS', 'IP Address', 'Network', 'Timezone', 'Last Active'].join(','));
 
             for (let row of rows) {
-                let cols = row.querySelectorAll('td, th');
-                let csvRow = [];
-                for (let col of cols) {
-                    csvRow.push('"' + col.innerText.replace(/"/g, '""') + '"');
-                }
-                csv.push(csvRow.join(','));
+                let cols = row.querySelectorAll('td');
+                let csvRow = [
+                    cols[1].innerText.trim(),
+                    cols[2].querySelector('.user-details h4')?.innerText || '',
+                    cols[2].querySelector('.user-details p')?.innerText || '',
+                    '',
+                    cols[3].innerText.trim(),
+                    cols[4].innerText.trim(),
+                    '',
+                    cols[5].innerText.trim(),
+                    '',
+                    '',
+                    cols[6].innerText.trim()
+                ];
+                csv.push(csvRow.map(cell => '"' + cell.replace(/"/g, '""') + '"').join(','));
             }
 
             const csvContent = csv.join('\n');
@@ -1054,16 +1388,16 @@ $os_list = array_count_values(array_filter(array_column($sessions, 'os_name')));
             window.URL.revokeObjectURL(url);
         }
 
-        // Auto-refresh every 30 seconds
+        // Auto-refresh every 60 seconds
         setTimeout(() => {
             location.reload();
-        }, 30000);
+        }, 60000);
 
         // Update refresh indicator
-        let countdown = 30;
+        let countdown = 60;
         setInterval(() => {
             countdown--;
-            if (countdown <= 0) countdown = 30;
+            if (countdown <= 0) countdown = 60;
             const indicator = document.querySelector('.auto-refresh-indicator span');
             if (indicator) {
                 indicator.textContent = `Auto-refresh: ${countdown}s`;

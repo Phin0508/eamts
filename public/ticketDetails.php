@@ -15,7 +15,7 @@ $ticket_id = $_GET['id'] ?? 0;
 // Initialize EmailHelper
 $emailHelper = new EmailHelper();
 
-// Fetch ticket details with rejection info
+// Fetch ticket details 
 $ticket_query = "
     SELECT 
         t.*,
@@ -39,7 +39,7 @@ $ticket_query = "
     LEFT JOIN users approver ON t.approved_by = approver.user_id
     LEFT JOIN users rejected ON t.rejected_by = rejected.user_id
     LEFT JOIN assets a ON t.asset_id = a.id
-    WHERE t.ticket_id = ?
+     WHERE t.ticket_id = ?
 ";
 
 $stmt = $pdo->prepare($ticket_query);
@@ -103,10 +103,15 @@ $history_stmt = $pdo->prepare($history_query);
 $history_stmt->execute([$ticket_id]);
 $history = $history_stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Fetch assignable users (for admins and managers)
+// Fetch assignable users (for admins and managers) - IT DEPARTMENT ONLY
 $assignable_users = [];
 if ($user_role !== 'employee') {
-    $users_query = "SELECT user_id, CONCAT(first_name, ' ', last_name) as name, email, department, role FROM users WHERE is_active = 1 AND role IN ('admin', 'manager', 'employee') ORDER BY role, first_name";
+    $users_query = "SELECT user_id, CONCAT(first_name, ' ', last_name) as name, email, department, role 
+                    FROM users 
+                    WHERE is_active = 1 
+                    AND role IN ('admin', 'manager', 'employee') 
+                    AND department = 'IT' 
+                    ORDER BY role, first_name";
     $users_stmt = $pdo->prepare($users_query);
     $users_stmt->execute();
     $assignable_users = $users_stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -292,7 +297,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             // CHECK IF TICKET IS APPROVED
             if ($ticket['approval_status'] !== 'approved') {
-                $_SESSION['error_message'] = "Cannot assign ticket. This ticket must be approved by a manager first. Current status: " . ucfirst($ticket['approval_status']);
+                $_SESSION['error_message'] = "Cannot assign ticket. This ticket must be approved by a manager first. Current status: " 
+                . ucfirst($ticket['approval_status']);
                 header("Location: ticketDetails.php?id=$ticket_id");
                 exit();
             }

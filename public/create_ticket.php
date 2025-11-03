@@ -251,7 +251,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->rollBack();
                 throw $e;
             }
-            // ==================== END TICKET NUMBER GENERATION ====================
+            
 
             // Handle file uploads (AFTER transaction commit)
             if (!empty($_FILES['attachments']['name'][0])) {
@@ -276,7 +276,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $file_path = $upload_dir . $new_file_name;
 
                             if (move_uploaded_file($file_tmp, $file_path)) {
-                                $attach_query = "INSERT INTO ticket_attachments (ticket_id, uploaded_by, file_name, file_path, file_type, file_size, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())";
+                                $attach_query = "INSERT INTO ticket_attachments (ticket_id, uploaded_by, file_name, file_path, 
+                                file_type, file_size, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())";
                                 $attach_stmt = $pdo->prepare($attach_query);
                                 $attach_stmt->execute([
                                     $ticket_id,
@@ -1345,7 +1346,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <i class="fas fa-user-shield"></i>
             <div class="info-banner-content">
                 <h3>Welcome, <?php echo htmlspecialchars($user_name); ?>!</h3>
-                <p><?php echo $user_role === 'admin' ? 'As an admin, you can create tickets for yourself or on behalf of other users. Your tickets are automatically approved.' : 'As a manager, you can create tickets that will be reviewed by administrators.'; ?></p>
+                <p><?php echo $user_role === 'admin' ? 'As an admin, you can create tickets for yourself or on behalf of other users.
+                 Your tickets are automatically approved.' : 'As a manager, you can create tickets that will be reviewed by administrators.'; ?></p>
             </div>
         </div>
 

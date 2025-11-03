@@ -87,8 +87,6 @@ try {
     $history = [];
 }
 
-// Fix for ticketDetailHistory.php - Replace the attachments fetch section (around line 97-115)
-
 $attachments = [];
 try {
     $check_table = $pdo->query("SHOW TABLES LIKE 'ticket_attachments'");
@@ -1134,7 +1132,7 @@ if ($ticket['resolved_at']) {
                             </div>
 
                             <?php
-                            // Try to get rejected_by name if the column exists
+                            // Try to get rejected_by name 
                             $rejected_by_name = null;
                             if (isset($ticket['rejected_by']) && $ticket['rejected_by']) {
                                 $rejecter_query = "SELECT CONCAT(first_name, ' ', last_name) as name FROM users WHERE user_id = ?";

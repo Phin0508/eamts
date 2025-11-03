@@ -1,6 +1,5 @@
 <?php
 // Enhanced Device Tracking Endpoint
-// Location: /auth/trackDevice.php
 
 session_start();
 
@@ -32,7 +31,7 @@ try {
     $possible_paths = [
         __DIR__ . "/../config/database.php",
         __DIR__ . "/config/database.php",
-        "../config/database.php",
+        "../auth/config/database.php",
         "./config/database.php",
         "config/database.php"
     ];

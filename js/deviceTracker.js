@@ -1,6 +1,4 @@
 // Enhanced Device Tracker with Advanced Features
-// Location: /js/deviceTracker.js
-
 class DeviceTracker {
     constructor() {
         this.config = {
