@@ -152,6 +152,101 @@ try {
     error_log("Ticket statistics error: " . $e->getMessage());
 }
 
+// MAINTENANCE STATISTICS
+try {
+    // Get maintenance alerts (assets needing maintenance)
+    $maintenance_alert_query = "";
+    $maintenance_params = [];
+
+    if ($role === 'admin' || $role === 'manager') {
+        // Admins and managers see all maintenance alerts
+        $maintenance_alert_query = "
+            SELECT COUNT(DISTINCT a.id) 
+            FROM assets a
+            LEFT JOIN asset_maintenance am ON a.id = am.asset_id
+            WHERE a.status = 'Maintenance' 
+            OR (am.next_maintenance_date IS NOT NULL 
+                AND am.next_maintenance_date <= DATE_ADD(NOW(), INTERVAL 7 DAY))
+        ";
+    } else {
+        // Employees see maintenance alerts for their department
+        $maintenance_alert_query = "
+            SELECT COUNT(DISTINCT a.id) 
+            FROM assets a
+            LEFT JOIN asset_maintenance am ON a.id = am.asset_id
+            WHERE (a.status = 'Maintenance' OR (am.next_maintenance_date IS NOT NULL 
+                AND am.next_maintenance_date <= DATE_ADD(NOW(), INTERVAL 7 DAY)))
+            AND a.department = ?
+        ";
+        $maintenance_params = [$department];
+    }
+
+    $stmt = $pdo->prepare($maintenance_alert_query);
+    $stmt->execute($maintenance_params);
+    $stats['maintenance_alerts'] = $stmt->fetchColumn();
+
+    // Get recurring maintenance due (within next 7 days or overdue)
+    $recurring_due_query = "";
+    $recurring_params = [];
+
+    if ($role === 'admin' || $role === 'manager') {
+        $recurring_due_query = "
+            SELECT COUNT(*) 
+            FROM recurring_maintenance rm
+            JOIN assets a ON rm.asset_id = a.id
+            WHERE rm.is_active = 1 
+            AND rm.next_due_date <= DATE_ADD(NOW(), INTERVAL 7 DAY)
+        ";
+    } else {
+        $recurring_due_query = "
+            SELECT COUNT(*) 
+            FROM recurring_maintenance rm
+            JOIN assets a ON rm.asset_id = a.id
+            WHERE rm.is_active = 1 
+            AND rm.next_due_date <= DATE_ADD(NOW(), INTERVAL 7 DAY)
+            AND a.department = ?
+        ";
+        $recurring_params = [$department];
+    }
+
+    $stmt = $pdo->prepare($recurring_due_query);
+    $stmt->execute($recurring_params);
+    $stats['recurring_due'] = $stmt->fetchColumn();
+
+    // Get overdue recurring maintenance count
+    $overdue_query = "";
+    $overdue_params = [];
+
+    if ($role === 'admin' || $role === 'manager') {
+        $overdue_query = "
+            SELECT COUNT(*) 
+            FROM recurring_maintenance rm
+            JOIN assets a ON rm.asset_id = a.id
+            WHERE rm.is_active = 1 
+            AND rm.next_due_date < NOW()
+        ";
+    } else {
+        $overdue_query = "
+            SELECT COUNT(*) 
+            FROM recurring_maintenance rm
+            JOIN assets a ON rm.asset_id = a.id
+            WHERE rm.is_active = 1 
+            AND rm.next_due_date < NOW()
+            AND a.department = ?
+        ";
+        $overdue_params = [$department];
+    }
+
+    $stmt = $pdo->prepare($overdue_query);
+    $stmt->execute($overdue_params);
+    $stats['overdue_maintenance'] = $stmt->fetchColumn();
+} catch (PDOException $e) {
+    error_log("Maintenance statistics error: " . $e->getMessage());
+    $stats['maintenance_alerts'] = 0;
+    $stats['recurring_due'] = 0;
+    $stats['overdue_maintenance'] = 0;
+}
+
 // Fetch user's recent assets
 $recent_assets = [];
 try {
@@ -201,6 +296,7 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -271,162 +367,162 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
             margin-bottom: 30px;
         }
 
-            /* Enhanced Stat Cards with Colors */
-    .stat-card {
-        background: white;
-        border-radius: 16px;
-        padding: 28px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-        transition: all 0.3s;
-        cursor: pointer;
-        position: relative;
-        overflow: hidden;
-    }
+        /* Enhanced Stat Cards with Colors */
+        .stat-card {
+            background: white;
+            border-radius: 16px;
+            padding: 28px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            transition: all 0.3s;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
 
-    .stat-card::before {
-        content: '';
-        position: absolute;
-        top: -50%;
-        right: -50%;
-        width: 200px;
-        height: 200px;
-        border-radius: 50%;
-        transition: all 0.3s;
-        opacity: 0.1;
-    }
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            transition: all 0.3s;
+            opacity: 0.1;
+        }
 
-    .stat-card:hover {
-        transform: translateY(-4px);
-    }
+        .stat-card:hover {
+            transform: translateY(-4px);
+        }
 
-    .stat-card:hover::before {
-        transform: scale(1.2);
-        opacity: 0.15;
-    }
+        .stat-card:hover::before {
+            transform: scale(1.2);
+            opacity: 0.15;
+        }
 
-    /* Color variants for different stat types */
-    .stat-card.stat-purple {
-        border-left: 4px solid #7c3aed;
-    }
+        /* Color variants for different stat types */
+        .stat-card.stat-purple {
+            border-left: 4px solid #7c3aed;
+        }
 
-    .stat-card.stat-purple::before {
-        background: linear-gradient(135deg, #7c3aed, #6d28d9);
-    }
+        .stat-card.stat-purple::before {
+            background: linear-gradient(135deg, #7c3aed, #6d28d9);
+        }
 
-    .stat-card.stat-purple:hover {
-        box-shadow: 0 8px 20px rgba(124, 58, 237, 0.2);
-    }
+        .stat-card.stat-purple:hover {
+            box-shadow: 0 8px 20px rgba(124, 58, 237, 0.2);
+        }
 
-    .stat-card.stat-purple .stat-icon {
-        color: #7c3aed;
-    }
+        .stat-card.stat-purple .stat-icon {
+            color: #7c3aed;
+        }
 
-    .stat-card.stat-green {
-        border-left: 4px solid #10b981;
-    }
+        .stat-card.stat-green {
+            border-left: 4px solid #10b981;
+        }
 
-    .stat-card.stat-green::before {
-        background: linear-gradient(135deg, #10b981, #059669);
-    }
+        .stat-card.stat-green::before {
+            background: linear-gradient(135deg, #10b981, #059669);
+        }
 
-    .stat-card.stat-green:hover {
-        box-shadow: 0 8px 20px rgba(16, 185, 129, 0.2);
-    }
+        .stat-card.stat-green:hover {
+            box-shadow: 0 8px 20px rgba(16, 185, 129, 0.2);
+        }
 
-    .stat-card.stat-green .stat-icon {
-        color: #10b981;
-    }
+        .stat-card.stat-green .stat-icon {
+            color: #10b981;
+        }
 
-    .stat-card.stat-blue {
-        border-left: 4px solid #3b82f6;
-    }
+        .stat-card.stat-blue {
+            border-left: 4px solid #3b82f6;
+        }
 
-    .stat-card.stat-blue::before {
-        background: linear-gradient(135deg, #3b82f6, #2563eb);
-    }
+        .stat-card.stat-blue::before {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+        }
 
-    .stat-card.stat-blue:hover {
-        box-shadow: 0 8px 20px rgba(59, 130, 246, 0.2);
-    }
+        .stat-card.stat-blue:hover {
+            box-shadow: 0 8px 20px rgba(59, 130, 246, 0.2);
+        }
 
-    .stat-card.stat-blue .stat-icon {
-        color: #3b82f6;
-    }
+        .stat-card.stat-blue .stat-icon {
+            color: #3b82f6;
+        }
 
-    .stat-card.stat-orange {
-        border-left: 4px solid #f59e0b;
-    }
+        .stat-card.stat-orange {
+            border-left: 4px solid #f59e0b;
+        }
 
-    .stat-card.stat-orange::before {
-        background: linear-gradient(135deg, #f59e0b, #d97706);
-    }
+        .stat-card.stat-orange::before {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+        }
 
-    .stat-card.stat-orange:hover {
-        box-shadow: 0 8px 20px rgba(245, 158, 11, 0.2);
-    }
+        .stat-card.stat-orange:hover {
+            box-shadow: 0 8px 20px rgba(245, 158, 11, 0.2);
+        }
 
-    .stat-card.stat-orange .stat-icon {
-        color: #f59e0b;
-    }
+        .stat-card.stat-orange .stat-icon {
+            color: #f59e0b;
+        }
 
-    .stat-card.stat-red {
-        border-left: 4px solid #ef4444;
-    }
+        .stat-card.stat-red {
+            border-left: 4px solid #ef4444;
+        }
 
-    .stat-card.stat-red::before {
-        background: linear-gradient(135deg, #ef4444, #dc2626);
-    }
+        .stat-card.stat-red::before {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+        }
 
-    .stat-card.stat-red:hover {
-        box-shadow: 0 8px 20px rgba(239, 68, 68, 0.2);
-    }
+        .stat-card.stat-red:hover {
+            box-shadow: 0 8px 20px rgba(239, 68, 68, 0.2);
+        }
 
-    .stat-card.stat-red .stat-icon {
-        color: #ef4444;
-    }
+        .stat-card.stat-red .stat-icon {
+            color: #ef4444;
+        }
 
-    .stat-card.stat-gray {
-        border-left: 4px solid #6b7280;
-    }
+        .stat-card.stat-gray {
+            border-left: 4px solid #6b7280;
+        }
 
-    .stat-card.stat-gray::before {
-        background: linear-gradient(135deg, #6b7280, #4b5563);
-    }
+        .stat-card.stat-gray::before {
+            background: linear-gradient(135deg, #6b7280, #4b5563);
+        }
 
-    .stat-card.stat-gray:hover {
-        box-shadow: 0 8px 20px rgba(107, 114, 128, 0.2);
-    }
+        .stat-card.stat-gray:hover {
+            box-shadow: 0 8px 20px rgba(107, 114, 128, 0.2);
+        }
 
-    .stat-card.stat-gray .stat-icon {
-        color: #6b7280;
-    }
+        .stat-card.stat-gray .stat-icon {
+            color: #6b7280;
+        }
 
-    .stat-icon {
-        font-size: 32px;
-        margin-bottom: 16px;
-        display: block;
-        position: relative;
-        z-index: 1;
-    }
+        .stat-icon {
+            font-size: 32px;
+            margin-bottom: 16px;
+            display: block;
+            position: relative;
+            z-index: 1;
+        }
 
-    .stat-number {
-        font-size: 36px;
-        font-weight: 700;
-        color: #1a202c;
-        margin-bottom: 8px;
-        position: relative;
-        z-index: 1;
-    }
+        .stat-number {
+            font-size: 36px;
+            font-weight: 700;
+            color: #1a202c;
+            margin-bottom: 8px;
+            position: relative;
+            z-index: 1;
+        }
 
-    .stat-label {
-        color: #718096;
-        font-size: 14px;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        position: relative;
-        z-index: 1;
-    }
+        .stat-label {
+            color: #718096;
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            position: relative;
+            z-index: 1;
+        }
 
         /* Section */
         .section {
@@ -724,9 +820,12 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
         }
 
         @keyframes pulse {
-            0%, 100% {
+
+            0%,
+            100% {
                 opacity: 1;
             }
+
             50% {
                 opacity: 0.5;
             }
@@ -877,6 +976,7 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
     </style>
     <link rel="stylesheet" href="../auth/inc/navigation.css">
 </head>
+
 <body>
     <?php include("../auth/inc/sidebar.php"); ?>
 
@@ -887,53 +987,160 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
         </div>
 
         <div class="stats-grid">
-    <!-- My Assets - Purple -->
-    <div class="stat-card stat-purple" onclick="window.location.href='../public/asset.php'">
-        <i class="fas fa-boxes stat-icon"></i>
-        <div class="stat-number"><?php echo $stats['my_assets']; ?></div>
-        <div class="stat-label">My Assets</div>
-    </div>
+            <!-- My Assets - Purple -->
+            <div class="stat-card stat-purple" onclick="window.location.href='../public/asset.php'">
+                <i class="fas fa-boxes stat-icon"></i>
+                <div class="stat-number"><?php echo $stats['my_assets']; ?></div>
+                <div class="stat-label">My Assets</div>
+            </div>
 
-    <?php if ($role === 'admin'): ?>
-        <!-- Pending Verifications - Orange -->
-        <div class="stat-card stat-orange" onclick="window.location.href='../public/userV.php'">
-            <i class="fas fa-user-check stat-icon"></i>
-            <div class="stat-number"><?php echo $stats['pending_requests']; ?></div>
-            <div class="stat-label">Pending Verifications</div>
-        </div>
-    <?php else: ?>
-        <!-- Total Tickets - Blue -->
-        <div class="stat-card stat-blue" onclick="window.location.href='../public/tickets.php'">
-            <i class="fas fa-ticket-alt stat-icon"></i>
-            <div class="stat-number"><?php echo $stats['total_tickets']; ?></div>
-            <div class="stat-label">Total Tickets</div>
-        </div>
-    <?php endif; ?>
+            <?php if ($role === 'admin'): ?>
+                <!-- Pending Verifications - Orange -->
+                <div class="stat-card stat-orange" onclick="window.location.href='../public/userV.php'">
+                    <i class="fas fa-user-check stat-icon"></i>
+                    <div class="stat-number"><?php echo $stats['pending_requests']; ?></div>
+                    <div class="stat-label">Pending Verifications</div>
+                </div>
 
-    <!-- Maintenance Status - Orange/Red depending on count -->
-    <div class="stat-card <?php echo $stats['maintenance_due'] > 5 ? 'stat-red' : 'stat-orange'; ?>" onclick="window.location.href='../public/assetDetails.php'">
-        <i class="fas fa-tools stat-icon"></i>
-        <div class="stat-number"><?php echo $stats['maintenance_due']; ?></div>
-        <div class="stat-label">Maintenance Status</div>
-    </div>
+                <!-- Maintenance Alerts - Red/Orange -->
+                <div class="stat-card <?php echo $stats['maintenance_alerts'] > 0 ? 'stat-red' : 'stat-orange'; ?>"
+                    onclick="window.location.href='../public/asset.php?filter=maintenance'">
+                    <i class="fas fa-exclamation-triangle stat-icon"></i>
+                    <div class="stat-number"><?php echo $stats['maintenance_alerts']; ?></div>
+                    <div class="stat-label">Maintenance Alerts</div>
+                </div>
 
-    <?php if ($role === 'admin' || $role === 'manager'): ?>
-        <!-- Total Assets - Green -->
-        <div class="stat-card stat-green" onclick="window.location.href='../public/asset.php'">
-            <i class="fas fa-chart-line stat-icon"></i>
-            <div class="stat-number"><?php echo $stats['total_assets']; ?></div>
-            <div class="stat-label">Total Assets</div>
-        </div>
-    <?php else: ?>
-        <!-- Urgent Tickets - Red -->
-        <div class="stat-card stat-red" onclick="window.location.href='../public/tickets.php'">
-            <i class="fas fa-exclamation-circle stat-icon"></i>
-            <div class="stat-number"><?php echo $stats['urgent_tickets']; ?></div>
-            <div class="stat-label">Urgent Tickets</div>
-        </div>
-    <?php endif; ?>
-</div>
+                <!-- Recurring Due - Orange/Red -->
+                <div class="stat-card <?php echo $stats['overdue_maintenance'] > 0 ? 'stat-red' : 'stat-orange'; ?>"
+                    onclick="window.location.href='../public/assetDetails.php'">
+                    <i class="fas fa-sync-alt stat-icon"></i>
+                    <div class="stat-number"><?php echo $stats['recurring_due']; ?></div>
+                    <div class="stat-label">Recurring Due Soon</div>
+                </div>
 
+                <!-- Total Assets - Green -->
+                <div class="stat-card stat-green" onclick="window.location.href='../public/asset.php'">
+                    <i class="fas fa-chart-line stat-icon"></i>
+                    <div class="stat-number"><?php echo $stats['total_assets']; ?></div>
+                    <div class="stat-label">Total Assets</div>
+                </div>
+
+            <?php elseif ($role === 'manager'): ?>
+                <!-- Total Tickets - Blue -->
+                <div class="stat-card stat-blue" onclick="window.location.href='../public/tickets.php'">
+                    <i class="fas fa-ticket-alt stat-icon"></i>
+                    <div class="stat-number"><?php echo $stats['total_tickets']; ?></div>
+                    <div class="stat-label">Total Tickets</div>
+                </div>
+
+                <!-- Maintenance Status - Orange/Red -->
+                <div class="stat-card <?php echo $stats['maintenance_due'] > 5 ? 'stat-red' : 'stat-orange'; ?>"
+                    onclick="window.location.href='../public/assetDetails.php'">
+                    <i class="fas fa-tools stat-icon"></i>
+                    <div class="stat-number"><?php echo $stats['maintenance_due']; ?></div>
+                    <div class="stat-label">Maintenance Status</div>
+                </div>
+
+                <!-- Maintenance Alerts -->
+                <div class="stat-card <?php echo $stats['maintenance_alerts'] > 0 ? 'stat-red' : 'stat-orange'; ?>"
+                    onclick="window.location.href='../public/asset.php?filter=maintenance'">
+                    <i class="fas fa-exclamation-triangle stat-icon"></i>
+                    <div class="stat-number"><?php echo $stats['maintenance_alerts']; ?></div>
+                    <div class="stat-label">Maintenance Alerts</div>
+                </div>
+
+                <!-- Total Assets - Green -->
+                <div class="stat-card stat-green" onclick="window.location.href='../public/asset.php'">
+                    <i class="fas fa-chart-line stat-icon"></i>
+                    <div class="stat-number"><?php echo $stats['total_assets']; ?></div>
+                    <div class="stat-label">Total Assets</div>
+                </div>
+
+            <?php else: // employee 
+            ?>
+                <!-- Total Tickets - Blue -->
+                <div class="stat-card stat-blue" onclick="window.location.href='../public/tickets.php'">
+                    <i class="fas fa-ticket-alt stat-icon"></i>
+                    <div class="stat-number"><?php echo $stats['total_tickets']; ?></div>
+                    <div class="stat-label">Total Tickets</div>
+                </div>
+
+                <!-- Maintenance Status - Orange/Red -->
+                <div class="stat-card <?php echo $stats['maintenance_due'] > 5 ? 'stat-red' : 'stat-orange'; ?>"
+                    onclick="window.location.href='../public/assetDetails.php'">
+                    <i class="fas fa-tools stat-icon"></i>
+                    <div class="stat-number"><?php echo $stats['maintenance_due']; ?></div>
+                    <div class="stat-label">Maintenance Status</div>
+                </div>
+
+                <!-- Maintenance Alerts for Department -->
+                <div class="stat-card <?php echo $stats['maintenance_alerts'] > 0 ? 'stat-orange' : 'stat-gray'; ?>">
+                    <i class="fas fa-bell stat-icon"></i>
+                    <div class="stat-number"><?php echo $stats['maintenance_alerts']; ?></div>
+                    <div class="stat-label">Dept. Maintenance</div>
+                </div>
+
+                <!-- Urgent Tickets - Red -->
+                <div class="stat-card stat-red" onclick="window.location.href='../public/tickets.php'">
+                    <i class="fas fa-exclamation-circle stat-icon"></i>
+                    <div class="stat-number"><?php echo $stats['urgent_tickets']; ?></div>
+                    <div class="stat-label">Urgent Tickets</div>
+                </div>
+            <?php endif; ?>
+        </div>
+        <?php if ($stats['recurring_due'] > 0 || $stats['overdue_maintenance'] > 0): ?>
+            <div class="section" style="background: linear-gradient(135deg, #ffffffff 0%, #ffffffff 100%); border-left: 4px solid #e1ecfdff;">
+                <div class="section-header" style="border-bottom: 2px solid #dee4ecff;">
+                    <h2><i class="fas fa-exclamation-triangle" style="color: #fc1e1eff;"></i> Maintenance Reminders</h2>
+                    <p style="color: #837c7cff;">Assets requiring immediate attention</p>
+                </div>
+
+                <div class="details-grid">
+                    <?php if ($stats['overdue_maintenance'] > 0): ?>
+                        <div class="detail-item" style="background: #fee2e2; border-left: 3px solid #ef4444;">
+                            <span class="label" style="color: #991b1b;">
+                                <i class="fas fa-exclamation-circle" style="color: #ef4444;"></i>
+                                Overdue Maintenance
+                            </span>
+                            <span class="value" style="color: #991b1b; font-weight: 700;">
+                                <?php echo $stats['overdue_maintenance']; ?> schedule(s)
+                            </span>
+                        </div>
+                    <?php endif; ?>
+
+                    <div class="detail-item" style="background: #fef3c7; border-left: 3px solid #f59e0b;">
+                        <span class="label" style="color: #92400e;">
+                            <i class="fas fa-clock" style="color: #f59e0b;"></i>
+                            Due Within 7 Days
+                        </span>
+                        <span class="value" style="color: #92400e; font-weight: 700;">
+                            <?php echo $stats['recurring_due']; ?> schedule(s)
+                        </span>
+                    </div>
+
+                    <div class="detail-item" style="background: #dbeafe; border-left: 3px solid #3b82f6;">
+                        <span class="label" style="color: #1e40af;">
+                            <i class="fas fa-wrench" style="color: #3b82f6;"></i>
+                            In Maintenance
+                        </span>
+                        <span class="value" style="color: #1e40af; font-weight: 700;">
+                            <?php echo $stats['maintenance_due']; ?> asset(s)
+                        </span>
+                    </div>
+                </div>
+
+                <div class="quick-actions">
+                    <a href="../public/assetDetails.php" class="btn btn-primary">
+                        <i class="fas fa-list"></i> View All Maintenance Schedules
+                    </a>
+                    <?php if ($role === 'admin' || $role === 'manager'): ?>
+                        <a href="../public/asset.php?filter=maintenance" class="btn btn-secondary">
+                            <i class="fas fa-filter"></i> Filter Maintenance Assets
+                        </a>
+                    <?php endif; ?>
+                </div>
+            </div>
+        <?php endif; ?>
         <!-- Charts Section -->
         <?php if ($role === 'admin' || $role === 'manager'): ?>
             <div class="charts-grid">
@@ -1043,127 +1250,127 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
             </div>
 
             <?php if (count($recent_assets) > 0): ?>
-            <div class="table-container">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Asset</th>
-                            <th>Category</th>
-                            <th>Status</th>
-                            <th>Added On</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($recent_assets as $asset): ?>
-                        <tr>
-                            <td>
-                                <div class="asset-info">
-                                    <div class="asset-icon">
-                                        <i class="fas fa-box"></i>
-                                    </div>
-                                    <div class="asset-details">
-                                        <h4><?php echo htmlspecialchars($asset['asset_name']); ?></h4>
-                                        <p><?php echo htmlspecialchars($asset['asset_code']); ?></p>
-                                    </div>
-                                </div>
-                            </td>
-                            <td><?php echo htmlspecialchars($asset['category']); ?></td>
-                            <td>
-                                <span class="badge status-<?php echo strtolower(str_replace(' ', '-', $asset['status'])); ?>">
-                                    <?php echo htmlspecialchars($asset['status']); ?>
-                                </span>
-                            </td>
-                            <td><?php echo date('M j, Y', strtotime($asset['created_at'])); ?></td>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-            <div class="quick-actions">
-                <a href="../public/asset.php" class="btn btn-primary">
-                    <i class="fas fa-arrow-right"></i> View All Assets
-                </a>
-            </div>
-            <?php else: ?>
-            <div class="empty-state">
-                <div class="empty-state-icon">
-                    <i class="fas fa-box-open"></i>
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Asset</th>
+                                <th>Category</th>
+                                <th>Status</th>
+                                <th>Added On</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($recent_assets as $asset): ?>
+                                <tr>
+                                    <td>
+                                        <div class="asset-info">
+                                            <div class="asset-icon">
+                                                <i class="fas fa-box"></i>
+                                            </div>
+                                            <div class="asset-details">
+                                                <h4><?php echo htmlspecialchars($asset['asset_name']); ?></h4>
+                                                <p><?php echo htmlspecialchars($asset['asset_code']); ?></p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td><?php echo htmlspecialchars($asset['category']); ?></td>
+                                    <td>
+                                        <span class="badge status-<?php echo strtolower(str_replace(' ', '-', $asset['status'])); ?>">
+                                            <?php echo htmlspecialchars($asset['status']); ?>
+                                        </span>
+                                    </td>
+                                    <td><?php echo date('M j, Y', strtotime($asset['created_at'])); ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
                 </div>
-                <h3>No Assets Assigned</h3>
-                <p>No assets have been assigned to you yet.</p>
-            </div>
+                <div class="quick-actions">
+                    <a href="../public/asset.php" class="btn btn-primary">
+                        <i class="fas fa-arrow-right"></i> View All Assets
+                    </a>
+                </div>
+            <?php else: ?>
+                <div class="empty-state">
+                    <div class="empty-state-icon">
+                        <i class="fas fa-box-open"></i>
+                    </div>
+                    <h3>No Assets Assigned</h3>
+                    <p>No assets have been assigned to you yet.</p>
+                </div>
             <?php endif; ?>
         </div>
 
         <!-- Recent Activity Section -->
         <?php if (count($recent_activity) > 0): ?>
-        <div class="section">
-            <div class="section-header">
-                <h2><i class="fas fa-history"></i> Recent Activity</h2>
-                <p>Your recent asset-related activities</p>
-            </div>
-            <ul class="activity-list">
-                <?php foreach ($recent_activity as $activity): ?>
-                <li class="activity-item">
-                    <div class="activity-content">
-                        <div class="activity-icon">
-                            <i class="fas fa-clipboard-list"></i>
-                        </div>
-                        <div class="activity-info">
-                            <div class="activity-type"><?php echo ucfirst(htmlspecialchars($activity['action_type'])); ?></div>
-                            <div class="activity-details">
-                                <?php echo htmlspecialchars($activity['asset_name']); ?>
-                                (<?php echo htmlspecialchars($activity['asset_code']); ?>)
+            <div class="section">
+                <div class="section-header">
+                    <h2><i class="fas fa-history"></i> Recent Activity</h2>
+                    <p>Your recent asset-related activities</p>
+                </div>
+                <ul class="activity-list">
+                    <?php foreach ($recent_activity as $activity): ?>
+                        <li class="activity-item">
+                            <div class="activity-content">
+                                <div class="activity-icon">
+                                    <i class="fas fa-clipboard-list"></i>
+                                </div>
+                                <div class="activity-info">
+                                    <div class="activity-type"><?php echo ucfirst(htmlspecialchars($activity['action_type'])); ?></div>
+                                    <div class="activity-details">
+                                        <?php echo htmlspecialchars($activity['asset_name']); ?>
+                                        (<?php echo htmlspecialchars($activity['asset_code']); ?>)
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                    </div>
-                    <div class="activity-time"><?php echo date('M j, Y H:i', strtotime($activity['created_at'])); ?></div>
-                </li>
-                <?php endforeach; ?>
-            </ul>
-        </div>
+                            <div class="activity-time"><?php echo date('M j, Y H:i', strtotime($activity['created_at'])); ?></div>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
         <?php endif; ?>
 
         <!-- Quick Actions Section -->
         <?php if ($role === 'admin' || $role === 'manager'): ?>
-        <div class="section">
-            <div class="section-header">
-                <h2><i class="fas fa-bolt"></i> Quick Actions</h2>
-                <p>Frequently used administrative actions</p>
+            <div class="section">
+                <div class="section-header">
+                    <h2><i class="fas fa-bolt"></i> Quick Actions</h2>
+                    <p>Frequently used administrative actions</p>
+                </div>
+                <div class="quick-actions" style="border-top: none; padding-top: 0; margin-top: 0;">
+                    <a href="../public/asset.php" class="btn btn-primary">
+                        <i class="fas fa-boxes"></i> Manage Assets
+                    </a>
+                    <?php if ($role === 'admin'): ?>
+                        <a href="../public/userV.php" class="btn btn-primary">
+                            <i class="fas fa-user-check"></i> Verify Users
+                        </a>
+                        <a href="../public/ticket.php" class="btn btn-primary">
+                            <i class="fas fa-ticket-alt"></i> View Approved Tickets
+                        </a>
+                    <?php else: ?>
+                        <a href="../public/tickets.php" class="btn btn-primary">
+                            <i class="fas fa-ticket-alt"></i> View Tickets
+                        </a>
+                    <?php endif; ?>
+                    <a href="../public/assetHistory.php" class="btn btn-secondary">
+                        <i class="fas fa-history"></i> View Asset History
+                    </a>
+                </div>
             </div>
-            <div class="quick-actions" style="border-top: none; padding-top: 0; margin-top: 0;">
-                <a href="../public/asset.php" class="btn btn-primary">
-                    <i class="fas fa-boxes"></i> Manage Assets
-                </a>
-                <?php if ($role === 'admin'): ?>
-                    <a href="../public/userV.php" class="btn btn-primary">
-                        <i class="fas fa-user-check"></i> Verify Users
-                    </a>
-                    <a href="../public/ticket.php" class="btn btn-primary">
-                        <i class="fas fa-ticket-alt"></i> View Approved Tickets
-                    </a>
-                <?php else: ?>
-                    <a href="../public/tickets.php" class="btn btn-primary">
-                        <i class="fas fa-ticket-alt"></i> View Tickets
-                    </a>
-                <?php endif; ?>
-                <a href="../public/assetHistory.php" class="btn btn-secondary">
-                    <i class="fas fa-history"></i> View Asset History
-                </a>
-            </div>
-        </div>
         <?php endif; ?>
 
         <!-- Currently Online Users Section (Admin Only) -->
         <?php if ($role === 'admin'): ?>
-        <div class="section">
-            <div class="section-header">
-                <h2><i class="fas fa-users"></i> Currently Online Users</h2>
-                <p>Users active in the last 5 minutes</p>
-            </div>
-            <?php
-            try {
-                $stmt = $pdo->query("
+            <div class="section">
+                <div class="section-header">
+                    <h2><i class="fas fa-users"></i> Currently Online Users</h2>
+                    <p>Users active in the last 5 minutes</p>
+                </div>
+                <?php
+                try {
+                    $stmt = $pdo->query("
                     SELECT 
                         u.first_name, u.last_name, u.department,
                         us.ip_address, us.device_serial, us.last_activity
@@ -1174,143 +1381,266 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
                     ORDER BY us.last_activity DESC
                     LIMIT 5
                 ");
-                $online_users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    $online_users = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-                if (count($online_users) > 0):
-            ?>
-                    <ul class="activity-list">
-                        <?php foreach ($online_users as $user): ?>
-                        <li class="activity-item">
-                            <div class="activity-content">
-                                <div class="activity-icon">
-                                    <i class="fas fa-user"></i>
-                                </div>
-                                <div class="activity-info">
-                                    <div class="activity-type">
-                                        <span class="online-indicator"></span>
-                                        <?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?>
+                    if (count($online_users) > 0):
+                ?>
+                        <ul class="activity-list">
+                            <?php foreach ($online_users as $user): ?>
+                                <li class="activity-item">
+                                    <div class="activity-content">
+                                        <div class="activity-icon">
+                                            <i class="fas fa-user"></i>
+                                        </div>
+                                        <div class="activity-info">
+                                            <div class="activity-type">
+                                                <span class="online-indicator"></span>
+                                                <?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?>
+                                            </div>
+                                            <div class="activity-details">
+                                                IP: <?php echo htmlspecialchars($user['ip_address']); ?> |
+                                                Device: <?php echo htmlspecialchars(substr($user['device_serial'], 0, 12)); ?>...
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div class="activity-details">
-                                        IP: <?php echo htmlspecialchars($user['ip_address']); ?> | 
-                                        Device: <?php echo htmlspecialchars(substr($user['device_serial'], 0, 12)); ?>...
+                                    <div class="activity-time">
+                                        <?php echo date('H:i', strtotime($user['last_activity'])); ?>
                                     </div>
-                                </div>
-                            </div>
-                            <div class="activity-time">
-                                <?php echo date('H:i', strtotime($user['last_activity'])); ?>
-                            </div>
-                        </li>
-                        <?php endforeach; ?>
-                    </ul>
-                    <div class="quick-actions">
-                        <a href="../public/Uastatus.php" class="btn btn-primary">
-                            <i class="fas fa-users"></i> View All Active Users
-                        </a>
-                    </div>
-                <?php else: ?>
-                    <div class="empty-state">
-                        <div class="empty-state-icon">
-                            <i class="fas fa-user-slash"></i>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                        <div class="quick-actions">
+                            <a href="../public/Uastatus.php" class="btn btn-primary">
+                                <i class="fas fa-users"></i> View All Active Users
+                            </a>
                         </div>
-                        <h3>No Users Online</h3>
-                        <p>No users are currently active in the system.</p>
-                    </div>
-                <?php endif; ?>
-            <?php } catch (PDOException $e) {
-                error_log("Online users error: " . $e->getMessage());
-            } ?>
-        </div>
+                    <?php else: ?>
+                        <div class="empty-state">
+                            <div class="empty-state-icon">
+                                <i class="fas fa-user-slash"></i>
+                            </div>
+                            <h3>No Users Online</h3>
+                            <p>No users are currently active in the system.</p>
+                        </div>
+                    <?php endif; ?>
+                <?php } catch (PDOException $e) {
+                    error_log("Online users error: " . $e->getMessage());
+                } ?>
+            </div>
         <?php endif; ?>
     </div>
 
     <script>
-    // ===== COLOR PALETTES - MUST BE AT THE VERY TOP =====
-    const statusColors = {
-        // Capitalized versions (for display)
-        'Available': '#10b981',
-        'In Use': '#3b82f6',
-        'Maintenance': '#f59e0b',
-        'Retired': '#6b7280',
-        'Damaged': '#ef4444',
-        // Lowercase versions (from database)
-        'available': '#10b981',
-        'in_use': '#3b82f6',
-        'in use': '#3b82f6',
-        'maintenance': '#f59e0b',
-        'retired': '#6b7280',
-        'damaged': '#ef4444'
-    };
+        // ===== COLOR PALETTES - MUST BE AT THE VERY TOP =====
+        const statusColors = {
+            // Capitalized versions (for display)
+            'Available': '#10b981',
+            'In Use': '#3b82f6',
+            'Maintenance': '#f59e0b',
+            'Retired': '#6b7280',
+            'Damaged': '#ef4444',
+            // Lowercase versions (from database)
+            'available': '#10b981',
+            'in_use': '#3b82f6',
+            'in use': '#3b82f6',
+            'maintenance': '#f59e0b',
+            'retired': '#6b7280',
+            'damaged': '#ef4444'
+        };
 
-    const ticketStatusColors = {
-        'open': '#3b82f6',
-        'in_progress': '#f59e0b',
-        'pending': '#eab308',
-        'resolved': '#10b981',
-        'closed': '#6b7280'
-    };
+        const ticketStatusColors = {
+            'open': '#3b82f6',
+            'in_progress': '#f59e0b',
+            'pending': '#eab308',
+            'resolved': '#10b981',
+            'closed': '#6b7280'
+        };
 
-    const priorityColors = {
-        'low': '#10b981',
-        'medium': '#f59e0b',
-        'high': '#ef4444',
-        'urgent': '#dc2626'
-    };
+        const priorityColors = {
+            'low': '#10b981',
+            'medium': '#f59e0b',
+            'high': '#ef4444',
+            'urgent': '#dc2626'
+        };
 
-    // ===== SIDEBAR TOGGLE FUNCTIONS =====
-    function updateMainContainer() {
-        const mainContainer = document.getElementById('mainContainer');
+        // ===== SIDEBAR TOGGLE FUNCTIONS =====
+        function updateMainContainer() {
+            const mainContainer = document.getElementById('mainContainer');
+            const sidebar = document.querySelector('.sidebar');
+
+            if (sidebar && sidebar.classList.contains('collapsed')) {
+                mainContainer.classList.add('sidebar-collapsed');
+            } else {
+                mainContainer.classList.remove('sidebar-collapsed');
+            }
+        }
+
+        // Check on load
+        document.addEventListener('DOMContentLoaded', updateMainContainer);
+
+        // Listen for sidebar changes
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('.toggle-sidebar')) {
+                setTimeout(updateMainContainer, 50);
+            }
+        });
+
+        // Observe sidebar changes
+        const observer = new MutationObserver(updateMainContainer);
         const sidebar = document.querySelector('.sidebar');
-        
-        if (sidebar && sidebar.classList.contains('collapsed')) {
-            mainContainer.classList.add('sidebar-collapsed');
-        } else {
-            mainContainer.classList.remove('sidebar-collapsed');
+        if (sidebar) {
+            observer.observe(sidebar, {
+                attributes: true,
+                attributeFilter: ['class']
+            });
         }
-    }
 
-    // Check on load
-    document.addEventListener('DOMContentLoaded', updateMainContainer);
+        // ===== CHART.JS DEFAULT SETTINGS =====
+        Chart.defaults.font.family = "'Inter', sans-serif";
+        Chart.defaults.color = '#718096';
 
-    // Listen for sidebar changes
-    document.addEventListener('click', function(e) {
-        if (e.target.closest('.toggle-sidebar')) {
-            setTimeout(updateMainContainer, 50);
-        }
-    });
+        // ===== ASSET STATUS PIE CHART (Admin/Manager Only) =====
+        <?php if ($role === 'admin' || $role === 'manager'): ?>
+            const assetStatusCtx = document.getElementById('assetStatusChart');
+            if (assetStatusCtx) {
+                const assetStatusLabels = <?php echo $asset_status_labels; ?>;
+                const assetStatusData = <?php echo $asset_status_values; ?>;
 
-    // Observe sidebar changes
-    const observer = new MutationObserver(updateMainContainer);
-    const sidebar = document.querySelector('.sidebar');
-    if (sidebar) {
-        observer.observe(sidebar, { attributes: true, attributeFilter: ['class'] });
-    }
+                // Map colors to labels
+                const assetColors = assetStatusLabels.map(label => statusColors[label] || '#6b7280');
 
-    // ===== CHART.JS DEFAULT SETTINGS =====
-    Chart.defaults.font.family = "'Inter', sans-serif";
-    Chart.defaults.color = '#718096';
+                // Debug logs
+                console.log('Asset Status Labels:', assetStatusLabels);
+                console.log('Asset Status Data:', assetStatusData);
+                console.log('Colors being used:', assetColors);
 
-    // ===== ASSET STATUS PIE CHART (Admin/Manager Only) =====
-    <?php if ($role === 'admin' || $role === 'manager'): ?>
-        const assetStatusCtx = document.getElementById('assetStatusChart');
-        if (assetStatusCtx) {
-            const assetStatusLabels = <?php echo $asset_status_labels; ?>;
-            const assetStatusData = <?php echo $asset_status_values; ?>;
+                new Chart(assetStatusCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: assetStatusLabels,
+                        datasets: [{
+                            data: assetStatusData,
+                            backgroundColor: assetColors,
+                            borderWidth: 3,
+                            borderColor: '#fff',
+                            hoverOffset: 8
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    padding: 20,
+                                    font: {
+                                        size: 13,
+                                        weight: 500
+                                    },
+                                    usePointStyle: true,
+                                    pointStyle: 'circle'
+                                }
+                            },
+                            tooltip: {
+                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                padding: 12,
+                                titleFont: {
+                                    size: 14,
+                                    weight: 600
+                                },
+                                bodyFont: {
+                                    size: 13
+                                },
+                                cornerRadius: 8
+                            }
+                        }
+                    }
+                });
+            }
 
-            // Map colors to labels
-            const assetColors = assetStatusLabels.map(label => statusColors[label] || '#6b7280');
+            // ===== ASSET CATEGORY BAR CHART =====
+            const assetCategoryCtx = document.getElementById('assetCategoryChart');
+            if (assetCategoryCtx) {
+                const assetCategoryLabels = <?php echo $asset_category_labels; ?>;
+                const assetCategoryData = <?php echo $asset_category_values; ?>;
 
-            // Debug logs
-            console.log('Asset Status Labels:', assetStatusLabels);
-            console.log('Asset Status Data:', assetStatusData);
-            console.log('Colors being used:', assetColors);
+                new Chart(assetCategoryCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: assetCategoryLabels,
+                        datasets: [{
+                            label: 'Number of Assets',
+                            data: assetCategoryData,
+                            backgroundColor: 'rgba(124, 58, 237, 0.8)',
+                            borderColor: 'rgba(124, 58, 237, 1)',
+                            borderWidth: 0,
+                            borderRadius: 8,
+                            hoverBackgroundColor: 'rgba(109, 40, 217, 0.9)'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    stepSize: 1,
+                                    font: {
+                                        size: 12
+                                    }
+                                },
+                                grid: {
+                                    color: 'rgba(0, 0, 0, 0.05)'
+                                }
+                            },
+                            x: {
+                                ticks: {
+                                    font: {
+                                        size: 12
+                                    }
+                                },
+                                grid: {
+                                    display: false
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            tooltip: {
+                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                padding: 12,
+                                titleFont: {
+                                    size: 14,
+                                    weight: 600
+                                },
+                                bodyFont: {
+                                    size: 13
+                                },
+                                cornerRadius: 8
+                            }
+                        }
+                    }
+                });
+            }
+        <?php endif; ?>
 
-            new Chart(assetStatusCtx, {
+        // ===== TICKET STATUS PIE CHART =====
+        const ticketStatusCtx = document.getElementById('ticketStatusChart');
+        if (ticketStatusCtx) {
+            const ticketStatusLabels = <?php echo $ticket_status_labels; ?>;
+            const ticketStatusData = <?php echo $ticket_status_values; ?>;
+
+            new Chart(ticketStatusCtx, {
                 type: 'doughnut',
                 data: {
-                    labels: assetStatusLabels,
+                    labels: ticketStatusLabels.map(label => label.replace('_', ' ').toUpperCase()),
                     datasets: [{
-                        data: assetStatusData,
-                        backgroundColor: assetColors,
+                        data: ticketStatusData,
+                        backgroundColor: ticketStatusLabels.map(label => ticketStatusColors[label] || '#6b7280'),
                         borderWidth: 3,
                         borderColor: '#fff',
                         hoverOffset: 8
@@ -1349,24 +1679,22 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
             });
         }
 
-        // ===== ASSET CATEGORY BAR CHART =====
-        const assetCategoryCtx = document.getElementById('assetCategoryChart');
-        if (assetCategoryCtx) {
-            const assetCategoryLabels = <?php echo $asset_category_labels; ?>;
-            const assetCategoryData = <?php echo $asset_category_values; ?>;
+        // ===== TICKET PRIORITY BAR CHART =====
+        const ticketPriorityCtx = document.getElementById('ticketPriorityChart');
+        if (ticketPriorityCtx) {
+            const ticketPriorityLabels = <?php echo $ticket_priority_labels; ?>;
+            const ticketPriorityData = <?php echo $ticket_priority_values; ?>;
 
-            new Chart(assetCategoryCtx, {
+            new Chart(ticketPriorityCtx, {
                 type: 'bar',
                 data: {
-                    labels: assetCategoryLabels,
+                    labels: ticketPriorityLabels.map(label => label.toUpperCase()),
                     datasets: [{
-                        label: 'Number of Assets',
-                        data: assetCategoryData,
-                        backgroundColor: 'rgba(124, 58, 237, 0.8)',
-                        borderColor: 'rgba(124, 58, 237, 1)',
+                        label: 'Number of Tickets',
+                        data: ticketPriorityData,
+                        backgroundColor: ticketPriorityLabels.map(label => priorityColors[label] || '#6b7280'),
                         borderWidth: 0,
-                        borderRadius: 8,
-                        hoverBackgroundColor: 'rgba(109, 40, 217, 0.9)'
+                        borderRadius: 8
                     }]
                 },
                 options: {
@@ -1416,124 +1744,7 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
                 }
             });
         }
-    <?php endif; ?>
-
-    // ===== TICKET STATUS PIE CHART =====
-    const ticketStatusCtx = document.getElementById('ticketStatusChart');
-    if (ticketStatusCtx) {
-        const ticketStatusLabels = <?php echo $ticket_status_labels; ?>;
-        const ticketStatusData = <?php echo $ticket_status_values; ?>;
-
-        new Chart(ticketStatusCtx, {
-            type: 'doughnut',
-            data: {
-                labels: ticketStatusLabels.map(label => label.replace('_', ' ').toUpperCase()),
-                datasets: [{
-                    data: ticketStatusData,
-                    backgroundColor: ticketStatusLabels.map(label => ticketStatusColors[label] || '#6b7280'),
-                    borderWidth: 3,
-                    borderColor: '#fff',
-                    hoverOffset: 8
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: {
-                            padding: 20,
-                            font: {
-                                size: 13,
-                                weight: 500
-                            },
-                            usePointStyle: true,
-                            pointStyle: 'circle'
-                        }
-                    },
-                    tooltip: {
-                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                        padding: 12,
-                        titleFont: {
-                            size: 14,
-                            weight: 600
-                        },
-                        bodyFont: {
-                            size: 13
-                        },
-                        cornerRadius: 8
-                    }
-                }
-            }
-        });
-    }
-
-    // ===== TICKET PRIORITY BAR CHART =====
-    const ticketPriorityCtx = document.getElementById('ticketPriorityChart');
-    if (ticketPriorityCtx) {
-        const ticketPriorityLabels = <?php echo $ticket_priority_labels; ?>;
-        const ticketPriorityData = <?php echo $ticket_priority_values; ?>;
-
-        new Chart(ticketPriorityCtx, {
-            type: 'bar',
-            data: {
-                labels: ticketPriorityLabels.map(label => label.toUpperCase()),
-                datasets: [{
-                    label: 'Number of Tickets',
-                    data: ticketPriorityData,
-                    backgroundColor: ticketPriorityLabels.map(label => priorityColors[label] || '#6b7280'),
-                    borderWidth: 0,
-                    borderRadius: 8
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            stepSize: 1,
-                            font: {
-                                size: 12
-                            }
-                        },
-                        grid: {
-                            color: 'rgba(0, 0, 0, 0.05)'
-                        }
-                    },
-                    x: {
-                        ticks: {
-                            font: {
-                                size: 12
-                            }
-                        },
-                        grid: {
-                            display: false
-                        }
-                    }
-                },
-                plugins: {
-                    legend: {
-                        display: false
-                    },
-                    tooltip: {
-                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                        padding: 12,
-                        titleFont: {
-                            size: 14,
-                            weight: 600
-                        },
-                        bodyFont: {
-                            size: 13
-                        },
-                        cornerRadius: 8
-                    }
-                }
-            }
-        });
-    }
-</script>
+    </script>
 </body>
+
 </html>

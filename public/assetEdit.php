@@ -15,13 +15,17 @@ if ($_SESSION['role'] !== 'admin' && $_SESSION['role'] !== 'manager') {
     exit();
 }
 
-// Include database connection
+// Include database connection and email helper
 include("../auth/config/database.php");
+require_once '../auth/helpers/EmailHelper.php';
 
 // Verify PDO connection exists
 if (!isset($pdo)) {
     die("Database connection failed. Please check your database configuration.");
 }
+
+// Initialize EmailHelper
+$emailHelper = new EmailHelper();
 
 // Get asset ID from URL
 if (!isset($_GET['id']) || empty($_GET['id'])) {
@@ -68,6 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_asset'])) {
                 $current_stmt = $pdo->prepare("SELECT * FROM assets WHERE id = ?");
                 $current_stmt->execute([$asset_id]);
                 $current_asset = $current_stmt->fetch(PDO::FETCH_ASSOC);
+                $previous_assigned_to = $current_asset['assigned_to'];
 
                 // Update asset
                 $stmt = $pdo->prepare("UPDATE assets SET 
@@ -92,22 +97,116 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_asset'])) {
                 if ($stmt->execute([$asset_name, $asset_code, $category, $brand, $model, $serial_number, 
                 $purchase_date, $purchase_cost, $supplier, $warranty_expiry, $location, $department, $status, $description, $assigned_to, $asset_id])) {
 
-                    // Log assignment change if it changed
-                    if ($current_asset['assigned_to'] != $assigned_to) {
-                        $action = $assigned_to ? ($current_asset['assigned_to'] ? 'reassigned' : 'assigned') : 'unassigned';
+                    // Get assigned by user details
+                    $assigned_by_stmt = $pdo->prepare("SELECT first_name, last_name FROM users WHERE user_id = ?");
+                    $assigned_by_stmt->execute([$_SESSION['user_id']]);
+                    $assigned_by = $assigned_by_stmt->fetch(PDO::FETCH_ASSOC);
+                    $assigned_by_name = $assigned_by['first_name'] . ' ' . $assigned_by['last_name'];
 
-                        // Check if assets_history table exists, if not use asset_history
+                    // Check if assignment changed
+                    if ($previous_assigned_to != $assigned_to) {
+                        // Send unassignment email to previous user
+                        if ($previous_assigned_to) {
+                            try {
+                                $prev_user_stmt = $pdo->prepare("SELECT user_id, first_name, last_name, email FROM users WHERE user_id = ?");
+                                $prev_user_stmt->execute([$previous_assigned_to]);
+                                $prev_user = $prev_user_stmt->fetch(PDO::FETCH_ASSOC);
+
+                                if ($prev_user) {
+                                    $unassignment_data = [
+                                        'user_name' => $prev_user['first_name'] . ' ' . $prev_user['last_name'],
+                                        'user_email' => $prev_user['email'],
+                                        'asset_name' => $asset_name,
+                                        'asset_code' => $asset_code,
+                                        'unassigned_by' => $assigned_by_name
+                                    ];
+
+                                    $emailHelper->sendAssetUnassignmentEmail($unassignment_data);
+                                }
+                            } catch (Exception $e) {
+                                error_log("Failed to send unassignment email: " . $e->getMessage());
+                            }
+                        }
+
+                        // Send assignment email to new user
+                        if ($assigned_to) {
+                            try {
+                                $new_user_stmt = $pdo->prepare("SELECT user_id, first_name, last_name, email FROM users WHERE user_id = ?");
+                                $new_user_stmt->execute([$assigned_to]);
+                                $new_user = $new_user_stmt->fetch(PDO::FETCH_ASSOC);
+
+                                if ($new_user) {
+                                    $assignment_data = [
+                                        'asset_id' => $asset_id,
+                                        'user_name' => $new_user['first_name'] . ' ' . $new_user['last_name'],
+                                        'user_email' => $new_user['email'],
+                                        'asset_name' => $asset_name,
+                                        'asset_code' => $asset_code,
+                                        'asset_category' => $category,
+                                        'brand_model' => trim($brand . ' ' . $model),
+                                        'serial_number' => $serial_number ?: 'N/A',
+                                        'location' => $location ?: 'Not specified',
+                                        'assigned_by' => $assigned_by_name
+                                    ];
+
+                                    if ($emailHelper->sendAssetAssignmentEmail($assignment_data)) {
+                                        $success_message = "Asset updated successfully! Assignment notification email sent to " . $new_user['email'];
+                                    } else {
+                                        $success_message = "Asset updated successfully! (Email notification failed to send)";
+                                    }
+                                }
+                            } catch (Exception $e) {
+                                error_log("Failed to send assignment email: " . $e->getMessage());
+                                $success_message = "Asset updated successfully! (Email notification failed to send)";
+                            }
+                        } else {
+                            $success_message = "Asset updated successfully!";
+                        }
+
+                        // Log assignment change with proper action type
+                        if ($assigned_to && $previous_assigned_to) {
+                            // Reassignment: from one user to another
+                            $action = 'reassigned';
+                        } elseif ($assigned_to && !$previous_assigned_to) {
+                            // New assignment: from unassigned to assigned
+                            $action = 'assigned';
+                        } else {
+                            // Unassignment: from assigned to unassigned
+                            $action = 'unassigned';
+                        }
+
+                        // Debug logging
+                        error_log("=== LOGGING ASSET HISTORY ===");
+                        error_log("Asset ID: $asset_id");
+                        error_log("Action: $action");
+                        error_log("From: " . ($previous_assigned_to ?: 'NULL'));
+                        error_log("To: " . ($assigned_to ?: 'NULL'));
+                        error_log("Performed by: " . $_SESSION['user_id']);
+
                         try {
                             $log_stmt = $pdo->prepare("INSERT INTO assets_history (asset_id, action_type, assigned_from, assigned_to, performed_by, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
-                            $log_stmt->execute([$asset_id, $action, $current_asset['assigned_to'], $assigned_to, $_SESSION['user_id']]);
+                            $log_result = $log_stmt->execute([$asset_id, $action, $previous_assigned_to, $assigned_to, $_SESSION['user_id']]);
+                            
+                            if ($log_result) {
+                                error_log("History logged successfully!");
+                            } else {
+                                error_log("History logging failed!");
+                            }
                         } catch (PDOException $e) {
+                            error_log("Database error in history logging: " . $e->getMessage());
                             // Try alternative table name
-                            $log_stmt = $pdo->prepare("INSERT INTO asset_history (asset_id, action_type, previous_user_id, new_user_id, performed_by, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
-                            $log_stmt->execute([$asset_id, $action, $current_asset['assigned_to'], $assigned_to, $_SESSION['user_id']]);
+                            try {
+                                $log_stmt = $pdo->prepare("INSERT INTO asset_history (asset_id, action_type, previous_user_id, new_user_id, performed_by, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
+                                $log_stmt->execute([$asset_id, $action, $previous_assigned_to, $assigned_to, $_SESSION['user_id']]);
+                            } catch (PDOException $e2) {
+                                error_log("Failed to log asset history (alt table): " . $e2->getMessage());
+                            }
                         }
+                        error_log("=== END LOGGING ===");
+                    } else {
+                        $success_message = "Asset updated successfully!";
                     }
 
-                    $success_message = "Asset updated successfully!";
                     // Redirect after short delay
                     header("refresh:2;url=asset.php?updated=1");
                 } else {
@@ -147,11 +246,16 @@ try {
 // Get all users for assignment dropdown
 $users = [];
 try {
-    $users_query = "SELECT user_id, username, first_name, last_name, email, department FROM users ORDER BY first_name, last_name";
+    $users_query = "SELECT user_id, username, first_name, last_name, email, department 
+                    FROM users 
+                    WHERE user_id IS NOT NULL 
+                    AND (is_deleted = 0 OR is_deleted IS NULL)
+                    AND (status = 'active' OR status IS NULL)
+                    ORDER BY first_name, last_name";
     $users_result = $pdo->query($users_query);
     $users = $users_result->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
-    // Handle error silently
+    error_log("Error fetching users: " . $e->getMessage());
 }
 
 // Get departments for dropdown
@@ -165,15 +269,18 @@ try {
     $departments = ['IT', 'HR', 'Finance', 'Operations', 'Marketing'];
 }
 
-// Get asset history - try both table names
+// Get asset history with proper NULL handling
 $history = [];
 try {
     $history_query = "SELECT ah.*, 
                       performer.username as performer_name,
+                      CONCAT(COALESCE(performer.first_name, ''), ' ', COALESCE(performer.last_name, '')) as performer_full_name,
                       prev_user.username as prev_username,
-                      CONCAT(prev_user.first_name, ' ', prev_user.last_name) as prev_user_name,
+                      CONCAT(COALESCE(prev_user.first_name, ''), ' ', COALESCE(prev_user.last_name, '')) as prev_user_name,
+                      prev_user.user_id as prev_user_id,
                       new_user.username as new_username,
-                      CONCAT(new_user.first_name, ' ', new_user.last_name) as new_user_name
+                      CONCAT(COALESCE(new_user.first_name, ''), ' ', COALESCE(new_user.last_name, '')) as new_user_name,
+                      new_user.user_id as new_user_id
                       FROM assets_history ah
                       LEFT JOIN users performer ON ah.performed_by = performer.user_id
                       LEFT JOIN users prev_user ON ah.assigned_from = prev_user.user_id
@@ -189,10 +296,13 @@ try {
     try {
         $history_query = "SELECT ah.*, 
                           performer.username as performer_name,
+                          CONCAT(COALESCE(performer.first_name, ''), ' ', COALESCE(performer.last_name, '')) as performer_full_name,
                           prev_user.username as prev_username,
-                          CONCAT(prev_user.first_name, ' ', prev_user.last_name) as prev_user_name,
+                          CONCAT(COALESCE(prev_user.first_name, ''), ' ', COALESCE(prev_user.last_name, '')) as prev_user_name,
+                          prev_user.user_id as prev_user_id,
                           new_user.username as new_username,
-                          CONCAT(new_user.first_name, ' ', new_user.last_name) as new_user_name
+                          CONCAT(COALESCE(new_user.first_name, ''), ' ', COALESCE(new_user.last_name, '')) as new_user_name,
+                          new_user.user_id as new_user_id
                           FROM asset_history ah
                           LEFT JOIN users performer ON ah.performed_by = performer.user_id
                           LEFT JOIN users prev_user ON ah.previous_user_id = prev_user.user_id
@@ -204,7 +314,7 @@ try {
         $history_stmt->execute([$asset_id]);
         $history = $history_stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (PDOException $e) {
-        // Handle error silently
+        error_log("Error fetching asset history: " . $e->getMessage());
     }
 }
 
@@ -522,13 +632,14 @@ $status_value = strtolower(str_replace(' ', '_', $asset['status']));
                                         <option value="<?php echo $user['user_id']; ?>"
                                             <?php echo $asset['assigned_to'] == $user['user_id'] ? 'selected' : ''; ?>>
                                             <?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?>
-                                            (<?php echo htmlspecialchars($user['username']); ?>)
+                                            (<?php echo htmlspecialchars($user['email']); ?>)
                                             <?php if ($user['department']): ?>
                                                 - <?php echo htmlspecialchars($user['department']); ?>
                                             <?php endif; ?>
                                         </option>
                                     <?php endforeach; ?>
                                 </select>
+                                <span class="help-text">User will receive an email notification if assignment changes.</span>
                             </div>
 
                             <div class="form-group">
@@ -612,15 +723,37 @@ $status_value = strtolower(str_replace(' ', '_', $asset['status']));
                                     </div>
                                     <div class="history-details">
                                         <?php if ($record['action_type'] === 'assigned'): ?>
-                                            Assigned to <strong><?php echo htmlspecialchars($record['new_user_name']); ?></strong>
+                                            <?php if (!empty($record['new_user_id']) && !empty(trim($record['new_user_name']))): ?>
+                                                Assigned to <strong><?php echo htmlspecialchars(trim($record['new_user_name'])); ?></strong>
+                                            <?php else: ?>
+                                                Assigned to a user
+                                            <?php endif; ?>
                                         <?php elseif ($record['action_type'] === 'unassigned'): ?>
-                                            Unassigned from <strong><?php echo htmlspecialchars($record['prev_user_name']); ?></strong>
+                                            <?php if (!empty($record['prev_user_id']) && !empty(trim($record['prev_user_name']))): ?>
+                                                Unassigned from <strong><?php echo htmlspecialchars(trim($record['prev_user_name'])); ?></strong>
+                                            <?php else: ?>
+                                                Unassigned from a user
+                                            <?php endif; ?>
                                         <?php elseif ($record['action_type'] === 'reassigned'): ?>
-                                            From <strong><?php echo htmlspecialchars($record['prev_user_name']); ?></strong>
-                                            to <strong><?php echo htmlspecialchars($record['new_user_name']); ?></strong>
+                                            <?php 
+                                            $hasPrevUser = !empty($record['prev_user_id']) && !empty(trim($record['prev_user_name']));
+                                            $hasNewUser = !empty($record['new_user_id']) && !empty(trim($record['new_user_name']));
+                                            ?>
+                                            <?php if ($hasPrevUser && $hasNewUser): ?>
+                                                From <strong><?php echo htmlspecialchars(trim($record['prev_user_name'])); ?></strong>
+                                                to <strong><?php echo htmlspecialchars(trim($record['new_user_name'])); ?></strong>
+                                            <?php elseif ($hasNewUser): ?>
+                                                Reassigned to <strong><?php echo htmlspecialchars(trim($record['new_user_name'])); ?></strong>
+                                            <?php elseif ($hasPrevUser): ?>
+                                                Reassigned from <strong><?php echo htmlspecialchars(trim($record['prev_user_name'])); ?></strong>
+                                            <?php else: ?>
+                                                Asset was reassigned
+                                            <?php endif; ?>
                                         <?php endif; ?>
                                         <br>
-                                        By: <?php echo htmlspecialchars($record['performer_name']); ?>
+                                        <?php if (!empty($record['performer_name'])): ?>
+                                            By: <?php echo htmlspecialchars($record['performer_name']); ?>
+                                        <?php endif; ?>
                                     </div>
                                     <div class="history-time">
                                         <?php echo date('M d, Y H:i', strtotime($record['created_at'])); ?>
@@ -667,6 +800,22 @@ $status_value = strtolower(str_replace(' ', '_', $asset['status']));
                 return false;
             }
         });
+
+        // Auto-hide success/error messages
+        setTimeout(() => {
+            const successMsg = document.querySelector('.alert-success');
+            const errorMsg = document.querySelector('.alert-error');
+            if (successMsg) {
+                successMsg.style.transition = 'opacity 0.5s';
+                successMsg.style.opacity = '0';
+                setTimeout(() => successMsg.style.display = 'none', 500);
+            }
+            if (errorMsg) {
+                errorMsg.style.transition = 'opacity 0.5s';
+                errorMsg.style.opacity = '0';
+                setTimeout(() => errorMsg.style.display = 'none', 500);
+            }
+        }, 5000);
     </script>
 </body>
 

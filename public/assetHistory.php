@@ -50,23 +50,18 @@ try {
     die("Error fetching asset: " . $e->getMessage());
 }
 
-// Get complete asset history
+// Get complete asset history with proper NULL handling
 $history = [];
 try {
-    // First, let's check if any records exist for this asset
-    $check_query = "SELECT COUNT(*) as count FROM assets_history WHERE asset_id = ?";
-    $check_stmt = $pdo->prepare($check_query);
-    $check_stmt->execute([$asset_id]);
-    $count_result = $check_stmt->fetch(PDO::FETCH_ASSOC);
-    
-    // Now fetch the actual history
     $history_query = "SELECT ah.*, 
                       performer.username as performer_name,
-                      CONCAT(performer.first_name, ' ', performer.last_name) as performer_full_name,
+                      CONCAT(COALESCE(performer.first_name, ''), ' ', COALESCE(performer.last_name, '')) as performer_full_name,
                       prev_user.username as prev_username,
-                      CONCAT(prev_user.first_name, ' ', prev_user.last_name) as prev_user_name,
+                      CONCAT(COALESCE(prev_user.first_name, ''), ' ', COALESCE(prev_user.last_name, '')) as prev_user_name,
+                      prev_user.user_id as prev_user_id,
                       new_user.username as new_username,
-                      CONCAT(new_user.first_name, ' ', new_user.last_name) as new_user_name
+                      CONCAT(COALESCE(new_user.first_name, ''), ' ', COALESCE(new_user.last_name, '')) as new_user_name,
+                      new_user.user_id as new_user_id
                       FROM assets_history ah
                       LEFT JOIN users performer ON ah.performed_by = performer.user_id
                       LEFT JOIN users prev_user ON ah.assigned_from = prev_user.user_id
@@ -77,7 +72,23 @@ try {
     $history_stmt->execute([$asset_id]);
     $history = $history_stmt->fetchAll(PDO::FETCH_ASSOC);
     
+    // Debug: Log the raw data
+    error_log("=== HISTORY DEBUG ===");
+    error_log("Asset ID: " . $asset_id);
+    error_log("History count: " . count($history));
+    foreach ($history as $idx => $record) {
+        error_log("Record $idx - Action: " . $record['action_type']);
+        error_log("  assigned_from: " . ($record['assigned_from'] ?? 'NULL'));
+        error_log("  assigned_to: " . ($record['assigned_to'] ?? 'NULL'));
+        error_log("  prev_user_id: " . ($record['prev_user_id'] ?? 'NULL'));
+        error_log("  new_user_id: " . ($record['new_user_id'] ?? 'NULL'));
+        error_log("  prev_user_name: " . ($record['prev_user_name'] ?? 'NULL'));
+        error_log("  new_user_name: " . ($record['new_user_name'] ?? 'NULL'));
+    }
+    error_log("=== END DEBUG ===");
+    
 } catch (PDOException $e) {
+    error_log("Error fetching history: " . $e->getMessage());
     $error_message = "Error fetching history: " . $e->getMessage();
 }
 ?>
@@ -240,7 +251,8 @@ try {
             color: #065f46;
         }
 
-        .status-badge.status-in-use {
+        .status-badge.status-in-use,
+        .status-badge.status-in_use {
             background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
             color: #1e40af;
         }
@@ -517,6 +529,18 @@ try {
             line-height: 1.6;
         }
 
+        /* Debug Info */
+        .debug-info {
+            background: #fef3c7;
+            border: 2px solid #fde68a;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 12px;
+            font-family: monospace;
+            color: #92400e;
+        }
+
         /* Responsive Design */
         @media (max-width: 1024px) {
             .container {
@@ -650,7 +674,7 @@ try {
                 <div class="summary-item">
                     <div class="summary-label">Current Status</div>
                     <div class="summary-value">
-                        <span class="status-badge status-<?php echo strtolower(str_replace(' ', '-', $asset['status'])); ?>">
+                        <span class="status-badge status-<?php echo strtolower(str_replace(' ', '_', $asset['status'])); ?>">
                             <?php echo htmlspecialchars($asset['status']); ?>
                         </span>
                     </div>
@@ -725,31 +749,54 @@ try {
                                 
                                 <div class="timeline-details">
                                     <?php if ($record['action_type'] === 'assigned'): ?>
-                                        Asset was assigned to 
-                                        <span class="timeline-user"><?php echo htmlspecialchars($record['new_user_name']); ?></span>
-                                        <small style="color: #9ca3af;">(@<?php echo htmlspecialchars($record['new_username']); ?>)</small>
+                                        <?php if (!empty($record['new_user_id']) && !empty(trim($record['new_user_name']))): ?>
+                                            Asset was assigned to 
+                                            <span class="timeline-user"><?php echo htmlspecialchars(trim($record['new_user_name'])); ?></span>
+                                            <?php if (!empty($record['new_username'])): ?>
+                                                <small style="color: #9ca3af;">(@<?php echo htmlspecialchars($record['new_username']); ?>)</small>
+                                            <?php endif; ?>
+                                        <?php else: ?>
+                                            Asset was assigned to a user
+                                        <?php endif; ?>
                                         
                                     <?php elseif ($record['action_type'] === 'unassigned'): ?>
-                                        Asset was unassigned from 
-                                        <span class="timeline-user"><?php echo htmlspecialchars($record['prev_user_name']); ?></span>
-                                        <small style="color: #9ca3af;">(@<?php echo htmlspecialchars($record['prev_username']); ?>)</small>
+                                        <?php if (!empty($record['prev_user_id']) && !empty(trim($record['prev_user_name']))): ?>
+                                            Asset was unassigned from 
+                                            <span class="timeline-user"><?php echo htmlspecialchars(trim($record['prev_user_name'])); ?></span>
+                                            <?php if (!empty($record['prev_username'])): ?>
+                                                <small style="color: #9ca3af;">(@<?php echo htmlspecialchars($record['prev_username']); ?>)</small>
+                                            <?php endif; ?>
+                                        <?php else: ?>
+                                            Asset was unassigned from a user
+                                        <?php endif; ?>
                                         
                                     <?php elseif ($record['action_type'] === 'reassigned'): ?>
-                                        Asset was reassigned from 
-                                        <span class="timeline-user"><?php echo htmlspecialchars($record['prev_user_name']); ?></span>
-                                        to 
-                                        <span class="timeline-user"><?php echo htmlspecialchars($record['new_user_name']); ?></span>
+                                        <?php 
+                                        $hasPrevUser = !empty($record['prev_user_id']) && !empty(trim($record['prev_user_name']));
+                                        $hasNewUser = !empty($record['new_user_id']) && !empty(trim($record['new_user_name']));
+                                        ?>
+                                        Asset was reassigned 
+                                        <?php if ($hasPrevUser): ?>
+                                            from <span class="timeline-user"><?php echo htmlspecialchars(trim($record['prev_user_name'])); ?></span>
+                                        <?php endif; ?>
+                                        <?php if ($hasNewUser): ?>
+                                            to <span class="timeline-user"><?php echo htmlspecialchars(trim($record['new_user_name'])); ?></span>
+                                        <?php endif; ?>
                                     <?php endif; ?>
                                     
-                                    <div class="timeline-performer">
-                                        <div class="performer-icon">
-                                            <?php echo strtoupper(substr($record['performer_full_name'], 0, 1)); ?>
+                                    <?php if (!empty($record['performer_full_name']) && trim($record['performer_full_name']) !== ''): ?>
+                                        <div class="timeline-performer">
+                                            <div class="performer-icon">
+                                                <?php echo strtoupper(substr(trim($record['performer_full_name']), 0, 1)); ?>
+                                            </div>
+                                            <div>
+                                                Action performed by: <strong><?php echo htmlspecialchars(trim($record['performer_full_name'])); ?></strong>
+                                                <?php if (!empty($record['performer_name'])): ?>
+                                                    <small style="color: #9ca3af;">(@<?php echo htmlspecialchars($record['performer_name']); ?>)</small>
+                                                <?php endif; ?>
+                                            </div>
                                         </div>
-                                        <div>
-                                            Action performed by: <strong><?php echo htmlspecialchars($record['performer_full_name']); ?></strong>
-                                            <small style="color: #9ca3af;">(@<?php echo htmlspecialchars($record['performer_name']); ?>)</small>
-                                        </div>
-                                    </div>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         <?php endforeach; ?>
@@ -797,4 +844,4 @@ try {
         }
     </script>
 </body>
-</html> 
+</html>

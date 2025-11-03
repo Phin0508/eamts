@@ -695,7 +695,6 @@ $status_labels = [
 
     <div class="main-content">
         <div class="details-container">
-            <!-- Breadcrumb -->
             <div class="breadcrumb">
                 <a href="asset.php">← Back to Inventory</a>
             </div>
@@ -727,7 +726,8 @@ $status_labels = [
                             <div class="alert-icon"><?php echo $alert_icon; ?></div>
                             <div>
                                 <strong><?php echo htmlspecialchars($upcoming['schedule_name']); ?></strong><br>
-                                <?php echo $alert_text; ?> - Due: <?php echo date('M d, Y', strtotime($upcoming['next_due_date'])); ?>
+                                <?php echo $alert_text; ?> - Due: <?php echo date('M d, Y',
+                                 strtotime($upcoming['next_due_date'])); ?>
                             </div>
                         </div>
                     <?php endforeach; ?>
@@ -756,7 +756,7 @@ $status_labels = [
                         <div class="info-label">Status</div>
                         <div class="info-value">
                             <?php
-                            // Convert status to CSS-friendly format with hyphens
+                            
                             $status_value = strtolower(str_replace(' ', '-', $asset['status'] ?? 'available'));
                             ?>
                             <span class="status-badge status-<?php echo $status_value; ?>">
