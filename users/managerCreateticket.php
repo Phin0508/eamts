@@ -387,7 +387,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $user_sent = $emailHelper->sendEmail($requester_email, $user_subject, $user_body);
                 error_log("Requester email result: " . ($user_sent ? "SUCCESS ✓" : "FAILED ✗"));
 
-                // ============= 2. EMAIL TO ADMINS (Not managers) =============
+                // ============= 2. EMAIL TO ADMINS  =============
                 error_log("Notifying admins about new approved ticket");
 
                 $admin_query = $pdo->prepare("

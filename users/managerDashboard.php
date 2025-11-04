@@ -121,7 +121,7 @@ try {
     error_log("Manager dashboard stats error: " . $e->getMessage());
 }
 
-// Fetch department employees - UPDATED to exclude inactive users
+// Fetch department employees - exclude inactive users
 $department_employees = [];
 try {
     $stmt = $pdo->prepare("
@@ -192,6 +192,7 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -815,6 +816,7 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
     </style>
     <link rel="stylesheet" href="../auth/inc/navigation.css">
 </head>
+
 <body>
     <?php include("../auth/inc/Msidebar.php"); ?>
 
@@ -1100,7 +1102,7 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
         function updateMainContainer() {
             const mainContainer = document.getElementById('mainContainer');
             const sidebar = document.querySelector('.sidebar');
-            
+
             if (sidebar && sidebar.classList.contains('collapsed')) {
                 mainContainer.classList.add('sidebar-collapsed');
             } else {
@@ -1122,16 +1124,24 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
         const observer = new MutationObserver(updateMainContainer);
         const sidebar = document.querySelector('.sidebar');
         if (sidebar) {
-            observer.observe(sidebar, { attributes: true, attributeFilter: ['class'] });
+            observer.observe(sidebar, {
+                attributes: true,
+                attributeFilter: ['class']
+            });
         }
 
-        // Color palettes
         const statusColors = {
             'Available': '#10b981',
+            'available': '#10b981',
             'In Use': '#3b82f6',
+            'In-Use': '#3b82f6',
+            'in use': '#3b82f6',
+            'in-use': '#3b82f6',
+            'in_use': '#3b82f6',
             'Maintenance': '#f59e0b',
+            'maintenance': '#f59e0b',
             'Retired': '#6b7280',
-            'Damaged': '#ef4444'
+            'retired': '#6b7280',
         };
 
         const ticketStatusColors = {
@@ -1398,4 +1408,5 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
         <?php endif; ?>
     </script>
 </body>
+
 </html>

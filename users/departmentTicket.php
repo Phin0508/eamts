@@ -42,8 +42,6 @@ $emailHelper = new EmailHelper();
 // Log for debugging
 error_log("Manager initialized - user_id: $user_id, department: $manager_dept, name: $manager_name");
 
-// REMOVED: Duplicate database fetch that was causing issues
-
 // Handle approval/rejection actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     // Double-check user_id is still valid

@@ -722,8 +722,8 @@ $categories = $pdo->query("SELECT DISTINCT category FROM assets WHERE category I
                         <?php endif; ?>
                     </p>
                 </div>
-                <a href="dashboard.php" class="btn btn-primary">
-                    <i class="fas fa-arrow-left"></i> Back to Dashboard
+                <a href="departments.php" class="btn btn-primary">
+                    <i class="fas fa-arrow-left"></i> Back 
                 </a>
             </div>
         </div>

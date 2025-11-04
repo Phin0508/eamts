@@ -80,7 +80,7 @@ try {
         SELECT user_id, first_name, last_name, email, role, is_active, created_at, last_login
         FROM users
         WHERE department = ?
-        ORDER BY is_active DESC, first_name ASC, last_name ASC
+        ORDER BY first_name, last_name
     ");
     $employees_query->execute([$manager_dept]);
     $employees = $employees_query->fetchAll(PDO::FETCH_ASSOC);

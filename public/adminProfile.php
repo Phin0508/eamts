@@ -98,7 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
             
             if (strlen($new_password) < 8) {
-                $errors[] = "New password must be at least 8 characters";
+                $errors[] = "New password must be at least 12 characters";
             }
             
             if ($new_password !== $confirm_password) {
@@ -696,7 +696,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                                 <i class="fas fa-eye"></i>
                             </span>
                         </div>
-                        <small>Password must be at least 8 characters</small>
+                        <small>Password must be at least 12 characters</small>
                     </div>
 
                     <div class="form-group">
@@ -843,7 +843,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 
                 if (newPassword.length < 8) {
                     e.preventDefault();
-                    alert('New password must be at least 8 characters long');
+                    alert('New password must be at least 12 characters long');
                     return;
                 }
                 

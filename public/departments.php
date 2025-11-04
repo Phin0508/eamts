@@ -124,11 +124,13 @@ $departments_query = "
 
 $departments = $pdo->query($departments_query)->fetchAll(PDO::FETCH_ASSOC);
 
-// Get managers list for dropdown
+// Get managers list for dropdown (only managers)
 $managers = $pdo->query("
-    SELECT user_id, first_name, last_name, email 
+    SELECT user_id, first_name, last_name, email, role
     FROM users 
-    WHERE role IN ('admin', 'manager') AND is_active = 1
+    WHERE role = 'manager'
+    AND (status = 'active' OR status IS NULL)
+    AND (is_deleted = 0 OR is_deleted IS NULL)
     ORDER BY first_name ASC
 ")->fetchAll(PDO::FETCH_ASSOC);
 
