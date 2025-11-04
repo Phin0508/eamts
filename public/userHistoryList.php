@@ -781,9 +781,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                     <p>View all users including deleted accounts</p>
                 </div>
                 <div class="header-actions">
-                    <a href="userManagement.php" class="btn btn-primary">
-                        <i class="fas fa-users"></i> Active Users
-                    </a>
                     <a href="userList.php" class="btn btn-primary">
                         <i class="fas fa-arrow-left"></i> Back
                     </a>
@@ -999,7 +996,7 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                                         <i class="fas fa-undo"></i> Restore
                                     </button>
                                     <?php else: ?>
-                                    <a href="userManagement.php" class="btn btn-sm btn-primary">
+                                    <a href="../public/userList.php" class="btn btn-sm btn-primary">
                                         <i class="fas fa-eye"></i> View
                                     </a>
                                     <?php endif; ?>

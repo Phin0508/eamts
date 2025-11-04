@@ -791,7 +791,8 @@ try {
                     <div class="user-profile-mini">
                         <div class="avatar">
                             <?php 
-                            echo strtoupper(substr($_SESSION['first_name'], 0, 1) . substr($_SESSION['last_name'], 0, 1)); 
+                            echo strtoupper(substr($_SESSION['first_name'], 
+                            0, 1) . substr($_SESSION['last_name'], 0, 1)); 
                             ?>
                         </div>
                         <div class="info">

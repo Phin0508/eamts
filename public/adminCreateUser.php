@@ -16,7 +16,8 @@ $success_message = '';
 // Fetch active departments
 $departments_list = [];
 try {
-    $dept_query = $pdo->query("SELECT dept_id, dept_name, dept_code FROM departments WHERE is_active = 1 ORDER BY dept_name ASC");
+    $dept_query = $pdo->query("SELECT dept_id, dept_name, dept_code FROM departments
+     WHERE is_active = 1 ORDER BY dept_name ASC");
     $departments_list = $dept_query->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     $departments_list = [
@@ -30,10 +31,12 @@ try {
  * Generate username from first and last name
  */
 function generateUsername($firstName, $lastName, $pdo) {
-    $baseUsername = strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $firstName . $lastName));
+    $baseUsername = strtolower(preg_replace('/[^a-zA-Z0-9]/', ''
+    , $firstName . $lastName));
     
     if (strlen($baseUsername) < 3) {
-        $baseUsername = strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $firstName . substr($lastName, 0, 3)));
+        $baseUsername = strtolower(preg_replace('/[^a-zA-Z0-9]/', ''
+        , $firstName . substr($lastName, 0, 3)));
     }
     
     $username = $baseUsername;
@@ -382,7 +385,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php endif; ?>
         
         <div class="info-box">
-            <h4>📧 Automatic Account Setup</h4>
+            <h4> Automatic Account Setup</h4>
             <p>• A unique username will be automatically generated based on the employee's name</p>
             <p>• A secure temporary password will be created automatically</p>
             <p>• The employee will receive an email with a password reset link</p>

@@ -408,8 +408,8 @@ try {
             $maintenance['days_overdue'] = abs($days_until);
             $overdue_maintenance_alerts[] = $maintenance;
         }
-        // Check if maintenance is due within notification period
-        elseif ($days_until <= $maintenance['notify_days_before']) {
+        // Check if maintenance is due within 30 days (or notification period, whichever is longer)
+        elseif ($days_until >= 0 && $days_until <= max(30, $maintenance['notify_days_before'])) {
             $maintenance['days_until'] = $days_until;
             $upcoming_maintenance_alerts[] = $maintenance;
         }

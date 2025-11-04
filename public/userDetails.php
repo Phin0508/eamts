@@ -703,7 +703,8 @@ try {
         <div class="profile-card">
             <div class="profile-header">
                 <div class="profile-avatar">
-                    <?php echo strtoupper(substr($user_data['first_name'], 0, 1) . substr($user_data['last_name'], 0, 1)); ?>
+                    <?php echo strtoupper(substr($user_data['first_name'], 0, 1) 
+                    . substr($user_data['last_name'], 0, 1)); ?>
                 </div>
                 <div class="profile-info">
                     <h2><?php echo htmlspecialchars($user_data['first_name'] . ' ' . $user_data['last_name']); ?></h2>

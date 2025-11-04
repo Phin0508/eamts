@@ -31,7 +31,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'logout') {
     exit();
 }
 
-// Fetch real statistics from database
+// Fetch  statistics from database
 $stats = [
     'my_assets' => 0,
     'pending_requests' => 0,
@@ -86,7 +86,7 @@ try {
         $stmt->execute();
         $asset_category_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } else {
-        // For regular users, show their department's maintenance assets
+        // department's maintenance assets
         $stmt = $pdo->prepare("SELECT COUNT(*) FROM assets WHERE status = 'Maintenance' AND department = ?");
         $stmt->execute([$department]);
         $stats['maintenance_due'] = $stmt->fetchColumn();
@@ -110,7 +110,8 @@ try {
         $ticket_base_where = "WHERE t.requester_id = ?";
         $ticket_params = [$user_id];
     } elseif ($role === 'manager') {
-        $ticket_base_where = "WHERE (t.requester_department = (SELECT department FROM users WHERE user_id = ?) OR t.assigned_to = ?)";
+        $ticket_base_where = "WHERE (t.requester_department = (SELECT department FROM users WHERE user_id = ?)
+         OR t.assigned_to = ?)";
         $ticket_params = [$user_id, $user_id];
     } elseif ($role === 'admin') {
         // Admins see only approved tickets
