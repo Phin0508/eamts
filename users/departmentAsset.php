@@ -135,22 +135,22 @@ try {
     if ($user_role === 'admin' && $dept_filter === 'all') {
         $stats_query = "SELECT 
                         COUNT(*) as total,
-                        SUM(CASE WHEN status = 'Available' THEN 1 ELSE 0 END) as available,
-                        SUM(CASE WHEN status = 'In Use' THEN 1 ELSE 0 END) as in_use,
-                        SUM(CASE WHEN status = 'Maintenance' THEN 1 ELSE 0 END) as maintenance,
-                        SUM(CASE WHEN status = 'Retired' THEN 1 ELSE 0 END) as retired,
-                        SUM(CASE WHEN status = 'Damaged' THEN 1 ELSE 0 END) as damaged,
+                        SUM(CASE WHEN LOWER(REPLACE(TRIM(status), ' ', '_')) = 'available' THEN 1 ELSE 0 END) as available,
+                        SUM(CASE WHEN LOWER(REPLACE(TRIM(status), ' ', '_')) = 'in_use' THEN 1 ELSE 0 END) as in_use,
+                        SUM(CASE WHEN LOWER(REPLACE(TRIM(status), ' ', '_')) = 'maintenance' THEN 1 ELSE 0 END) as maintenance,
+                        SUM(CASE WHEN LOWER(REPLACE(TRIM(status), ' ', '_')) = 'retired' THEN 1 ELSE 0 END) as retired,
+                        SUM(CASE WHEN LOWER(REPLACE(TRIM(status), ' ', '_')) = 'damaged' THEN 1 ELSE 0 END) as damaged,
                         SUM(CASE WHEN assigned_to IS NULL THEN 1 ELSE 0 END) as unassigned
                         FROM assets";
         $stats = $pdo->query($stats_query)->fetch(PDO::FETCH_ASSOC);
     } else {
         $stats_query = "SELECT 
                         COUNT(*) as total,
-                        SUM(CASE WHEN status = 'Available' THEN 1 ELSE 0 END) as available,
-                        SUM(CASE WHEN status = 'In Use' THEN 1 ELSE 0 END) as in_use,
-                        SUM(CASE WHEN status = 'Maintenance' THEN 1 ELSE 0 END) as maintenance,
-                        SUM(CASE WHEN status = 'Retired' THEN 1 ELSE 0 END) as retired,
-                        SUM(CASE WHEN status = 'Damaged' THEN 1 ELSE 0 END) as damaged,
+                        SUM(CASE WHEN LOWER(REPLACE(TRIM(status), ' ', '_')) = 'available' THEN 1 ELSE 0 END) as available,
+                        SUM(CASE WHEN LOWER(REPLACE(TRIM(status), ' ', '_')) = 'in_use' THEN 1 ELSE 0 END) as in_use,
+                        SUM(CASE WHEN LOWER(REPLACE(TRIM(status), ' ', '_')) = 'maintenance' THEN 1 ELSE 0 END) as maintenance,
+                        SUM(CASE WHEN LOWER(REPLACE(TRIM(status), ' ', '_')) = 'retired' THEN 1 ELSE 0 END) as retired,
+                        SUM(CASE WHEN LOWER(REPLACE(TRIM(status), ' ', '_')) = 'damaged' THEN 1 ELSE 0 END) as damaged,
                         SUM(CASE WHEN assigned_to IS NULL THEN 1 ELSE 0 END) as unassigned
                         FROM assets WHERE department = ?";
         $stmt = $pdo->prepare($stats_query);

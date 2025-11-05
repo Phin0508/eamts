@@ -42,7 +42,8 @@ $stats = [
     'resolved_tickets' => 0,
     'in_progress_tickets' => 0,
     'urgent_tickets' => 0,
-    'pending_tickets' => 0
+    'pending_tickets' => 0,
+    'closed_tickets' => 0
 ];
 
 // Asset statistics by status
@@ -50,6 +51,71 @@ $my_asset_status_data = [];
 // Ticket statistics
 $my_ticket_status_data = [];
 $my_ticket_priority_data = [];
+
+try {
+    // Get user's assets count (this one is fine)
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM assets WHERE assigned_to = ?");
+    $stmt->execute([$user_id]);
+    $stats['my_assets'] = $stmt->fetchColumn();
+
+    // Get user's asset status distribution (this one is fine)
+    $stmt = $pdo->prepare("SELECT status, COUNT(*) as count FROM assets WHERE assigned_to = ? GROUP BY status");
+    $stmt->execute([$user_id]);
+    $my_asset_status_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // FIXED: Get total tickets created by user - using table alias for consistency
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets t WHERE t.requester_id = ?");
+    $stmt->execute([$user_id]);
+    $stats['total_tickets'] = $stmt->fetchColumn();
+
+    // FIXED: Get open tickets
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets t WHERE t.requester_id = ? AND t.status = 'open'");
+    $stmt->execute([$user_id]);
+    $stats['open_tickets'] = $stmt->fetchColumn();
+
+    // FIXED: Get in progress tickets
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets t WHERE t.requester_id = ? AND t.status = 'in_progress'");
+    $stmt->execute([$user_id]);
+    $stats['in_progress_tickets'] = $stmt->fetchColumn();
+
+    // FIXED: Get pending tickets
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets t WHERE t.requester_id = ? AND t.status = 'pending'");
+    $stmt->execute([$user_id]);
+    $stats['pending_tickets'] = $stmt->fetchColumn();
+
+    // FIXED: Get resolved tickets
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets t WHERE t.requester_id = ? AND t.status = 'resolved'");
+    $stmt->execute([$user_id]);
+    $stats['resolved_tickets'] = $stmt->fetchColumn();
+
+    // FIXED: Get urgent tickets
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets t WHERE t.requester_id = ? AND t.priority = 'urgent'");
+    $stmt->execute([$user_id]);
+    $stats['urgent_tickets'] = $stmt->fetchColumn();
+
+    // FIXED: Get ticket status distribution
+    $stmt = $pdo->prepare("SELECT t.status, COUNT(*) as count FROM tickets t WHERE t.requester_id = ? GROUP BY t.status");
+    $stmt->execute([$user_id]);
+    $my_ticket_status_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // FIXED: Get ticket priority distribution
+    $stmt = $pdo->prepare("SELECT t.priority, COUNT(*) as count FROM tickets t WHERE t.requester_id = ? GROUP BY t.priority");
+    $stmt->execute([$user_id]);
+    $my_ticket_priority_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    /** @var Exception $e */
+    error_log("Dashboard stats error: " . $e->getMessage());
+}
+//Get closed tickets count
+try {
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets t WHERE t.requester_id = ? AND t.status = 'closed'");
+    $stmt->execute([$user_id]);
+    $stats['closed_tickets'] = $stmt->fetchColumn();
+} catch (PDOException $e) {
+    /** @var Exception $e */
+    error_log("Closed tickets error: " . $e->getMessage());
+    $stats['closed_tickets'] = 0;
+}
 
 try {
     // Get user's assets count
@@ -62,48 +128,56 @@ try {
     $stmt->execute([$user_id]);
     $my_asset_status_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Get total tickets created by user
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets WHERE requester_id = ?");
-    $stmt->execute([$user_id]);
-    $stats['total_tickets'] = $stmt->fetchColumn();
+    // Get ALL ticket statistics in ONE query
+    $stats_query = "
+        SELECT 
+            COUNT(*) as total,
+            SUM(CASE WHEN t.status = 'open' THEN 1 ELSE 0 END) as open,
+            SUM(CASE WHEN t.status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
+            SUM(CASE WHEN t.status = 'pending' THEN 1 ELSE 0 END) as pending,
+            SUM(CASE WHEN t.status = 'resolved' THEN 1 ELSE 0 END) as resolved,
+            SUM(CASE WHEN t.status = 'closed' THEN 1 ELSE 0 END) as closed,
+            SUM(CASE WHEN t.priority = 'urgent' THEN 1 ELSE 0 END) as urgent
+        FROM tickets t
+        WHERE t.requester_id = ?
+    ";
 
-    // Get open tickets
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets WHERE requester_id = ? AND status = 'open'");
-    $stmt->execute([$user_id]);
-    $stats['open_tickets'] = $stmt->fetchColumn();
+    $stats_stmt = $pdo->prepare($stats_query);
+    $stats_stmt->execute([$user_id]);
+    $ticket_stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
 
-    // Get in progress tickets
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets WHERE requester_id = ? AND status = 'in_progress'");
-    $stmt->execute([$user_id]);
-    $stats['in_progress_tickets'] = $stmt->fetchColumn();
+    // Map the results to our stats array
+    $stats['total_tickets'] = $ticket_stats['total'] ?? 0;
+    $stats['open_tickets'] = $ticket_stats['open'] ?? 0;
+    $stats['in_progress_tickets'] = $ticket_stats['in_progress'] ?? 0;
+    $stats['pending_tickets'] = $ticket_stats['pending'] ?? 0;
+    $stats['resolved_tickets'] = $ticket_stats['resolved'] ?? 0;
+    $stats['closed_tickets'] = $ticket_stats['closed'] ?? 0;
+    $stats['urgent_tickets'] = $ticket_stats['urgent'] ?? 0;
 
-    // Get pending tickets
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets WHERE requester_id = ? AND status = 'pending'");
-    $stmt->execute([$user_id]);
-    $stats['pending_tickets'] = $stmt->fetchColumn();
-
-    // Get resolved tickets
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets WHERE requester_id = ? AND status = 'resolved'");
-    $stmt->execute([$user_id]);
-    $stats['resolved_tickets'] = $stmt->fetchColumn();
-
-    // Get urgent tickets
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets WHERE requester_id = ? AND priority = 'urgent'");
-    $stmt->execute([$user_id]);
-    $stats['urgent_tickets'] = $stmt->fetchColumn();
-
-    // Get ticket status distribution
-    $stmt = $pdo->prepare("SELECT status, COUNT(*) as count FROM tickets WHERE requester_id = ? GROUP BY status");
+    // Get ticket status distribution for charts
+    $stmt = $pdo->prepare("
+        SELECT t.status, COUNT(*) as count 
+        FROM tickets t 
+        WHERE t.requester_id = ? 
+        GROUP BY t.status
+    ");
     $stmt->execute([$user_id]);
     $my_ticket_status_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Get ticket priority distribution
-    $stmt = $pdo->prepare("SELECT priority, COUNT(*) as count FROM tickets WHERE requester_id = ? GROUP BY priority");
+    // Get ticket priority distribution for charts
+    $stmt = $pdo->prepare("
+        SELECT t.priority, COUNT(*) as count 
+        FROM tickets t 
+        WHERE t.requester_id = ? 
+        GROUP BY t.priority
+    ");
     $stmt->execute([$user_id]);
     $my_ticket_priority_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
 } catch (PDOException $e) {
+    /** @var Exception $e */
     error_log("Dashboard stats error: " . $e->getMessage());
+    // Keep default values from initialization
 }
 
 // Fetch user's recent assets
@@ -119,6 +193,7 @@ try {
     $stmt->execute([$user_id]);
     $recent_assets = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
+    /** @var Exception $e */
     error_log("Recent assets error: " . $e->getMessage());
 }
 
@@ -126,15 +201,22 @@ try {
 $recent_tickets = [];
 try {
     $stmt = $pdo->prepare("
-        SELECT ticket_number, subject, status, priority, created_at, id
-        FROM tickets 
-        WHERE requester_id = ? 
-        ORDER BY created_at DESC 
+        SELECT 
+            t.ticket_id,
+            t.ticket_number, 
+            t.subject, 
+            t.status, 
+            t.priority, 
+            t.created_at
+        FROM tickets t
+        WHERE t.requester_id = ? 
+        ORDER BY t.created_at DESC 
         LIMIT 5
     ");
     $stmt->execute([$user_id]);
     $recent_tickets = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
+    /** @var Exception $e */
     error_log("Recent tickets error: " . $e->getMessage());
 }
 
@@ -147,10 +229,13 @@ $ticket_status_values = json_encode(array_column($my_ticket_status_data, 'count'
 
 $ticket_priority_labels = json_encode(array_column($my_ticket_priority_data, 'priority'));
 $ticket_priority_values = json_encode(array_column($my_ticket_priority_data, 'count'));
+
+
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -749,6 +834,7 @@ $ticket_priority_values = json_encode(array_column($my_ticket_priority_data, 'co
     </style>
     <link rel="stylesheet" href="../auth/inc/navigation.css">
 </head>
+
 <body>
     <?php include("../auth/inc/Usidebar.php"); ?>
 
@@ -880,7 +966,7 @@ $ticket_priority_values = json_encode(array_column($my_ticket_priority_data, 'co
             <?php if (count($recent_tickets) > 0): ?>
                 <ul class="ticket-list">
                     <?php foreach ($recent_tickets as $ticket): ?>
-                        <li class="ticket-item" onclick="window.location.href='../public/ticketDetails.php?id=<?php echo $ticket['id']; ?>'">
+                        <li class="ticket-item" onclick="window.location.href='../users/userTicketDetails.php?id=<?php echo $ticket['ticket_id']; ?>'">
                             <div class="ticket-info">
                                 <h4><?php echo htmlspecialchars($ticket['ticket_number']); ?></h4>
                                 <p><?php echo htmlspecialchars($ticket['subject']); ?></p>
@@ -889,7 +975,7 @@ $ticket_priority_values = json_encode(array_column($my_ticket_priority_data, 'co
                                 <span class="priority-badge priority-<?php echo strtolower($ticket['priority']); ?>">
                                     <?php echo htmlspecialchars($ticket['priority']); ?>
                                 </span>
-                                <span class="status-badge status-<?php echo strtolower($ticket['status']); ?>">
+                                <span class="status-badge status-<?php echo strtolower(str_replace('_', '-', $ticket['status'])); ?>">
                                     <?php echo htmlspecialchars(str_replace('_', ' ', $ticket['status'])); ?>
                                 </span>
                             </div>
@@ -923,6 +1009,10 @@ $ticket_priority_values = json_encode(array_column($my_ticket_priority_data, 'co
             </div>
             <div class="details-grid">
                 <div class="detail-item">
+                    <span class="label"><i class="fas fa-ticket-alt"></i> Total Tickets</span>
+                    <span class="value"><?php echo $stats['total_tickets']; ?></span>
+                </div>
+                <div class="detail-item">
                     <span class="label"><i class="fas fa-folder-open"></i> Open Tickets</span>
                     <span class="value"><?php echo $stats['open_tickets']; ?></span>
                 </div>
@@ -931,12 +1021,8 @@ $ticket_priority_values = json_encode(array_column($my_ticket_priority_data, 'co
                     <span class="value"><?php echo $stats['in_progress_tickets']; ?></span>
                 </div>
                 <div class="detail-item">
-                    <span class="label"><i class="fas fa-clock"></i> Pending</span>
-                    <span class="value"><?php echo $stats['pending_tickets']; ?></span>
-                </div>
-                <div class="detail-item">
-                    <span class="label"><i class="fas fa-check-circle"></i> Resolved</span>
-                    <span class="value"><?php echo $stats['resolved_tickets']; ?></span>
+                    <span class="label"><i class="fas fa-times-circle"></i> Closed</span>
+                    <span class="value"><?php echo $stats['closed_tickets']; ?></span>
                 </div>
                 <div class="detail-item">
                     <span class="label"><i class="fas fa-exclamation-circle"></i> Urgent Tickets</span>
@@ -989,7 +1075,7 @@ $ticket_priority_values = json_encode(array_column($my_ticket_priority_data, 'co
         function updateMainContainer() {
             const mainContainer = document.getElementById('mainContainer');
             const sidebar = document.querySelector('.sidebar');
-            
+
             if (sidebar && sidebar.classList.contains('collapsed')) {
                 mainContainer.classList.add('sidebar-collapsed');
             } else {
@@ -1011,7 +1097,10 @@ $ticket_priority_values = json_encode(array_column($my_ticket_priority_data, 'co
         const observer = new MutationObserver(updateMainContainer);
         const sidebar = document.querySelector('.sidebar');
         if (sidebar) {
-            observer.observe(sidebar, { attributes: true, attributeFilter: ['class'] });
+            observer.observe(sidebar, {
+                attributes: true,
+                attributeFilter: ['class']
+            });
         }
 
         // Color palettes
@@ -1217,6 +1306,7 @@ $ticket_priority_values = json_encode(array_column($my_ticket_priority_data, 'co
         <?php endif; ?>
     </script>
 </body>
+
 </html>
 <?php
 // Flush output buffer at the end

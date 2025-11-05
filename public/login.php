@@ -1,8 +1,12 @@
 <?php
+// NO WHITESPACE OR BOM BEFORE THIS LINE!
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 ini_set('log_errors', 1);
 ini_set('error_log', __DIR__ . '/error_log.txt');
+
+// Start output buffering FIRST - this prevents headers already sent errors
+ob_start();
 
 // Start session
 session_start();
@@ -19,10 +23,17 @@ include("../auth/config/database.php");
 
 $error_message = '';
 $success_message = '';
-$debug_mode = false; // Set to false in production
+$debug_mode = false;
 
 // Get redirect parameter if exists
 $redirect_to = isset($_GET['redirect']) ? $_GET['redirect'] : '';
+
+// DEBUG logging
+error_log("=== PAGE LOAD ===");
+error_log("Request method: " . $_SERVER['REQUEST_METHOD']);
+error_log("Session user_id exists: " . (isset($_SESSION['user_id']) ? 'Yes' : 'No'));
+error_log("Cookie remember_token exists: " . (isset($_COOKIE['remember_token']) ? 'Yes' : 'No'));
+error_log("All cookies: " . print_r(array_keys($_COOKIE), true));
 
 // Handle logout message
 if (isset($_GET['message']) && $_GET['message'] === 'logged_out') {
@@ -34,18 +45,81 @@ if (isset($_GET['message']) && $_GET['message'] === 'registered') {
     $success_message = "Registration successful! Please sign in with your credentials.";
 }
 
+// Auto-login with remember token
+if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && $_SERVER['REQUEST_METHOD'] !== 'POST' && !$just_registered) {
+    error_log(">>> ATTEMPTING AUTO-LOGIN <<<");
+    
+    try {
+        $token = $_COOKIE['remember_token'];
+        $token_hash = hash('sha256', $token);
+        
+        error_log("Remember token found: " . substr($token, 0, 10) . "...");
+        
+        $stmt = $pdo->prepare("
+            SELECT u.user_id, u.first_name, u.last_name, u.email, u.username, 
+                   u.role, u.department, u.is_active, u.is_verified
+            FROM users u
+            JOIN remember_tokens rt ON u.user_id = rt.user_id
+            WHERE rt.token_hash = ? 
+            AND rt.expires_at > NOW()
+            AND u.is_active = 1
+            AND u.is_verified = 1
+        ");
+        $stmt->execute([$token_hash]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($user) {
+            error_log("Remember me auto-login successful for user: " . $user['username']);
+            
+            session_regenerate_id(true);
+            
+            $_SESSION['user_id'] = $user['user_id'];
+            $_SESSION['username'] = $user['username'];
+            $_SESSION['first_name'] = $user['first_name'];
+            $_SESSION['last_name'] = $user['last_name'];
+            $_SESSION['email'] = $user['email'];
+            $_SESSION['role'] = $user['role'];
+            $_SESSION['department'] = $user['department'];
+            $_SESSION['login_time'] = time();
+            
+            $update_stmt = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE user_id = ?");
+            $update_stmt->execute([$user['user_id']]);
+            
+            // Redirect
+            if (!empty($redirect_to) && strpos($redirect_to, '/') === 0 && strpos($redirect_to, '//') === false) {
+                header("Location: " . $redirect_to);
+                exit();
+            }
+            
+            switch ($user['role']) {
+                case 'admin':
+                    header("Location: dashboard.php");
+                    break;
+                case 'manager':
+                    header("Location: ../users/managerDashboard.php");
+                    break;
+                default:
+                    header("Location: ../users/userDashboard.php");
+                    break;
+            }
+            exit();
+        } else {
+            error_log("Token not found or expired");
+            setcookie('remember_token', '', time() - 3600, '/', '', false, true);
+        }
+    } catch (PDOException $e) {
+        error_log("Auto-login error: " . $e->getMessage());
+        setcookie('remember_token', '', time() - 3600, '/', '', false, true);
+    }
+}
+
 // Redirect if already logged in
 if (isset($_SESSION['user_id'])) {
-    // Check if there's a redirect parameter
-    if (!empty($redirect_to)) {
-        // Security: Validate that redirect is internal (starts with /)
-        if (strpos($redirect_to, '/') === 0 && strpos($redirect_to, '//') === false) {
-            header("Location: " . $redirect_to);
-            exit();
-        }
+    if (!empty($redirect_to) && strpos($redirect_to, '/') === 0 && strpos($redirect_to, '//') === false) {
+        header("Location: " . $redirect_to);
+        exit();
     }
     
-    // Default redirect based on role
     if ($_SESSION['role'] === 'admin' || $_SESSION['role'] === 'manager') {
         header("Location: dashboard.php");
     } else {
@@ -56,10 +130,15 @@ if (isset($_SESSION['user_id'])) {
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    error_log("=== FORM SUBMISSION ===");
+    
     try {
         $username = trim($_POST['username'] ?? '');
         $password = $_POST['password'] ?? '';
         $remember_me = isset($_POST['remember_me']);
+        
+        error_log("Login attempt for: " . $username);
+        error_log("Remember me checked: " . ($remember_me ? 'Yes' : 'No'));
         
         $errors = [];
         
@@ -85,6 +164,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($user['is_verified'] == 0) {
                     $errors[] = "Your account is pending verification. Please wait for admin approval.";
                 } else {
+                    // Regenerate session
                     session_regenerate_id(true);
                     
                     $_SESSION['user_id'] = $user['user_id'];
@@ -96,52 +176,78 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_SESSION['department'] = $user['department'];
                     $_SESSION['login_time'] = time();
                     
-                    // Update last login time
+                    error_log("Login successful for user: " . $user['username']);
+                    
+                    // Update last login
                     $update_stmt = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE user_id = ?");
                     $update_stmt->execute([$user['user_id']]);
                     
-                    // Handle Remember Me
+                    // Handle Remember Me - MUST happen BEFORE any redirect
                     if ($remember_me) {
+                        error_log("Processing remember me...");
+                        
                         try {
+                            // Clear existing tokens
+                            $clear_stmt = $pdo->prepare("DELETE FROM remember_tokens WHERE user_id = ?");
+                            $clear_stmt->execute([$user['user_id']]);
+                            
+                            // Generate new token
                             $token = bin2hex(random_bytes(32));
                             $token_hash = hash('sha256', $token);
                             $expires = date('Y-m-d H:i:s', time() + (30 * 24 * 60 * 60));
                             
+                            error_log("Creating token for user: " . $user['user_id']);
+                            error_log("Token (first 10): " . substr($token, 0, 10));
+                            
+                            // Save to database
                             $remember_stmt = $pdo->prepare("
                                 INSERT INTO remember_tokens (user_id, token_hash, expires_at, created_at) 
                                 VALUES (?, ?, ?, NOW())
-                                ON DUPLICATE KEY UPDATE 
-                                token_hash = VALUES(token_hash), 
-                                expires_at = VALUES(expires_at),
-                                created_at = NOW()
                             ");
                             $remember_stmt->execute([$user['user_id'], $token_hash, $expires]);
                             
-                            setcookie('remember_token', $token, time() + (30 * 24 * 60 * 60), '/', '', isset($_SERVER['HTTPS']), true);
+                            error_log("Token saved to database");
+                            
+                            // CRITICAL: Set cookie BEFORE any output or redirect
+                            // Using simple setcookie for better compatibility
+                            $cookie_result = setcookie(
+                                'remember_token',           // name
+                                $token,                     // value
+                                time() + (30 * 24 * 60 * 60), // expires
+                                '/',                        // path
+                                '',                         // domain (empty = current domain)
+                                false,                      // secure (false for http, true for https)
+                                true                        // httponly
+                            );
+                            
+                            error_log("setcookie() returned: " . ($cookie_result ? 'true' : 'false'));
+                            
+                            // Additional check
+                            if (headers_sent($file, $line)) {
+                                error_log("!!! ERROR: Headers already sent in $file on line $line !!!");
+                            } else {
+                                error_log("Headers NOT sent yet - cookie should work");
+                            }
+                            
                         } catch (PDOException $e) {
-                            error_log("Remember me failed: " . $e->getMessage());
+                            error_log("Remember me error: " . $e->getMessage());
                         }
                     }
                     
+                    // NOW we can redirect (after cookie is set)
                     if (empty($errors)) {
-                        // Check redirect parameter from POST or GET
                         $redirect = !empty($_POST['redirect']) ? $_POST['redirect'] : $redirect_to;
                         
-                        if (!empty($redirect)) {
-                            // Security: Validate that redirect is internal
-                            if (strpos($redirect, '/') === 0 && strpos($redirect, '//') === false) {
-                                header("Location: " . $redirect);
-                                exit();
-                            }
+                        if (!empty($redirect) && strpos($redirect, '/') === 0 && strpos($redirect, '//') === false) {
+                            header("Location: " . $redirect);
+                            exit();
                         }
                         
-                        // Check if must change password
                         if ($user['must_change_password'] == 1) {
                             header("Location: ../public/change_password.php");
                             exit();
                         }
                         
-                        // Default redirect based on role
                         switch ($user['role']) {
                             case 'admin':
                                 header("Location: dashboard.php");
@@ -181,8 +287,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         
     } catch (PDOException $e) {
-        error_log("Database error in login: " . $e->getMessage());
-        error_log("Stack trace: " . $e->getTraceAsString());
+        error_log("Database error: " . $e->getMessage());
         
         if ($debug_mode) {
             $error_message = "Database Error: " . $e->getMessage();
@@ -190,7 +295,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error_message = "A database error occurred. Please try again later.";
         }
     } catch (Exception $e) {
-        error_log("General error in login: " . $e->getMessage());
+        error_log("Error: " . $e->getMessage());
         
         if ($debug_mode) {
             $error_message = "Error: " . $e->getMessage();
@@ -200,63 +305,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Auto-login with remember token
-if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && $_SERVER['REQUEST_METHOD'] !== 'POST' && !$just_registered && !isset($_GET['from'])) {
-    try {
-        $token = $_COOKIE['remember_token'];
-        $token_hash = hash('sha256', $token);
-        
-        $stmt = $pdo->prepare("
-            SELECT u.user_id, u.first_name, u.last_name, u.email, u.username, 
-                   u.role, u.department, u.is_active, u.is_verified
-            FROM users u
-            JOIN remember_tokens rt ON u.user_id = rt.user_id
-            WHERE rt.token_hash = ? 
-            AND rt.expires_at > NOW()
-            AND u.is_active = 1
-            AND u.is_verified = 1
-        ");
-        $stmt->execute([$token_hash]);
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        if ($user) {
-            session_regenerate_id(true);
-            
-            $_SESSION['user_id'] = $user['user_id'];
-            $_SESSION['username'] = $user['username'];
-            $_SESSION['first_name'] = $user['first_name'];
-            $_SESSION['last_name'] = $user['last_name'];
-            $_SESSION['email'] = $user['email'];
-            $_SESSION['role'] = $user['role'];
-            $_SESSION['department'] = $user['department'];
-            $_SESSION['login_time'] = time();
-            
-            $update_stmt = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE user_id = ?");
-            $update_stmt->execute([$user['user_id']]);
-            
-            // Redirect based on role
-            switch ($user['role']) {
-                case 'admin':
-                    header("Location: dashboard.php");
-                    break;
-                case 'manager':
-                    header("Location: ../users/managerDashboard.php");
-                    break;
-                default:
-                    header("Location: ../users/userDashboard.php");
-                    break;
-            }
-            exit();
-        } else {
-            setcookie('remember_token', '', time() - 3600, '/', '', isset($_SERVER['HTTPS']), true);
-        }
-    } catch (PDOException $e) {
-        error_log("Remember me check failed: " . $e->getMessage());
-        setcookie('remember_token', '', time() - 3600, '/', '', isset($_SERVER['HTTPS']), true);
-    }
-}
-?>
+error_log("=== END OF PAGE LOAD ===\n");
 
+// Flush output buffer before HTML
+ob_end_flush();
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -280,36 +333,9 @@ if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && $_SERVE
             align-items: center;
             justify-content: center;
             padding: 20px;
-            position: relative;
-            overflow: hidden;
-        }
-
-        /* Animated Background */
-        body::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background: linear-gradient(135deg, 
-                rgba(124, 58, 237, 0.05) 0%, 
-                rgba(109, 40, 217, 0.05) 25%,
-                rgba(124, 58, 237, 0.03) 50%,
-                rgba(109, 40, 217, 0.03) 75%,
-                rgba(124, 58, 237, 0.05) 100%);
-            animation: rotate 20s linear infinite;
-            z-index: 0;
-        }
-
-        @keyframes rotate {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
         }
 
         .login-wrapper {
-            position: relative;
-            z-index: 1;
             width: 100%;
             max-width: 1100px;
             display: grid;
@@ -320,7 +346,6 @@ if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && $_SERVE
             overflow: hidden;
         }
 
-        /* Left Side - Branding */
         .login-branding {
             background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
             padding: 60px 50px;
@@ -328,56 +353,29 @@ if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && $_SERVE
             flex-direction: column;
             justify-content: center;
             color: white;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .login-branding::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            right: -50%;
-            width: 200%;
-            height: 200%;
-            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
-            animation: pulse 15s ease-in-out infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); opacity: 0.5; }
-            50% { transform: scale(1.2); opacity: 0.8; }
-        }
-
-        .brand-content {
-            position: relative;
-            z-index: 1;
         }
 
         .brand-logo {
             width: 100px;
             height: 100px;
             background: rgba(255, 255, 255, 0.15);
-            backdrop-filter: blur(10px);
             border-radius: 24px;
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 48px;
             margin-bottom: 30px;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
         }
 
         .brand-content h1 {
             font-size: 36px;
             font-weight: 700;
             margin-bottom: 16px;
-            line-height: 1.2;
         }
 
         .brand-content p {
             font-size: 16px;
             opacity: 0.9;
-            line-height: 1.6;
             margin-bottom: 40px;
         }
 
@@ -391,7 +389,6 @@ if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && $_SERVE
             gap: 12px;
             margin-bottom: 16px;
             font-size: 15px;
-            opacity: 0.95;
         }
 
         .feature-list li i {
@@ -402,10 +399,8 @@ if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && $_SERVE
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 14px;
         }
 
-        /* Right Side - Login Form */
         .login-container {
             padding: 60px 50px;
             display: flex;
@@ -437,48 +432,18 @@ if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && $_SERVE
             display: flex;
             align-items: center;
             gap: 10px;
-            animation: slideDown 0.3s ease;
-            font-weight: 500;
-        }
-
-        @keyframes slideDown {
-            from {
-                opacity: 0;
-                transform: translateY(-10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
         }
 
         .alert-error {
-            background: linear-gradient(135deg, #ffe6e6 0%, #ffd4d4 100%);
+            background: #ffe6e6;
             color: #721c24;
             border-left: 4px solid #dc3545;
         }
 
         .alert-success {
-            background: linear-gradient(135deg, #d4f4dd 0%, #c3e6cb 100%);
+            background: #d4f4dd;
             color: #155724;
             border-left: 4px solid #28a745;
-        }
-
-        .redirect-notice {
-            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
-            border-left: 4px solid #3b82f6;
-            padding: 16px 18px;
-            border-radius: 12px;
-            margin-bottom: 24px;
-            font-size: 14px;
-            color: #1e40af;
-        }
-
-        .redirect-notice strong {
-            display: block;
-            margin-bottom: 5px;
-            font-size: 15px;
-            font-weight: 700;
         }
 
         .form-group {
@@ -493,7 +458,7 @@ if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && $_SERVE
             font-size: 14px;
         }
 
-        .form-group label .required {
+        .required {
             color: #ef4444;
         }
 
@@ -507,7 +472,6 @@ if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && $_SERVE
             top: 50%;
             transform: translateY(-50%);
             color: #718096;
-            font-size: 16px;
         }
 
         .form-group input {
@@ -517,18 +481,12 @@ if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && $_SERVE
             border-radius: 12px;
             font-size: 14px;
             transition: all 0.3s;
-            font-family: inherit;
-            background: white;
         }
 
         .form-group input:focus {
             outline: none;
             border-color: #7c3aed;
             box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.1);
-        }
-
-        .password-wrapper {
-            position: relative;
         }
 
         .password-toggle {
@@ -538,13 +496,7 @@ if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && $_SERVE
             transform: translateY(-50%);
             cursor: pointer;
             color: #718096;
-            font-size: 18px;
-            transition: color 0.3s;
             z-index: 1;
-        }
-
-        .password-toggle:hover {
-            color: #7c3aed;
         }
 
         .form-options {
@@ -570,20 +522,16 @@ if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && $_SERVE
 
         .checkbox-group label {
             cursor: pointer;
-            color: #2d3748;
             margin: 0;
-            font-weight: 500;
         }
 
         .forgot-password {
             color: #7c3aed;
             text-decoration: none;
             font-weight: 600;
-            transition: color 0.3s;
         }
 
         .forgot-password:hover {
-            color: #6d28d9;
             text-decoration: underline;
         }
 
@@ -597,8 +545,6 @@ if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && $_SERVE
             font-size: 16px;
             font-weight: 700;
             cursor: pointer;
-            transition: all 0.3s;
-            box-shadow: 0 4px 14px rgba(124, 58, 237, 0.4);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -608,19 +554,14 @@ if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && $_SERVE
         .btn-login:hover {
             transform: translateY(-2px);
             box-shadow: 0 6px 20px rgba(124, 58, 237, 0.5);
-        }
-
-        .btn-login:active {
-            transform: translateY(0);
+            transition: all 0.3s;
         }
 
         .divider {
             display: flex;
             align-items: center;
-            text-align: center;
             margin: 32px 0;
             color: #718096;
-            font-size: 14px;
         }
 
         .divider::before,
@@ -632,92 +573,49 @@ if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && $_SERVE
 
         .divider span {
             padding: 0 16px;
-            font-weight: 600;
         }
 
         .signup-link {
             text-align: center;
             color: #718096;
-            font-size: 15px;
         }
 
         .signup-link a {
             color: #7c3aed;
             text-decoration: none;
             font-weight: 700;
-            transition: color 0.3s;
         }
 
         .signup-link a:hover {
-            color: #6d28d9;
             text-decoration: underline;
         }
 
-        /* Responsive Design */
         @media (max-width: 968px) {
             .login-wrapper {
                 grid-template-columns: 1fr;
             }
-
             .login-branding {
                 display: none;
-            }
-        }
-
-        @media (max-width: 600px) {
-            .login-container {
-                padding: 40px 30px;
-            }
-
-            .login-header h2 {
-                font-size: 26px;
-            }
-
-            .form-options {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 15px;
-            }
-
-            body {
-                padding: 10px;
             }
         }
     </style>
 </head>
 <body>
     <div class="login-wrapper">
-        <!-- Left Side - Branding -->
         <div class="login-branding">
             <div class="brand-content">
-                <div class="brand-logo">
-                    🔐
-                </div>
+                <div class="brand-logo">🔐</div>
                 <h1>E-Asset Management System</h1>
-                <p>Streamline your asset tracking and management with our comprehensive solution.</p>
-                
+                <p>Streamline your asset tracking and management.</p>
                 <ul class="feature-list">
-                    <li>
-                        <i class="fas fa-check"></i>
-                        <span>Real-time asset tracking</span>
-                    </li>
-                    <li>
-                        <i class="fas fa-check"></i>
-                        <span>Comprehensive reporting</span>
-                    </li>
-                    <li>
-                        <i class="fas fa-check"></i>
-                        <span>Multi-department support</span>
-                    </li>
-                    <li>
-                        <i class="fas fa-check"></i>
-                        <span>Secure & reliable</span>
-                    </li>
+                    <li><i class="fas fa-check"></i><span>Real-time asset tracking</span></li>
+                    <li><i class="fas fa-check"></i><span>Comprehensive reporting</span></li>
+                    <li><i class="fas fa-check"></i><span>Multi-department support</span></li>
+                    <li><i class="fas fa-check"></i><span>Secure & reliable</span></li>
                 </ul>
             </div>
         </div>
 
-        <!-- Right Side - Login Form -->
         <div class="login-container">
             <div class="login-header">
                 <h2>Welcome Back</h2>
@@ -738,13 +636,6 @@ if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && $_SERVE
             </div>
             <?php endif; ?>
 
-            <?php if (!empty($redirect_to)): ?>
-            <div class="redirect-notice">
-                <strong>📦 Asset Assignment Notice</strong>
-                Please login to view your assigned assets.
-            </div>
-            <?php endif; ?>
-
             <form method="POST" action="">
                 <?php if (!empty($redirect_to)): ?>
                     <input type="hidden" name="redirect" value="<?php echo htmlspecialchars($redirect_to); ?>">
@@ -756,18 +647,16 @@ if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && $_SERVE
                         <i class="fas fa-user input-icon"></i>
                         <input type="text" id="username" name="username" 
                                value="<?php echo htmlspecialchars($_POST['username'] ?? ''); ?>" 
-                               placeholder="Enter your username or email" 
-                               required autofocus autocomplete="username">
+                               placeholder="Enter your username or email" required autofocus>
                     </div>
                 </div>
 
                 <div class="form-group">
                     <label for="password">Password <span class="required">*</span></label>
-                    <div class="input-wrapper password-wrapper">
+                    <div class="input-wrapper">
                         <i class="fas fa-lock input-icon"></i>
                         <input type="password" id="password" name="password" 
-                               placeholder="Enter your password" 
-                               required autocomplete="current-password">
+                               placeholder="Enter your password" required>
                         <span class="password-toggle" onclick="togglePassword()">
                             <i class="fas fa-eye" id="toggleIcon"></i>
                         </span>
@@ -787,9 +676,7 @@ if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && $_SERVE
                 </button>
             </form>
 
-            <div class="divider">
-                <span>OR</span>
-            </div>
+            <div class="divider"><span>OR</span></div>
 
             <div class="signup-link">
                 Don't have an account? <a href="signup.php">Create Account</a>
@@ -813,15 +700,9 @@ if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && $_SERVE
             }
         }
 
-        // Auto-hide messages
-        setTimeout(() => {
-            const alerts = document.querySelectorAll('.alert');
-            alerts.forEach(alert => {
-                alert.style.transition = 'opacity 0.5s';
-                alert.style.opacity = '0';
-                setTimeout(() => alert.style.display = 'none', 500);
-            });
-        }, 5000);
+        // Debug
+        console.log('Cookies:', document.cookie);
+        console.log('Has remember_token:', document.cookie.includes('remember_token'));
     </script>
 </body>
 </html>

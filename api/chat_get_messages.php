@@ -13,6 +13,7 @@ include("../auth/config/database.php");
 
 $current_user_id = $_SESSION['user_id'];
 $conversation_id = $_GET['conversation_id'];
+$after_id = isset($_GET['after_id']) ? intval($_GET['after_id']) : 0;
 
 try {
     // Verify user is part of conversation
@@ -29,46 +30,72 @@ try {
         exit();
     }
     
-    // Get messages
-    $stmt = $pdo->prepare("
-        SELECT 
-            cm.id,
-            cm.conversation_id,
-            cm.sender_id,
-            cm.message,
-            cm.message_type,
-            cm.file_path,
-            cm.is_read,
-            cm.is_edited,
-            cm.created_at,
-            CONCAT(u.first_name, ' ', u.last_name) as sender_name
-        FROM chat_messages cm
-        JOIN users u ON cm.sender_id = u.user_id
-        WHERE cm.conversation_id = ?
-        ORDER BY cm.created_at ASC
-        LIMIT 100
-    ");
+    // Get messages - either all or only new ones after a specific ID
+    if ($after_id > 0) {
+        // Get only new messages after the specified ID
+        $stmt = $pdo->prepare("
+            SELECT 
+                cm.id as message_id,
+                cm.conversation_id,
+                cm.sender_id,
+                cm.message,
+                cm.message_type,
+                cm.file_path,
+                cm.is_read,
+                cm.is_edited,
+                cm.created_at,
+                CONCAT(u.first_name, ' ', u.last_name) as sender_name
+            FROM chat_messages cm
+            JOIN users u ON cm.sender_id = u.user_id
+            WHERE cm.conversation_id = ? AND cm.id > ?
+            ORDER BY cm.created_at ASC
+        ");
+        $stmt->execute([$conversation_id, $after_id]);
+    } else {
+        // Get all messages (initial load)
+        $stmt = $pdo->prepare("
+            SELECT 
+                cm.id as message_id,
+                cm.conversation_id,
+                cm.sender_id,
+                cm.message,
+                cm.message_type,
+                cm.file_path,
+                cm.is_read,
+                cm.is_edited,
+                cm.created_at,
+                CONCAT(u.first_name, ' ', u.last_name) as sender_name
+            FROM chat_messages cm
+            JOIN users u ON cm.sender_id = u.user_id
+            WHERE cm.conversation_id = ?
+            ORDER BY cm.created_at ASC
+            LIMIT 100
+        ");
+        $stmt->execute([$conversation_id]);
+    }
     
-    $stmt->execute([$conversation_id]);
     $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // Mark messages as read
-    $stmt = $pdo->prepare("
-        UPDATE chat_messages 
-        SET is_read = 1 
-        WHERE conversation_id = ? 
-        AND sender_id != ? 
-        AND is_read = 0
-    ");
-    $stmt->execute([$conversation_id, $current_user_id]);
-    
-    // Update last read time
-    $stmt = $pdo->prepare("
-        UPDATE chat_participants 
-        SET last_read_at = NOW() 
-        WHERE conversation_id = ? AND user_id = ?
-    ");
-    $stmt->execute([$conversation_id, $current_user_id]);
+    // Only mark messages as read if there are new messages
+    if (count($messages) > 0) {
+        // Mark messages as read
+        $stmt = $pdo->prepare("
+            UPDATE chat_messages 
+            SET is_read = 1 
+            WHERE conversation_id = ? 
+            AND sender_id != ? 
+            AND is_read = 0
+        ");
+        $stmt->execute([$conversation_id, $current_user_id]);
+        
+        // Update last read time
+        $stmt = $pdo->prepare("
+            UPDATE chat_participants 
+            SET last_read_at = NOW() 
+            WHERE conversation_id = ? AND user_id = ?
+        ");
+        $stmt->execute([$conversation_id, $current_user_id]);
+    }
     
     echo json_encode($messages);
     

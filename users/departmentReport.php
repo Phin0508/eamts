@@ -158,8 +158,8 @@ try {
 }
 
 // Calculate utilization rate
-$utilization_rate = $asset_stats['total_assets'] > 0 
-    ? round(($asset_stats['in_use_assets'] / $asset_stats['total_assets']) * 100, 1) 
+$utilization_rate = $asset_stats['total_assets'] > 0
+    ? round(($asset_stats['in_use_assets'] / $asset_stats['total_assets']) * 100, 1)
     : 0;
 
 // Get most valuable assets in department
@@ -179,87 +179,61 @@ try {
 
 // Get employee asset distribution
 try {
-    // Get the dept_id for the manager's department first
-    $dept_id_query = "SELECT dept_id FROM departments WHERE dept_name = ? LIMIT 1";
-    $dept_id_stmt = $pdo->prepare($dept_id_query);
-    $dept_id_stmt->execute([$manager_dept]);
-    $dept_id = $dept_id_stmt->fetchColumn();
-    
-    if ($dept_id) {
-        // Now query using dept_id if assets table uses dept_id
-        $employee_assets = $pdo->prepare("
-            SELECT 
-                u.user_id,
-                CONCAT(u.first_name, ' ', u.last_name) as employee_name,
-                COUNT(DISTINCT a.id) as asset_count,
-                COALESCE(SUM(a.purchase_cost), 0) as total_value
-            FROM users u
-            INNER JOIN assets a ON u.user_id = a.assigned_to
-            WHERE u.department = ? 
-                AND a.status != 'retired'
-            GROUP BY u.user_id, u.first_name, u.last_name
-            HAVING asset_count > 0
-            ORDER BY asset_count DESC, total_value DESC
-            LIMIT 10
-        ");
-        $employee_assets->execute([$manager_dept]);
-        $employee_asset_distribution = $employee_assets->fetchAll(PDO::FETCH_ASSOC);
-        
-        // If no results, try with dept_id in assets table
-        if (empty($employee_asset_distribution)) {
-            $employee_assets = $pdo->prepare("
-                SELECT 
-                    u.user_id,
-                    CONCAT(u.first_name, ' ', u.last_name) as employee_name,
-                    COUNT(DISTINCT a.id) as asset_count,
-                    COALESCE(SUM(a.purchase_cost), 0) as total_value
-                FROM users u
-                INNER JOIN assets a ON u.user_id = a.assigned_to
-                INNER JOIN departments d ON u.department = d.dept_name
-                WHERE d.dept_id = ? 
-                    AND a.status != 'retired'
-                GROUP BY u.user_id, u.first_name, u.last_name
-                HAVING asset_count > 0
-                ORDER BY asset_count DESC, total_value DESC
-                LIMIT 10
-            ");
-            $employee_assets->execute([$dept_id]);
-            $employee_asset_distribution = $employee_assets->fetchAll(PDO::FETCH_ASSOC);
-        }
-    } else {
-        // Fallback: just match by department name without filter on assets.department
-        $employee_assets = $pdo->prepare("
-            SELECT 
-                u.user_id,
-                CONCAT(u.first_name, ' ', u.last_name) as employee_name,
-                COUNT(DISTINCT a.id) as asset_count,
-                COALESCE(SUM(a.purchase_cost), 0) as total_value
-            FROM users u
-            INNER JOIN assets a ON u.user_id = a.assigned_to
-            WHERE u.department = ? 
-                AND a.status != 'retired'
-            GROUP BY u.user_id, u.first_name, u.last_name
-            HAVING asset_count > 0
-            ORDER BY asset_count DESC, total_value DESC
-            LIMIT 10
-        ");
-        $employee_assets->execute([$manager_dept]);
-        $employee_asset_distribution = $employee_assets->fetchAll(PDO::FETCH_ASSOC);
-    }
+    $employee_assets = $pdo->prepare("
+        SELECT 
+            u.user_id,
+            CONCAT(u.first_name, ' ', u.last_name) as employee_name,
+            COUNT(DISTINCT a.id) as asset_count,
+            COALESCE(SUM(a.purchase_cost), 0) as total_value
+        FROM users u
+        INNER JOIN assets a ON u.user_id = a.assigned_to
+        WHERE u.department = ? 
+            AND u.is_active = 1 
+            AND a.department = ?
+            AND a.status != 'retired'
+        GROUP BY u.user_id, u.first_name, u.last_name
+        ORDER BY asset_count DESC, total_value DESC
+        LIMIT 10
+    ");
+    $employee_assets->execute([$manager_dept, $manager_dept]);
+    $employee_asset_distribution = $employee_assets->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     error_log("Employee assets error: " . $e->getMessage());
 }
 
-// Default budget (since departments table doesn't exist in your schema)
-$department_budget = 100000; // Default budget
+// Get department budget from departments table
+$dept_budget_query = $pdo->prepare("SELECT budget FROM departments WHERE dept_name = ?");
+$dept_budget_query->execute([$manager_dept]);
+$dept_budget_result = $dept_budget_query->fetch(PDO::FETCH_ASSOC);
+
+// Use actual budget from departments table, default to 0 if not set
+$department_budget = $dept_budget_result && $dept_budget_result['budget'] ? $dept_budget_result['budget'] : 0;
+
+// Calculate budget utilization
 $budget_utilization = 0;
 if ($department_budget > 0) {
     $budget_utilization = round(($asset_stats['total_value'] / $department_budget) * 100, 1);
+}
+
+// Get department details including budget
+try {
+    $dept_details_query = $pdo->prepare("
+        SELECT dept_id, dept_name, dept_code, description, location, budget, 
+               manager_id, is_active, created_at
+        FROM departments 
+        WHERE dept_name = ?
+    ");
+    $dept_details_query->execute([$manager_dept]);
+    $dept_details = $dept_details_query->fetch(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    error_log("Department details error: " . $e->getMessage());
+    $dept_details = null;
 }
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -289,7 +263,7 @@ if ($department_budget > 0) {
             margin: 0 auto;
             background: white;
             border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
             overflow: hidden;
         }
 
@@ -342,7 +316,7 @@ if ($department_budget > 0) {
 
         .btn-primary:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         }
 
         .btn-success {
@@ -397,7 +371,7 @@ if ($department_budget > 0) {
             background: white;
             padding: 25px;
             border-radius: 10px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
             text-align: center;
             position: relative;
             overflow: hidden;
@@ -541,7 +515,7 @@ if ($department_budget > 0) {
             background: white;
             padding: 25px;
             border-radius: 10px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
             margin-bottom: 20px;
         }
 
@@ -636,11 +610,12 @@ if ($department_budget > 0) {
                 background: white;
                 padding: 0;
             }
-            
-            .header-actions, .btn {
+
+            .header-actions,
+            .btn {
                 display: none !important;
             }
-            
+
             .container {
                 box-shadow: none;
             }
@@ -674,15 +649,17 @@ if ($department_budget > 0) {
                 font-size: 12px;
             }
 
-            th, td {
+            th,
+            td {
                 padding: 10px 8px;
             }
         }
     </style>
 </head>
+
 <body>
     <?php include("../auth/inc/Msidebar.php"); ?>
-    
+
     <main class="main-content">
         <div class="container">
             <div class="header">
@@ -711,6 +688,10 @@ if ($department_budget > 0) {
                         <p><?php echo htmlspecialchars($manager_dept); ?></p>
                     </div>
                     <div class="dept-detail-item">
+                        <h4>Department Code</h4>
+                        <p><?php echo htmlspecialchars($dept_details['dept_code'] ?? 'N/A'); ?></p>
+                    </div>
+                    <div class="dept-detail-item">
                         <h4>Total Employees</h4>
                         <p><?php echo $emp_stats['total_employees']; ?></p>
                     </div>
@@ -721,6 +702,27 @@ if ($department_budget > 0) {
                     <div class="dept-detail-item">
                         <h4>Total Asset Value</h4>
                         <p>$<?php echo number_format($asset_stats['total_value'], 2); ?></p>
+                    </div>
+                    <div class="dept-detail-item">
+                        <h4>Department Budget</h4>
+                        <p><?php echo $department_budget > 0 ? '$' . number_format($department_budget, 2) : 'Not Set'; ?></p>
+                    </div>
+                    <div class="dept-detail-item">
+                        <h4>Budget Remaining</h4>
+                        <p>
+                            <?php
+                            if ($department_budget > 0) {
+                                $remaining = $department_budget - $asset_stats['total_value'];
+                                echo '$' . number_format($remaining, 2);
+                            } else {
+                                echo 'N/A';
+                            }
+                            ?>
+                        </p>
+                    </div>
+                    <div class="dept-detail-item">
+                        <h4>Location</h4>
+                        <p><?php echo htmlspecialchars($dept_details['location'] ?? 'Not specified'); ?></p>
                     </div>
                     <div class="dept-detail-item">
                         <h4>Report Generated</h4>
@@ -748,9 +750,15 @@ if ($department_budget > 0) {
                     </div>
                     <div class="summary-card">
                         <h3>Budget Utilization</h3>
-                        <div class="value"><?php echo $budget_utilization; ?>%</div>
+                        <div class="value"><?php echo $department_budget > 0 ? $budget_utilization . '%' : 'N/A'; ?></div>
                         <div class="description">
-                            $<?php echo number_format($asset_stats['total_value'], 0); ?> of $<?php echo number_format($department_budget, 0); ?> budget
+                            <?php
+                            if ($department_budget > 0) {
+                                echo '$' . number_format($asset_stats['total_value'], 0) . ' of $' . number_format($department_budget, 0) . ' budget';
+                            } else {
+                                echo 'No budget set for this department';
+                            }
+                            ?>
                         </div>
                     </div>
                     <div class="summary-card">
@@ -793,92 +801,92 @@ if ($department_budget > 0) {
 
             <!-- Top Valuable Assets -->
             <?php if (count($top_valuable_assets) > 0): ?>
-            <div class="content-section">
-                <div class="section-header">
-                    <h2 class="section-title"><i class="fas fa-gem"></i> Top Valuable Assets</h2>
+                <div class="content-section">
+                    <div class="section-header">
+                        <h2 class="section-title"><i class="fas fa-gem"></i> Top Valuable Assets</h2>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Asset Code</th>
+                                    <th>Asset Name</th>
+                                    <th>Purchase Cost</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($top_valuable_assets as $asset): ?>
+                                    <tr>
+                                        <td><strong><?php echo htmlspecialchars($asset['asset_code']); ?></strong></td>
+                                        <td><?php echo htmlspecialchars($asset['asset_name']); ?></td>
+                                        <td><strong>$<?php echo number_format($asset['purchase_cost'], 2); ?></strong></td>
+                                        <td>
+                                            <span class="badge badge-<?php echo strtolower(str_replace(' ', '-', $asset['status'])); ?>">
+                                                <?php echo htmlspecialchars(ucwords(str_replace('_', ' ', $asset['status']))); ?>
+                                            </span>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Asset Code</th>
-                                <th>Asset Name</th>
-                                <th>Purchase Cost</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($top_valuable_assets as $asset): ?>
-                            <tr>
-                                <td><strong><?php echo htmlspecialchars($asset['asset_code']); ?></strong></td>
-                                <td><?php echo htmlspecialchars($asset['asset_name']); ?></td>
-                                <td><strong>$<?php echo number_format($asset['purchase_cost'], 2); ?></strong></td>
-                                <td>
-                                    <span class="badge badge-<?php echo strtolower(str_replace(' ', '-', $asset['status'])); ?>">
-                                        <?php echo htmlspecialchars(ucwords(str_replace('_', ' ', $asset['status']))); ?>
-                                    </span>
-                                </td>
-                            </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
             <?php endif; ?>
 
             <!-- Assets by Category Chart -->
             <?php if (count($category_breakdown) > 0): ?>
-            <div class="content-section">
-                <div class="chart-container">
-                    <div class="chart-title">Assets by Category</div>
-                    <?php 
-                    $max_count = max(array_column($category_breakdown, 'count'));
-                    foreach ($category_breakdown as $category): 
-                        $percentage = ($category['count'] / $max_count) * 100;
-                    ?>
-                    <div class="category-bar">
-                        <div class="category-header">
-                            <span class="category-name"><?php echo htmlspecialchars($category['category']); ?></span>
-                            <span class="category-value">
-                                <?php echo $category['count']; ?> assets ($<?php echo number_format($category['total_value'], 0); ?>)
-                            </span>
-                        </div>
-                        <div class="progress-bar">
-                            <div class="progress-fill" style="width: <?php echo $percentage; ?>%"></div>
-                        </div>
+                <div class="content-section">
+                    <div class="chart-container">
+                        <div class="chart-title">Assets by Category</div>
+                        <?php
+                        $max_count = max(array_column($category_breakdown, 'count'));
+                        foreach ($category_breakdown as $category):
+                            $percentage = ($category['count'] / $max_count) * 100;
+                        ?>
+                            <div class="category-bar">
+                                <div class="category-header">
+                                    <span class="category-name"><?php echo htmlspecialchars($category['category']); ?></span>
+                                    <span class="category-value">
+                                        <?php echo $category['count']; ?> assets ($<?php echo number_format($category['total_value'], 0); ?>)
+                                    </span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: <?php echo $percentage; ?>%"></div>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
                     </div>
-                    <?php endforeach; ?>
                 </div>
-            </div>
             <?php endif; ?>
 
             <!-- Employee Asset Distribution -->
             <?php if (count($employee_asset_distribution) > 0): ?>
-            <div class="content-section">
-                <div class="section-header">
-                    <h2 class="section-title"><i class="fas fa-user-check"></i> Employee Asset Distribution</h2>
+                <div class="content-section">
+                    <div class="section-header">
+                        <h2 class="section-title"><i class="fas fa-user-check"></i> Employee Asset Distribution</h2>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Employee Name</th>
+                                    <th>Assets Assigned</th>
+                                    <th>Total Value</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($employee_asset_distribution as $emp): ?>
+                                    <tr>
+                                        <td><strong><?php echo htmlspecialchars($emp['employee_name']); ?></strong></td>
+                                        <td><?php echo $emp['asset_count']; ?> assets</td>
+                                        <td>$<?php echo number_format($emp['total_value'], 2); ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Employee Name</th>
-                                <th>Assets Assigned</th>
-                                <th>Total Value</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($employee_asset_distribution as $emp): ?>
-                            <tr>
-                                <td><strong><?php echo htmlspecialchars($emp['employee_name']); ?></strong></td>
-                                <td><?php echo $emp['asset_count']; ?> assets</td>
-                                <td>$<?php echo number_format($emp['total_value'], 2); ?></td>
-                            </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
             <?php endif; ?>
 
             <!-- Asset Status Breakdown -->
@@ -912,42 +920,42 @@ if ($department_budget > 0) {
                     <h2 class="section-title"><i class="fas fa-history"></i> Recent Asset Assignments</h2>
                 </div>
                 <?php if (count($assignments) > 0): ?>
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Asset Code</th>
-                                <th>Asset Name</th>
-                                <th>Category</th>
-                                <th>Assigned To</th>
-                                <th>Status</th>
-                                <th>Date Added</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($assignments as $assignment): ?>
-                            <tr>
-                                <td><strong><?php echo htmlspecialchars($assignment['asset_code']); ?></strong></td>
-                                <td><?php echo htmlspecialchars($assignment['asset_name']); ?></td>
-                                <td><?php echo htmlspecialchars($assignment['category']); ?></td>
-                                <td><?php echo htmlspecialchars($assignment['assigned_to']); ?></td>
-                                <td>
-                                    <span class="badge badge-<?php echo strtolower(str_replace(' ', '-', $assignment['status'])); ?>">
-                                        <?php echo htmlspecialchars(ucwords(str_replace('_', ' ', $assignment['status']))); ?>
-                                    </span>
-                                </td>
-                                <td><?php echo date('M d, Y', strtotime($assignment['assigned_date'])); ?></td>
-                            </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Asset Code</th>
+                                    <th>Asset Name</th>
+                                    <th>Category</th>
+                                    <th>Assigned To</th>
+                                    <th>Status</th>
+                                    <th>Date Added</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($assignments as $assignment): ?>
+                                    <tr>
+                                        <td><strong><?php echo htmlspecialchars($assignment['asset_code']); ?></strong></td>
+                                        <td><?php echo htmlspecialchars($assignment['asset_name']); ?></td>
+                                        <td><?php echo htmlspecialchars($assignment['category']); ?></td>
+                                        <td><?php echo htmlspecialchars($assignment['assigned_to']); ?></td>
+                                        <td>
+                                            <span class="badge badge-<?php echo strtolower(str_replace(' ', '-', $assignment['status'])); ?>">
+                                                <?php echo htmlspecialchars(ucwords(str_replace('_', ' ', $assignment['status']))); ?>
+                                            </span>
+                                        </td>
+                                        <td><?php echo date('M d, Y', strtotime($assignment['assigned_date'])); ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
                 <?php else: ?>
-                <div class="empty-state">
-                    <div class="empty-state-icon"><i class="fas fa-inbox"></i></div>
-                    <h3>No Recent Assignments</h3>
-                    <p>No assets have been assigned recently</p>
-                </div>
+                    <div class="empty-state">
+                        <div class="empty-state-icon"><i class="fas fa-inbox"></i></div>
+                        <h3>No Recent Assignments</h3>
+                        <p>No assets have been assigned recently</p>
+                    </div>
                 <?php endif; ?>
             </div>
 
@@ -958,47 +966,47 @@ if ($department_budget > 0) {
                     <div>
                         <span class="badge badge-active"><?php echo $emp_stats['active_employees']; ?> Active</span>
                         <?php if ($emp_stats['inactive_employees'] > 0): ?>
-                        <span class="badge badge-inactive"><?php echo $emp_stats['inactive_employees']; ?> Inactive</span>
+                            <span class="badge badge-inactive"><?php echo $emp_stats['inactive_employees']; ?> Inactive</span>
                         <?php endif; ?>
                     </div>
                 </div>
                 <?php if (count($employees) > 0): ?>
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Email</th>
-                                <th>Role</th>
-                                <th>Status</th>
-                                <th>Joined Date</th>
-                                <th>Last Login</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($employees as $employee): ?>
-                            <tr>
-                                <td><strong><?php echo htmlspecialchars($employee['first_name'] . ' ' . $employee['last_name']); ?></strong></td>
-                                <td><?php echo htmlspecialchars($employee['email']); ?></td>
-                                <td><?php echo ucfirst(htmlspecialchars($employee['role'])); ?></td>
-                                <td>
-                                    <span class="badge badge-<?php echo $employee['is_active'] ? 'active' : 'inactive'; ?>">
-                                        <?php echo $employee['is_active'] ? 'Active' : 'Inactive'; ?>
-                                    </span>
-                                </td>
-                                <td><?php echo date('M d, Y', strtotime($employee['created_at'])); ?></td>
-                                <td><?php echo $employee['last_login'] ? date('M d, Y H:i', strtotime($employee['last_login'])) : 'Never'; ?></td>
-                            </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Role</th>
+                                    <th>Status</th>
+                                    <th>Joined Date</th>
+                                    <th>Last Login</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($employees as $employee): ?>
+                                    <tr>
+                                        <td><strong><?php echo htmlspecialchars($employee['first_name'] . ' ' . $employee['last_name']); ?></strong></td>
+                                        <td><?php echo htmlspecialchars($employee['email']); ?></td>
+                                        <td><?php echo ucfirst(htmlspecialchars($employee['role'])); ?></td>
+                                        <td>
+                                            <span class="badge badge-<?php echo $employee['is_active'] ? 'active' : 'inactive'; ?>">
+                                                <?php echo $employee['is_active'] ? 'Active' : 'Inactive'; ?>
+                                            </span>
+                                        </td>
+                                        <td><?php echo date('M d, Y', strtotime($employee['created_at'])); ?></td>
+                                        <td><?php echo $employee['last_login'] ? date('M d, Y H:i', strtotime($employee['last_login'])) : 'Never'; ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
                 <?php else: ?>
-                <div class="empty-state">
-                    <div class="empty-state-icon"><i class="fas fa-users-slash"></i></div>
-                    <h3>No Employees</h3>
-                    <p>No employees are currently assigned to this department</p>
-                </div>
+                    <div class="empty-state">
+                        <div class="empty-state-icon"><i class="fas fa-users-slash"></i></div>
+                        <h3>No Employees</h3>
+                        <p>No employees are currently assigned to this department</p>
+                    </div>
                 <?php endif; ?>
             </div>
 
@@ -1016,42 +1024,42 @@ if ($department_budget > 0) {
     </main>
 
     <script>
-        // Department data
-        const deptData = <?php 
-            $js_data = [
-                'name' => $manager_dept,
-                'stats' => [
-                    'totalEmployees' => $emp_stats['total_employees'],
-                    'activeEmployees' => $emp_stats['active_employees'],
-                    'totalAssets' => $asset_stats['total_assets'],
-                    'availableAssets' => $asset_stats['available_assets'],
-                    'inUseAssets' => $asset_stats['in_use_assets'],
-                    'maintenanceAssets' => $asset_stats['maintenance_assets'],
-                    'totalValue' => number_format($asset_stats['total_value'], 2),
-                    'avgValue' => number_format($asset_stats['avg_value'], 2),
-                    'utilizationRate' => $utilization_rate,
-                    'budgetUtilization' => $budget_utilization
-                ],
-                'employees' => array_map(function($emp) {
-                    return [
-                        'name' => ($emp['first_name'] ?? '') . ' ' . ($emp['last_name'] ?? ''),
-                        'email' => $emp['email'] ?? '',
-                        'role' => ucfirst($emp['role'] ?? 'employee'),
-                        'status' => ($emp['is_active'] ?? 0) ? 'Active' : 'Inactive',
-                        'joined' => isset($emp['created_at']) ? date('Y-m-d', strtotime($emp['created_at'])) : 'N/A',
-                        'last_login' => isset($emp['last_login']) && $emp['last_login'] ? date('Y-m-d H:i', strtotime($emp['last_login'])) : 'Never'
-                    ];
-                }, $employees),
-                'categories' => array_map(function($cat) {
-                    return [
-                        'category' => $cat['category'] ?? 'Unknown',
-                        'count' => $cat['count'] ?? 0,
-                        'value' => number_format($cat['total_value'] ?? 0, 2)
-                    ];
-                }, $category_breakdown)
-            ];
-            echo json_encode($js_data);
-        ?>;
+        // Department data - properly encoded from PHP
+        const deptData = <?php
+                            $js_data = [
+                                'name' => $manager_dept,
+                                'stats' => [
+                                    'totalEmployees' => (int)$emp_stats['total_employees'],
+                                    'activeEmployees' => (int)$emp_stats['active_employees'],
+                                    'totalAssets' => (int)$asset_stats['total_assets'],
+                                    'availableAssets' => (int)$asset_stats['available_assets'],
+                                    'inUseAssets' => (int)$asset_stats['in_use_assets'],
+                                    'maintenanceAssets' => (int)$asset_stats['maintenance_assets'],
+                                    'totalValue' => number_format($asset_stats['total_value'], 2),
+                                    'avgValue' => number_format($asset_stats['avg_value'], 2),
+                                    'utilizationRate' => (string)$utilization_rate,
+                                    'budgetUtilization' => (string)$budget_utilization
+                                ],
+                                'employees' => array_map(function ($emp) {
+                                    return [
+                                        'name' => trim(($emp['first_name'] ?? '') . ' ' . ($emp['last_name'] ?? '')),
+                                        'email' => $emp['email'] ?? '',
+                                        'role' => ucfirst($emp['role'] ?? 'employee'),
+                                        'status' => ($emp['is_active'] ?? 0) ? 'Active' : 'Inactive',
+                                        'joined' => isset($emp['created_at']) ? date('Y-m-d', strtotime($emp['created_at'])) : 'N/A',
+                                        'last_login' => isset($emp['last_login']) && $emp['last_login'] ? date('Y-m-d H:i', strtotime($emp['last_login'])) : 'Never'
+                                    ];
+                                }, $employees),
+                                'categories' => array_map(function ($cat) {
+                                    return [
+                                        'category' => $cat['category'] ?? 'Unknown',
+                                        'count' => (int)($cat['count'] ?? 0),
+                                        'value' => number_format($cat['total_value'] ?? 0, 2)
+                                    ];
+                                }, $category_breakdown)
+                            ];
+                            echo json_encode($js_data, JSON_HEX_APOS | JSON_HEX_QUOT);
+                            ?>;
 
         // Add smooth animations on load
         document.addEventListener('DOMContentLoaded', function() {
@@ -1069,143 +1077,93 @@ if ($department_budget > 0) {
             });
         });
 
-        // Department data - properly encoded from PHP
-    const deptData = <?php 
-        $js_data = [
-            'name' => $manager_dept,
-            'stats' => [
-                'totalEmployees' => (int)$emp_stats['total_employees'],
-                'activeEmployees' => (int)$emp_stats['active_employees'],
-                'totalAssets' => (int)$asset_stats['total_assets'],
-                'availableAssets' => (int)$asset_stats['available_assets'],
-                'inUseAssets' => (int)$asset_stats['in_use_assets'],
-                'maintenanceAssets' => (int)$asset_stats['maintenance_assets'],
-                'totalValue' => number_format($asset_stats['total_value'], 2),
-                'avgValue' => number_format($asset_stats['avg_value'], 2),
-                'utilizationRate' => (string)$utilization_rate,
-                'budgetUtilization' => (string)$budget_utilization
-            ],
-            'employees' => array_map(function($emp) {
-                return [
-                    'name' => trim(($emp['first_name'] ?? '') . ' ' . ($emp['last_name'] ?? '')),
-                    'email' => $emp['email'] ?? '',
-                    'role' => ucfirst($emp['role'] ?? 'employee'),
-                    'status' => ($emp['is_active'] ?? 0) ? 'Active' : 'Inactive',
-                    'joined' => isset($emp['created_at']) ? date('Y-m-d', strtotime($emp['created_at'])) : 'N/A',
-                    'last_login' => isset($emp['last_login']) && $emp['last_login'] ? date('Y-m-d H:i', strtotime($emp['last_login'])) : 'Never'
-                ];
-            }, $employees),
-            'categories' => array_map(function($cat) {
-                return [
-                    'category' => $cat['category'] ?? 'Unknown',
-                    'count' => (int)($cat['count'] ?? 0),
-                    'value' => number_format($cat['total_value'] ?? 0, 2)
-                ];
-            }, $category_breakdown)
-        ];
-        echo json_encode($js_data, JSON_HEX_APOS | JSON_HEX_QUOT);
-    ?>;
+        // Export to CSV function
+        function exportToCSV() {
+            const csvData = [];
 
-    // Add smooth animations on load
-    document.addEventListener('DOMContentLoaded', function() {
-        const statCards = document.querySelectorAll('.stat-card');
-        statCards.forEach((card, index) => {
-            setTimeout(() => {
-                card.style.opacity = '0';
-                card.style.transform = 'translateY(20px)';
-                card.style.transition = 'all 0.5s';
-                setTimeout(() => {
-                    card.style.opacity = '1';
-                    card.style.transform = 'translateY(0)';
-                }, 50);
-            }, index * 100);
-        });
-    });
+            // Header
+            csvData.push(['Department Report - ' + deptData.name]);
+            csvData.push(['Generated: ' + new Date().toLocaleString()]);
+            csvData.push([]);
 
-    // Export to CSV function
-    function exportToCSV() {
-        const csvData = [];
-        
-        // Header
-        csvData.push(['Department Report - ' + deptData.name]);
-        csvData.push(['Generated: ' + new Date().toLocaleString()]);
-        csvData.push([]);
-        
-        // Department Info
-        csvData.push(['DEPARTMENT INFORMATION']);
-        csvData.push(['Department Name', deptData.name]);
-        csvData.push([]);
-        
-        // Statistics
-        csvData.push(['STATISTICS']);
-        csvData.push(['Total Employees', deptData.stats.totalEmployees]);
-        csvData.push(['Active Employees', deptData.stats.activeEmployees]);
-        csvData.push(['Total Assets', deptData.stats.totalAssets]);
-        csvData.push(['Available Assets', deptData.stats.availableAssets]);
-        csvData.push(['In Use Assets', deptData.stats.inUseAssets]);
-        csvData.push(['Maintenance Assets', deptData.stats.maintenanceAssets]);
-        csvData.push(['Total Asset Value', '$' + deptData.stats.totalValue]);
-        csvData.push(['Average Asset Value', '$' + deptData.stats.avgValue]);
-        csvData.push(['Asset Utilization Rate', deptData.stats.utilizationRate + '%']);
-        csvData.push(['Budget Utilization', deptData.stats.budgetUtilization + '%']);
-        csvData.push([]);
-        
-        // Employees
-        csvData.push(['EMPLOYEES']);
-        csvData.push(['Name', 'Email', 'Role', 'Status', 'Joined Date', 'Last Login']);
-        
-        if (deptData.employees && deptData.employees.length > 0) {
-            deptData.employees.forEach(emp => {
-                csvData.push([emp.name, emp.email, emp.role, emp.status, emp.joined, emp.last_login]);
+            // Department Info
+            csvData.push(['DEPARTMENT INFORMATION']);
+            csvData.push(['Department Name', deptData.name]);
+            csvData.push([]);
+
+            // Statistics
+            csvData.push(['STATISTICS']);
+            csvData.push(['Total Employees', deptData.stats.totalEmployees]);
+            csvData.push(['Active Employees', deptData.stats.activeEmployees]);
+            csvData.push(['Total Assets', deptData.stats.totalAssets]);
+            csvData.push(['Available Assets', deptData.stats.availableAssets]);
+            csvData.push(['In Use Assets', deptData.stats.inUseAssets]);
+            csvData.push(['Maintenance Assets', deptData.stats.maintenanceAssets]);
+            csvData.push(['Total Asset Value', '$' + deptData.stats.totalValue]);
+            csvData.push(['Average Asset Value', '$' + deptData.stats.avgValue]);
+            csvData.push(['Asset Utilization Rate', deptData.stats.utilizationRate + '%']);
+            csvData.push(['Budget Utilization', deptData.stats.budgetUtilization + '%']);
+            csvData.push([]);
+
+            // Employees
+            csvData.push(['EMPLOYEES']);
+            csvData.push(['Name', 'Email', 'Role', 'Status', 'Joined Date', 'Last Login']);
+
+            if (deptData.employees && deptData.employees.length > 0) {
+                deptData.employees.forEach(emp => {
+                    csvData.push([emp.name, emp.email, emp.role, emp.status, emp.joined, emp.last_login]);
+                });
+            } else {
+                csvData.push(['No employees found']);
+            }
+
+            csvData.push([]);
+
+            // Assets by Category
+            csvData.push(['ASSETS BY CATEGORY']);
+            csvData.push(['Category', 'Count', 'Total Value']);
+
+            if (deptData.categories && deptData.categories.length > 0) {
+                deptData.categories.forEach(cat => {
+                    csvData.push([cat.category, cat.count, '$' + cat.value]);
+                });
+            } else {
+                csvData.push(['No categories found']);
+            }
+
+            // Convert to CSV string
+            let csvContent = '';
+            csvData.forEach(row => {
+                const escapedRow = row.map(cell => {
+                    const cellStr = String(cell);
+                    if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+                        return '"' + cellStr.replace(/"/g, '""') + '"';
+                    }
+                    return cellStr;
+                });
+                csvContent += escapedRow.join(',') + '\n';
             });
-        } else {
-            csvData.push(['No employees found']);
+
+            // Create download
+            const blob = new Blob([csvContent], {
+                type: 'text/csv;charset=utf-8;'
+            });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            const deptName = deptData.name.replace(/[^a-zA-Z0-9]/g, '_');
+            const timestamp = new Date().toISOString().slice(0, 10);
+
+            link.setAttribute('href', url);
+            link.setAttribute('download', 'Department_Report_' + deptName + '_' + timestamp + '.csv');
+            link.style.visibility = 'hidden';
+
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            alert('Report exported successfully!');
         }
-        
-        csvData.push([]);
-        
-        // Assets by Category
-        csvData.push(['ASSETS BY CATEGORY']);
-        csvData.push(['Category', 'Count', 'Total Value']);
-        
-        if (deptData.categories && deptData.categories.length > 0) {
-            deptData.categories.forEach(cat => {
-                csvData.push([cat.category, cat.count, '$' + cat.value]);
-            });
-        } else {
-            csvData.push(['No categories found']);
-        }
-        
-        // Convert to CSV string
-        let csvContent = '';
-        csvData.forEach(row => {
-            const escapedRow = row.map(cell => {
-                const cellStr = String(cell);
-                if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
-                    return '"' + cellStr.replace(/"/g, '""') + '"';
-                }
-                return cellStr;
-            });
-            csvContent += escapedRow.join(',') + '\n';
-        });
-        
-        // Create download
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        const url = URL.createObjectURL(blob);
-        const deptName = deptData.name.replace(/[^a-zA-Z0-9]/g, '_');
-        const timestamp = new Date().toISOString().slice(0, 10);
-        
-        link.setAttribute('href', url);
-        link.setAttribute('download', 'Department_Report_' + deptName + '_' + timestamp + '.csv');
-        link.style.visibility = 'hidden';
-        
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        alert('Report exported successfully!');
-    }
     </script>
 </body>
+
 </html>
