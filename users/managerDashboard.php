@@ -229,25 +229,29 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
 
         /* Header */
         .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: white;
             border-radius: 16px;
             padding: 30px;
             margin-bottom: 30px;
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-            color: white;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
         }
 
         .header h1 {
             font-size: 28px;
             font-weight: 700;
+            color: #1a202c;
             margin-bottom: 8px;
             display: flex;
             align-items: center;
             gap: 12px;
         }
 
+        .header h1 i {
+            color: #7c3aed;
+        }
+
         .header p {
-            opacity: 0.95;
+            color: #718096;
             font-size: 15px;
         }
 
@@ -259,26 +263,126 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
             margin-bottom: 30px;
         }
 
+        /* Enhanced Stat Cards with Colors */
         .stat-card {
             background: white;
             border-radius: 16px;
             padding: 28px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
             transition: all 0.3s;
-            border-left: 4px solid #667eea;
             cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            transition: all 0.3s;
+            opacity: 0.1;
         }
 
         .stat-card:hover {
             transform: translateY(-4px);
-            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.15);
+        }
+
+        .stat-card:hover::before {
+            transform: scale(1.2);
+            opacity: 0.15;
+        }
+
+        /* Color variants */
+        .stat-card.stat-purple {
+            border-left: 4px solid #7c3aed;
+        }
+
+        .stat-card.stat-purple::before {
+            background: linear-gradient(135deg, #7c3aed, #6d28d9);
+        }
+
+        .stat-card.stat-purple:hover {
+            box-shadow: 0 8px 20px rgba(124, 58, 237, 0.2);
+        }
+
+        .stat-card.stat-purple .stat-icon {
+            color: #7c3aed;
+        }
+
+        .stat-card.stat-green {
+            border-left: 4px solid #10b981;
+        }
+
+        .stat-card.stat-green::before {
+            background: linear-gradient(135deg, #10b981, #059669);
+        }
+
+        .stat-card.stat-green:hover {
+            box-shadow: 0 8px 20px rgba(16, 185, 129, 0.2);
+        }
+
+        .stat-card.stat-green .stat-icon {
+            color: #10b981;
+        }
+
+        .stat-card.stat-blue {
+            border-left: 4px solid #3b82f6;
+        }
+
+        .stat-card.stat-blue::before {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+        }
+
+        .stat-card.stat-blue:hover {
+            box-shadow: 0 8px 20px rgba(59, 130, 246, 0.2);
+        }
+
+        .stat-card.stat-blue .stat-icon {
+            color: #3b82f6;
+        }
+
+        .stat-card.stat-orange {
+            border-left: 4px solid #f59e0b;
+        }
+
+        .stat-card.stat-orange::before {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+        }
+
+        .stat-card.stat-orange:hover {
+            box-shadow: 0 8px 20px rgba(245, 158, 11, 0.2);
+        }
+
+        .stat-card.stat-orange .stat-icon {
+            color: #f59e0b;
+        }
+
+        .stat-card.stat-red {
+            border-left: 4px solid #ef4444;
+        }
+
+        .stat-card.stat-red::before {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+        }
+
+        .stat-card.stat-red:hover {
+            box-shadow: 0 8px 20px rgba(239, 68, 68, 0.2);
+        }
+
+        .stat-card.stat-red .stat-icon {
+            color: #ef4444;
         }
 
         .stat-icon {
             font-size: 32px;
-            color: #667eea;
             margin-bottom: 16px;
             display: block;
+            position: relative;
+            z-index: 1;
         }
 
         .stat-number {
@@ -286,6 +390,8 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
             font-weight: 700;
             color: #1a202c;
             margin-bottom: 8px;
+            position: relative;
+            z-index: 1;
         }
 
         .stat-label {
@@ -294,12 +400,50 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.5px;
+            position: relative;
+            z-index: 1;
         }
 
         .stat-number-small {
             font-size: 13px;
             color: #a0aec0;
             margin-top: 8px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Section */
+        .section {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+
+        .section-header {
+            margin-bottom: 24px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .section-header h2 {
+            font-size: 22px;
+            font-weight: 700;
+            color: #1a202c;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-header h2 i {
+            color: #7c3aed;
+        }
+
+        .section-header p {
+            color: #718096;
+            font-size: 14px;
         }
 
         /* Charts Grid */
@@ -333,7 +477,7 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
         }
 
         .chart-header h3 i {
-            color: #667eea;
+            color: #7c3aed;
         }
 
         .chart-container {
@@ -343,40 +487,6 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
 
         .chart-container canvas {
             max-height: 300px;
-        }
-
-        /* Section */
-        .section {
-            background: white;
-            border-radius: 16px;
-            padding: 30px;
-            margin-bottom: 30px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-        }
-
-        .section-header {
-            margin-bottom: 24px;
-            padding-bottom: 20px;
-            border-bottom: 2px solid #e2e8f0;
-        }
-
-        .section-header h2 {
-            font-size: 22px;
-            font-weight: 700;
-            color: #1a202c;
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .section-header h2 i {
-            color: #667eea;
-        }
-
-        .section-header p {
-            color: #718096;
-            font-size: 14px;
         }
 
         /* Table */
@@ -390,7 +500,7 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
         }
 
         .table thead {
-            background: linear-gradient(135deg, #f3f4ff 0%, #e9ebff 100%);
+            background: linear-gradient(135deg, #f7f4fe 0%, #ede9fe 100%);
         }
 
         .table thead th {
@@ -398,7 +508,7 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
             text-align: left;
             font-weight: 700;
             font-size: 13px;
-            color: #5a67d8;
+            color: #6d28d9;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             border-bottom: 2px solid #e2e8f0;
@@ -696,14 +806,14 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
         }
 
         .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
             color: white;
-            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+            box-shadow: 0 2px 8px rgba(124, 58, 237, 0.3);
         }
 
         .btn-primary:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4);
         }
 
         .btn-secondary {
@@ -823,33 +933,37 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
     <div class="container" id="mainContainer">
         <div class="header">
             <h1><i class="fas fa-user-tie"></i> Manager Dashboard</h1>
-            <p>Welcome back, <?php echo htmlspecialchars($_SESSION['first_name']); ?>! Managing <?php echo htmlspecialchars($department); ?> Department</p>
+            <p>Welcome back, <?php echo htmlspecialchars($_SESSION['first_name']); ?>! Here's your <?php echo htmlspecialchars($department); ?> Department overview.</p>
         </div>
 
         <!-- Statistics -->
         <div class="stats-grid">
-            <div class="stat-card" onclick="window.location.href='../users/teamMembers.php?department=<?php echo urlencode($department); ?>'">
+            <!-- Active Employees - Purple -->
+            <div class="stat-card stat-purple" onclick="window.location.href='../users/teamMembers.php?department=<?php echo urlencode($department); ?>'">
                 <i class="fas fa-users stat-icon"></i>
                 <div class="stat-number"><?php echo $stats['active_employees']; ?></div>
                 <div class="stat-label">Active Employees</div>
                 <div class="stat-number-small">Total: <?php echo $stats['department_employees']; ?></div>
             </div>
 
-            <div class="stat-card" onclick="window.location.href='../users/departmentAsset.php'">
+            <!-- Department Assets - Green -->
+            <div class="stat-card stat-green" onclick="window.location.href='../users/departmentAsset.php'">
                 <i class="fas fa-boxes stat-icon"></i>
                 <div class="stat-number"><?php echo $stats['department_assets']; ?></div>
                 <div class="stat-label">Department Assets</div>
                 <div class="stat-number-small">My Assets: <?php echo $stats['my_assets']; ?></div>
             </div>
 
-            <div class="stat-card" onclick="window.location.href='../users/departmentTicket.php'">
+            <!-- Department Tickets - Blue -->
+            <div class="stat-card stat-blue" onclick="window.location.href='../users/departmentTicket.php'">
                 <i class="fas fa-ticket-alt stat-icon"></i>
                 <div class="stat-number"><?php echo $stats['department_tickets']; ?></div>
                 <div class="stat-label">Department Tickets</div>
                 <div class="stat-number-small">Pending: <?php echo $stats['pending_tickets']; ?></div>
             </div>
 
-            <div class="stat-card" onclick="window.location.href='../users/departmentTicket.php?filter=urgent'">
+            <!-- Urgent Tickets - Red -->
+            <div class="stat-card stat-red" onclick="window.location.href='../users/departmentTicket.php?filter=urgent'">
                 <i class="fas fa-exclamation-circle stat-icon"></i>
                 <div class="stat-number"><?php echo $stats['urgent_tickets']; ?></div>
                 <div class="stat-label">Urgent Tickets</div>
@@ -1098,7 +1212,39 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
     </div>
 
     <script>
-        // Handle sidebar toggle
+        // ===== COLOR PALETTES - MUST BE AT THE VERY TOP =====
+        const statusColors = {
+            'Available': '#10b981',
+            'available': '#10b981',
+            'In Use': '#3b82f6',
+            'In-Use': '#3b82f6',
+            'in use': '#3b82f6',
+            'in-use': '#3b82f6',
+            'in_use': '#3b82f6',
+            'Maintenance': '#f59e0b',
+            'maintenance': '#f59e0b',
+            'Retired': '#6b7280',
+            'retired': '#6b7280',
+            'Damaged': '#ef4444',
+            'damaged': '#ef4444'
+        };
+
+        const ticketStatusColors = {
+            'open': '#3b82f6',
+            'in_progress': '#f59e0b',
+            'pending': '#eab308',
+            'resolved': '#10b981',
+            'closed': '#6b7280'
+        };
+
+        const priorityColors = {
+            'low': '#10b981',
+            'medium': '#f59e0b',
+            'high': '#ef4444',
+            'urgent': '#dc2626'
+        };
+
+        // ===== SIDEBAR TOGGLE FUNCTIONS =====
         function updateMainContainer() {
             const mainContainer = document.getElementById('mainContainer');
             const sidebar = document.querySelector('.sidebar');
@@ -1130,36 +1276,7 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
             });
         }
 
-        const statusColors = {
-            'Available': '#10b981',
-            'available': '#10b981',
-            'In Use': '#3b82f6',
-            'In-Use': '#3b82f6',
-            'in use': '#3b82f6',
-            'in-use': '#3b82f6',
-            'in_use': '#3b82f6',
-            'Maintenance': '#f59e0b',
-            'maintenance': '#f59e0b',
-            'Retired': '#6b7280',
-            'retired': '#6b7280',
-        };
-
-        const ticketStatusColors = {
-            'open': '#3b82f6',
-            'in_progress': '#f59e0b',
-            'pending': '#eab308',
-            'resolved': '#10b981',
-            'closed': '#6b7280'
-        };
-
-        const priorityColors = {
-            'low': '#10b981',
-            'medium': '#f59e0b',
-            'high': '#ef4444',
-            'urgent': '#dc2626'
-        };
-
-        // Chart.js default settings
+        // ===== CHART.JS DEFAULT SETTINGS =====
         Chart.defaults.font.family = "'Inter', sans-serif";
         Chart.defaults.color = '#718096';
 
@@ -1170,13 +1287,15 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
                 const deptAssetStatusLabels = <?php echo $asset_status_labels; ?>;
                 const deptAssetStatusData = <?php echo $asset_status_values; ?>;
 
+                const deptAssetColors = deptAssetStatusLabels.map(label => statusColors[label] || '#6b7280');
+
                 new Chart(deptAssetStatusCtx, {
                     type: 'doughnut',
                     data: {
                         labels: deptAssetStatusLabels,
                         datasets: [{
                             data: deptAssetStatusData,
-                            backgroundColor: deptAssetStatusLabels.map(label => statusColors[label] || '#6b7280'),
+                            backgroundColor: deptAssetColors,
                             borderWidth: 3,
                             borderColor: '#fff',
                             hoverOffset: 8
@@ -1230,11 +1349,11 @@ $employee_assets = json_encode(array_column($employee_asset_distribution, 'asset
                         datasets: [{
                             label: 'Number of Assets',
                             data: employeeAssets,
-                            backgroundColor: 'rgba(102, 126, 234, 0.8)',
-                            borderColor: 'rgba(102, 126, 234, 1)',
+                            backgroundColor: 'rgba(124, 58, 237, 0.8)',
+                            borderColor: 'rgba(124, 58, 237, 1)',
                             borderWidth: 0,
                             borderRadius: 8,
-                            hoverBackgroundColor: 'rgba(118, 75, 162, 0.9)'
+                            hoverBackgroundColor: 'rgba(109, 40, 217, 0.9)'
                         }]
                     },
                     options: {

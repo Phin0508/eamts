@@ -91,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #ffffffff 0%, #ffffffff 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -347,7 +347,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </form>
         
         <div class="steps">
-            <h3>What happens next?</h3>
+            <h3>How to reset?</h3>
             <div class="step">
                 <div class="step-number">1</div>
                 <div class="step-text">We'll send a password reset link to your email</div>

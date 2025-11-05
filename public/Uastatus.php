@@ -1347,46 +1347,146 @@ $os_list = array_count_values(array_filter(array_column($sessions, 'os_name')));
             });
         }
 
-        // Export to CSV
-        function exportToCSV() {
-            const table = document.querySelector('table');
-            if (!table) return;
+        // Enhanced Export to CSV with all data
+function exportToCSV() {
+    // Get the PHP sessions data
+    const sessions = <?php echo json_encode($sessions); ?>;
+    
+    if (!sessions || sessions.length === 0) {
+        alert('No data to export');
+        return;
+    }
 
-            let csv = [];
-            const rows = table.querySelectorAll('tr.main-row');
+    let csv = [];
+    
+    // Comprehensive Headers
+    const headers = [
+        'Status',
+        'Username',
+        'First Name',
+        'Last Name',
+        'Email',
+        'Role',
+        'Department',
+        'Device Type',
+        'Device Serial',
+        'Browser',
+        'Browser Version',
+        'Operating System',
+        'OS Version',
+        'IP Address',
+        'Network Type',
+        'Screen Resolution',
+        'Color Depth',
+        'Pixel Ratio',
+        'CPU Cores',
+        'Platform',
+        'Timezone',
+        'Language',
+        'Battery Level (%)',
+        'Battery Charging',
+        'Battery Time Remaining (min)',
+        'Connection Type',
+        'Download Speed (Mbps)',
+        'Latency (ms)',
+        'Data Saver',
+        'Login Time',
+        'Last Activity',
+        'Session Duration',
+        'Current Page',
+        'Referrer',
+        'User Agent'
+    ];
+    
+    csv.push(headers.join(','));
 
-            // Headers
-            csv.push(['Status', 'User', 'Email', 'Role', 'Device Type', 'Browser', 'OS', 'IP Address', 'Network', 'Timezone', 'Last Active'].join(','));
-
-            for (let row of rows) {
-                let cols = row.querySelectorAll('td');
-                let csvRow = [
-                    cols[1].innerText.trim(),
-                    cols[2].querySelector('.user-details h4')?.innerText || '',
-                    cols[2].querySelector('.user-details p')?.innerText || '',
-                    '',
-                    cols[3].innerText.trim(),
-                    cols[4].innerText.trim(),
-                    '',
-                    cols[5].innerText.trim(),
-                    '',
-                    '',
-                    cols[6].innerText.trim()
-                ];
-                csv.push(csvRow.map(cell => '"' + cell.replace(/"/g, '""') + '"').join(','));
-            }
-
-            const csvContent = csv.join('\n');
-            const blob = new Blob([csvContent], { type: 'text/csv' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'user_sessions_' + new Date().toISOString().split('T')[0] + '.csv';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
+    // Process each session
+    sessions.forEach(session => {
+        // Parse JSON fields
+        const battery = session.battery_info ? JSON.parse(session.battery_info) : null;
+        const connection = session.connection_info ? JSON.parse(session.connection_info) : null;
+        
+        // Calculate session duration
+        const loginTime = new Date(session.login_time).getTime();
+        const lastActivity = new Date(session.last_activity).getTime();
+        const durationMs = lastActivity - loginTime;
+        const hours = Math.floor(durationMs / 3600000);
+        const minutes = Math.floor((durationMs % 3600000) / 60000);
+        const durationStr = `${hours}h ${minutes}m`;
+        
+        // Battery time remaining
+        let batteryTimeRemaining = 'N/A';
+        if (battery && !battery.charging && battery.dischargingTime && battery.dischargingTime !== 'Infinity') {
+            batteryTimeRemaining = Math.round(battery.dischargingTime / 60);
         }
+        
+        // Build row data
+        const row = [
+            session.status || '',
+            session.username || '',
+            session.first_name || '',
+            session.last_name || '',
+            session.email || '',
+            session.role || '',
+            session.department || '',
+            session.device_type || '',
+            session.device_serial || '',
+            session.browser_name || '',
+            session.browser_version || '',
+            session.os_name || '',
+            session.os_version || '',
+            session.ip_address || '',
+            session.network_type || '',
+            session.screen_resolution || '',
+            session.color_depth ? session.color_depth + ' bit' : '',
+            session.pixel_ratio || '',
+            session.cpu_cores || '',
+            session.platform || '',
+            session.timezone || '',
+            session.language || '',
+            battery ? battery.level : '',
+            battery ? (battery.charging ? 'Yes' : 'No') : '',
+            batteryTimeRemaining,
+            connection ? connection.effectiveType : '',
+            connection ? connection.downlink : '',
+            connection ? connection.rtt : '',
+            connection ? (connection.saveData ? 'Yes' : 'No') : '',
+            session.login_time || '',
+            session.last_activity || '',
+            durationStr,
+            session.current_page || '',
+            session.referrer || '',
+            session.user_agent || ''
+        ];
+        
+        // Escape and format for CSV
+        const escapedRow = row.map(cell => {
+            const cellStr = String(cell);
+            // Escape quotes and wrap in quotes if contains comma, quote, or newline
+            if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+                return '"' + cellStr.replace(/"/g, '""') + '"';
+            }
+            return cellStr;
+        });
+        
+        csv.push(escapedRow.join(','));
+    });
+
+    // Create and download CSV file
+    const csvContent = csv.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `user_sessions_detailed_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    
+    // Show success message
+    alert('CSV exported successfully with all data including battery and network information!');
+}
 
         // Auto-refresh every 60 seconds
         setTimeout(() => {

@@ -1131,14 +1131,9 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
                 </div>
 
                 <div class="quick-actions">
-                    <a href="../public/assetDetails.php" class="btn btn-primary">
+                    <a href="../public/asset.php" class="btn btn-primary">
                         <i class="fas fa-list"></i> View All Maintenance Schedules
                     </a>
-                    <?php if ($role === 'admin' || $role === 'manager'): ?>
-                        <a href="../public/asset.php?filter=maintenance" class="btn btn-secondary">
-                            <i class="fas fa-filter"></i> Filter Maintenance Assets
-                        </a>
-                    <?php endif; ?>
                 </div>
             </div>
         <?php endif; ?>
@@ -1302,35 +1297,6 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
                 </div>
             <?php endif; ?>
         </div>
-
-        <!-- Recent Activity Section -->
-        <?php if (count($recent_activity) > 0): ?>
-            <div class="section">
-                <div class="section-header">
-                    <h2><i class="fas fa-history"></i> Recent Activity</h2>
-                    <p>Your recent asset-related activities</p>
-                </div>
-                <ul class="activity-list">
-                    <?php foreach ($recent_activity as $activity): ?>
-                        <li class="activity-item">
-                            <div class="activity-content">
-                                <div class="activity-icon">
-                                    <i class="fas fa-clipboard-list"></i>
-                                </div>
-                                <div class="activity-info">
-                                    <div class="activity-type"><?php echo ucfirst(htmlspecialchars($activity['action_type'])); ?></div>
-                                    <div class="activity-details">
-                                        <?php echo htmlspecialchars($activity['asset_name']); ?>
-                                        (<?php echo htmlspecialchars($activity['asset_code']); ?>)
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="activity-time"><?php echo date('M j, Y H:i', strtotime($activity['created_at'])); ?></div>
-                        </li>
-                    <?php endforeach; ?>
-                </ul>
-            </div>
-        <?php endif; ?>
 
         <!-- Quick Actions Section -->
         <?php if ($role === 'admin' || $role === 'manager'): ?>

@@ -404,3 +404,540 @@
 
 [05-Nov-2025 06:31:13 Europe/Berlin] === END OF PAGE LOAD ===
 
+[05-Nov-2025 07:14:55 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 07:14:55 Europe/Berlin] Request method: GET
+[05-Nov-2025 07:14:55 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 07:14:55 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 07:14:55 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 07:14:55 Europe/Berlin] === END OF PAGE LOAD ===
+
+[05-Nov-2025 07:15:28 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 07:15:28 Europe/Berlin] Request method: GET
+[05-Nov-2025 07:15:28 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 07:15:28 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 07:15:28 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 07:15:28 Europe/Berlin] === END OF PAGE LOAD ===
+
+[05-Nov-2025 07:15:42 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 07:15:42 Europe/Berlin] Request method: GET
+[05-Nov-2025 07:15:42 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 07:15:42 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 07:15:42 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 07:15:42 Europe/Berlin] === END OF PAGE LOAD ===
+
+[05-Nov-2025 07:15:58 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 07:15:58 Europe/Berlin] Request method: GET
+[05-Nov-2025 07:15:58 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 07:15:58 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 07:15:58 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 07:15:58 Europe/Berlin] === END OF PAGE LOAD ===
+
+[05-Nov-2025 07:16:06 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 07:16:06 Europe/Berlin] Request method: GET
+[05-Nov-2025 07:16:06 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 07:16:06 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 07:16:06 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 07:16:06 Europe/Berlin] === END OF PAGE LOAD ===
+
+[05-Nov-2025 07:22:56 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 07:22:56 Europe/Berlin] Request method: GET
+[05-Nov-2025 07:22:56 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 07:22:56 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 07:22:56 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 07:22:56 Europe/Berlin] === END OF PAGE LOAD ===
+
+[05-Nov-2025 07:23:16 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 07:23:16 Europe/Berlin] Request method: POST
+[05-Nov-2025 07:23:16 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 07:23:16 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 07:23:16 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 07:23:16 Europe/Berlin] === FORM SUBMISSION ===
+[05-Nov-2025 07:23:16 Europe/Berlin] Login attempt for: zjenphin@gmail.com
+[05-Nov-2025 07:23:16 Europe/Berlin] Remember me checked: No
+[05-Nov-2025 07:23:17 Europe/Berlin] Login successful for user: phin.ee
+[05-Nov-2025 07:23:33 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 07:23:33 Europe/Berlin] Request method: GET
+[05-Nov-2025 07:23:33 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 07:23:33 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 07:23:33 Europe/Berlin] All cookies: Array
+(
+)
+
+[05-Nov-2025 07:23:33 Europe/Berlin] === END OF PAGE LOAD ===
+
+[05-Nov-2025 07:23:42 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 07:23:42 Europe/Berlin] Request method: POST
+[05-Nov-2025 07:23:42 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 07:23:42 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 07:23:42 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 07:23:42 Europe/Berlin] === FORM SUBMISSION ===
+[05-Nov-2025 07:23:42 Europe/Berlin] Login attempt for: sansan
+[05-Nov-2025 07:23:42 Europe/Berlin] Remember me checked: No
+[05-Nov-2025 07:23:42 Europe/Berlin] Login successful for user: sansan
+[05-Nov-2025 07:24:45 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 07:24:45 Europe/Berlin] Request method: GET
+[05-Nov-2025 07:24:45 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 07:24:45 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 07:24:45 Europe/Berlin] All cookies: Array
+(
+)
+
+[05-Nov-2025 07:24:45 Europe/Berlin] === END OF PAGE LOAD ===
+
+[05-Nov-2025 07:27:30 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 07:27:30 Europe/Berlin] Request method: GET
+[05-Nov-2025 07:27:30 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 07:27:30 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 07:27:30 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 07:27:30 Europe/Berlin] === END OF PAGE LOAD ===
+
+[05-Nov-2025 07:30:18 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 07:30:18 Europe/Berlin] Request method: POST
+[05-Nov-2025 07:30:18 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 07:30:18 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 07:30:18 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 07:30:18 Europe/Berlin] === FORM SUBMISSION ===
+[05-Nov-2025 07:30:18 Europe/Berlin] Login attempt for: zjenphin@gmail.com
+[05-Nov-2025 07:30:18 Europe/Berlin] Remember me checked: No
+[05-Nov-2025 07:30:18 Europe/Berlin] Login successful for user: phin.ee
+[05-Nov-2025 07:32:35 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 07:32:35 Europe/Berlin] Request method: GET
+[05-Nov-2025 07:32:35 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 07:32:35 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 07:32:35 Europe/Berlin] All cookies: Array
+(
+)
+
+[05-Nov-2025 07:32:35 Europe/Berlin] === END OF PAGE LOAD ===
+
+[05-Nov-2025 07:36:29 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 07:36:29 Europe/Berlin] Request method: GET
+[05-Nov-2025 07:36:29 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 07:36:29 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 07:36:29 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 07:36:29 Europe/Berlin] === END OF PAGE LOAD ===
+
+[05-Nov-2025 08:21:31 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 08:21:31 Europe/Berlin] Request method: GET
+[05-Nov-2025 08:21:31 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 08:21:31 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 08:21:31 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 08:21:31 Europe/Berlin] === END OF PAGE LOAD ===
+
+[05-Nov-2025 09:15:09 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 09:15:09 Europe/Berlin] Request method: GET
+[05-Nov-2025 09:15:09 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 09:15:09 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 09:15:09 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 09:15:09 Europe/Berlin] === END OF PAGE LOAD ===
+
+[05-Nov-2025 09:28:20 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 09:28:20 Europe/Berlin] Request method: GET
+[05-Nov-2025 09:28:20 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 09:28:20 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 09:28:20 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 09:28:20 Europe/Berlin] === END OF PAGE LOAD ===
+
+[05-Nov-2025 09:28:27 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 09:28:27 Europe/Berlin] Request method: GET
+[05-Nov-2025 09:28:27 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 09:28:27 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 09:28:27 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 09:28:27 Europe/Berlin] === END OF PAGE LOAD ===
+
+[05-Nov-2025 09:28:34 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 09:28:34 Europe/Berlin] Request method: POST
+[05-Nov-2025 09:28:34 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 09:28:34 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 09:28:34 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 09:28:34 Europe/Berlin] === FORM SUBMISSION ===
+[05-Nov-2025 09:28:34 Europe/Berlin] Login attempt for: zjenphin@gmail.com
+[05-Nov-2025 09:28:34 Europe/Berlin] Remember me checked: No
+[05-Nov-2025 09:28:34 Europe/Berlin] Login successful for user: phin.ee
+[05-Nov-2025 09:32:56 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 09:32:56 Europe/Berlin] Request method: GET
+[05-Nov-2025 09:32:56 Europe/Berlin] Session user_id exists: Yes
+[05-Nov-2025 09:32:56 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 09:32:56 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 09:33:38 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 09:33:38 Europe/Berlin] Request method: GET
+[05-Nov-2025 09:33:38 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 09:33:38 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 09:33:38 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 09:33:38 Europe/Berlin] === END OF PAGE LOAD ===
+
+[05-Nov-2025 09:33:41 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 09:33:41 Europe/Berlin] Request method: GET
+[05-Nov-2025 09:33:41 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 09:33:41 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 09:33:41 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 09:33:41 Europe/Berlin] === END OF PAGE LOAD ===
+
+[05-Nov-2025 09:40:23 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 09:40:23 Europe/Berlin] Request method: GET
+[05-Nov-2025 09:40:23 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 09:40:23 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 09:40:23 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 09:40:23 Europe/Berlin] === END OF PAGE LOAD ===
+
+[05-Nov-2025 13:06:36 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 13:06:36 Europe/Berlin] Request method: GET
+[05-Nov-2025 13:06:36 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 13:06:36 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 13:06:36 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 13:06:36 Europe/Berlin] === END OF PAGE LOAD ===
+
+[05-Nov-2025 13:06:43 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 13:06:43 Europe/Berlin] Request method: POST
+[05-Nov-2025 13:06:43 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 13:06:43 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 13:06:43 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 13:06:43 Europe/Berlin] === FORM SUBMISSION ===
+[05-Nov-2025 13:06:43 Europe/Berlin] Login attempt for: p23015253@student.newinti.edu.my
+[05-Nov-2025 13:06:43 Europe/Berlin] Remember me checked: No
+[05-Nov-2025 13:06:43 Europe/Berlin] Login successful for user: powawoee
+[05-Nov-2025 13:16:48 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 13:16:48 Europe/Berlin] Request method: GET
+[05-Nov-2025 13:16:48 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 13:16:48 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 13:16:48 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 13:16:48 Europe/Berlin] === END OF PAGE LOAD ===
+
+[05-Nov-2025 13:16:53 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 13:16:53 Europe/Berlin] Request method: POST
+[05-Nov-2025 13:16:53 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 13:16:53 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 13:16:53 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 13:16:53 Europe/Berlin] === FORM SUBMISSION ===
+[05-Nov-2025 13:16:53 Europe/Berlin] Login attempt for: moonlightval24@gmail.com
+[05-Nov-2025 13:16:53 Europe/Berlin] Remember me checked: No
+[05-Nov-2025 13:16:54 Europe/Berlin] Login successful for user: sansan
+[05-Nov-2025 17:14:00 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 17:14:00 Europe/Berlin] Request method: GET
+[05-Nov-2025 17:14:00 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 17:14:00 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 17:14:00 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 17:14:00 Europe/Berlin] === END OF PAGE LOAD ===
+
+[05-Nov-2025 17:14:09 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 17:14:09 Europe/Berlin] Request method: POST
+[05-Nov-2025 17:14:09 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 17:14:09 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 17:14:09 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 17:14:09 Europe/Berlin] === FORM SUBMISSION ===
+[05-Nov-2025 17:14:09 Europe/Berlin] Login attempt for: p23015253@student.newinti.edu.my
+[05-Nov-2025 17:14:09 Europe/Berlin] Remember me checked: No
+[05-Nov-2025 17:14:09 Europe/Berlin] Login successful for user: powawoee
+[05-Nov-2025 18:13:29 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 18:13:29 Europe/Berlin] Request method: GET
+[05-Nov-2025 18:13:29 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 18:13:29 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 18:13:29 Europe/Berlin] All cookies: Array
+(
+)
+
+[05-Nov-2025 18:13:29 Europe/Berlin] === END OF PAGE LOAD ===
+
+[05-Nov-2025 18:24:45 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 18:24:45 Europe/Berlin] Request method: GET
+[05-Nov-2025 18:24:45 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 18:24:45 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 18:24:45 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 18:24:45 Europe/Berlin] === END OF PAGE LOAD ===
+
+[05-Nov-2025 18:30:03 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 18:30:03 Europe/Berlin] Request method: GET
+[05-Nov-2025 18:30:03 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 18:30:03 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 18:30:03 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 18:30:03 Europe/Berlin] === END OF PAGE LOAD ===
+
+[05-Nov-2025 18:33:36 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 18:33:36 Europe/Berlin] Request method: POST
+[05-Nov-2025 18:33:36 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 18:33:36 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 18:33:36 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 18:33:36 Europe/Berlin] === FORM SUBMISSION ===
+[05-Nov-2025 18:33:36 Europe/Berlin] Login attempt for: johndoe
+[05-Nov-2025 18:33:36 Europe/Berlin] Remember me checked: No
+[05-Nov-2025 18:33:36 Europe/Berlin] === END OF PAGE LOAD ===
+
+[05-Nov-2025 18:34:51 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 18:34:51 Europe/Berlin] Request method: POST
+[05-Nov-2025 18:34:51 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 18:34:51 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 18:34:51 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 18:34:51 Europe/Berlin] === FORM SUBMISSION ===
+[05-Nov-2025 18:34:51 Europe/Berlin] Login attempt for: johndoe
+[05-Nov-2025 18:34:51 Europe/Berlin] Remember me checked: No
+[05-Nov-2025 18:34:51 Europe/Berlin] Login successful for user: johndoe
+[05-Nov-2025 18:35:31 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 18:35:31 Europe/Berlin] Request method: GET
+[05-Nov-2025 18:35:31 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 18:35:31 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 18:35:31 Europe/Berlin] All cookies: Array
+(
+)
+
+[05-Nov-2025 18:35:31 Europe/Berlin] === END OF PAGE LOAD ===
+
+[05-Nov-2025 18:46:18 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 18:46:18 Europe/Berlin] Request method: GET
+[05-Nov-2025 18:46:18 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 18:46:18 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 18:46:18 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 18:46:18 Europe/Berlin] === END OF PAGE LOAD ===
+
+[05-Nov-2025 18:51:01 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 18:51:01 Europe/Berlin] Request method: GET
+[05-Nov-2025 18:51:01 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 18:51:01 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 18:51:01 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 18:51:01 Europe/Berlin] === END OF PAGE LOAD ===
+
+[05-Nov-2025 18:51:08 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 18:51:08 Europe/Berlin] Request method: GET
+[05-Nov-2025 18:51:08 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 18:51:08 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 18:51:08 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 18:51:08 Europe/Berlin] === END OF PAGE LOAD ===
+
+[05-Nov-2025 18:51:23 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 18:51:23 Europe/Berlin] Request method: GET
+[05-Nov-2025 18:51:23 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 18:51:23 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 18:51:23 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 18:51:23 Europe/Berlin] === END OF PAGE LOAD ===
+
+[05-Nov-2025 18:53:36 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 18:53:36 Europe/Berlin] Request method: POST
+[05-Nov-2025 18:53:36 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 18:53:36 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 18:53:36 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 18:53:36 Europe/Berlin] === FORM SUBMISSION ===
+[05-Nov-2025 18:53:36 Europe/Berlin] Login attempt for: yyoonpeach
+[05-Nov-2025 18:53:36 Europe/Berlin] Remember me checked: No
+[05-Nov-2025 18:53:37 Europe/Berlin] Login successful for user: yyoonpeach
+[05-Nov-2025 18:57:14 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 18:57:14 Europe/Berlin] Request method: GET
+[05-Nov-2025 18:57:14 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 18:57:14 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 18:57:14 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 18:57:14 Europe/Berlin] === END OF PAGE LOAD ===
+
+[05-Nov-2025 18:57:18 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 18:57:18 Europe/Berlin] Request method: GET
+[05-Nov-2025 18:57:18 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 18:57:18 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 18:57:18 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 18:57:18 Europe/Berlin] === END OF PAGE LOAD ===
+
+[05-Nov-2025 18:57:19 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 18:57:19 Europe/Berlin] Request method: GET
+[05-Nov-2025 18:57:19 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 18:57:19 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 18:57:19 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 18:57:19 Europe/Berlin] === END OF PAGE LOAD ===
+
+[05-Nov-2025 18:57:23 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 18:57:23 Europe/Berlin] Request method: GET
+[05-Nov-2025 18:57:23 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 18:57:23 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 18:57:23 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 18:57:23 Europe/Berlin] === END OF PAGE LOAD ===
+
+[05-Nov-2025 19:01:15 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 19:01:15 Europe/Berlin] Request method: GET
+[05-Nov-2025 19:01:15 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 19:01:15 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 19:01:15 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 19:01:15 Europe/Berlin] === END OF PAGE LOAD ===
+
+[05-Nov-2025 19:01:28 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 19:01:28 Europe/Berlin] Request method: POST
+[05-Nov-2025 19:01:28 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 19:01:28 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 19:01:28 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 19:01:28 Europe/Berlin] === FORM SUBMISSION ===
+[05-Nov-2025 19:01:28 Europe/Berlin] Login attempt for: testdoe
+[05-Nov-2025 19:01:28 Europe/Berlin] Remember me checked: No
+[05-Nov-2025 19:01:29 Europe/Berlin] === END OF PAGE LOAD ===
+
+[05-Nov-2025 19:01:46 Europe/Berlin] === PAGE LOAD ===
+[05-Nov-2025 19:01:46 Europe/Berlin] Request method: POST
+[05-Nov-2025 19:01:46 Europe/Berlin] Session user_id exists: No
+[05-Nov-2025 19:01:46 Europe/Berlin] Cookie remember_token exists: No
+[05-Nov-2025 19:01:46 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[05-Nov-2025 19:01:46 Europe/Berlin] === FORM SUBMISSION ===
+[05-Nov-2025 19:01:46 Europe/Berlin] Login attempt for: testdoe
+[05-Nov-2025 19:01:46 Europe/Berlin] Remember me checked: No
+[05-Nov-2025 19:01:47 Europe/Berlin] === END OF PAGE LOAD ===
+

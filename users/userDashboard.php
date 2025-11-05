@@ -53,71 +53,6 @@ $my_ticket_status_data = [];
 $my_ticket_priority_data = [];
 
 try {
-    // Get user's assets count (this one is fine)
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM assets WHERE assigned_to = ?");
-    $stmt->execute([$user_id]);
-    $stats['my_assets'] = $stmt->fetchColumn();
-
-    // Get user's asset status distribution (this one is fine)
-    $stmt = $pdo->prepare("SELECT status, COUNT(*) as count FROM assets WHERE assigned_to = ? GROUP BY status");
-    $stmt->execute([$user_id]);
-    $my_asset_status_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    // FIXED: Get total tickets created by user - using table alias for consistency
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets t WHERE t.requester_id = ?");
-    $stmt->execute([$user_id]);
-    $stats['total_tickets'] = $stmt->fetchColumn();
-
-    // FIXED: Get open tickets
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets t WHERE t.requester_id = ? AND t.status = 'open'");
-    $stmt->execute([$user_id]);
-    $stats['open_tickets'] = $stmt->fetchColumn();
-
-    // FIXED: Get in progress tickets
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets t WHERE t.requester_id = ? AND t.status = 'in_progress'");
-    $stmt->execute([$user_id]);
-    $stats['in_progress_tickets'] = $stmt->fetchColumn();
-
-    // FIXED: Get pending tickets
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets t WHERE t.requester_id = ? AND t.status = 'pending'");
-    $stmt->execute([$user_id]);
-    $stats['pending_tickets'] = $stmt->fetchColumn();
-
-    // FIXED: Get resolved tickets
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets t WHERE t.requester_id = ? AND t.status = 'resolved'");
-    $stmt->execute([$user_id]);
-    $stats['resolved_tickets'] = $stmt->fetchColumn();
-
-    // FIXED: Get urgent tickets
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets t WHERE t.requester_id = ? AND t.priority = 'urgent'");
-    $stmt->execute([$user_id]);
-    $stats['urgent_tickets'] = $stmt->fetchColumn();
-
-    // FIXED: Get ticket status distribution
-    $stmt = $pdo->prepare("SELECT t.status, COUNT(*) as count FROM tickets t WHERE t.requester_id = ? GROUP BY t.status");
-    $stmt->execute([$user_id]);
-    $my_ticket_status_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    // FIXED: Get ticket priority distribution
-    $stmt = $pdo->prepare("SELECT t.priority, COUNT(*) as count FROM tickets t WHERE t.requester_id = ? GROUP BY t.priority");
-    $stmt->execute([$user_id]);
-    $my_ticket_priority_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (PDOException $e) {
-    /** @var Exception $e */
-    error_log("Dashboard stats error: " . $e->getMessage());
-}
-//Get closed tickets count
-try {
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM tickets t WHERE t.requester_id = ? AND t.status = 'closed'");
-    $stmt->execute([$user_id]);
-    $stats['closed_tickets'] = $stmt->fetchColumn();
-} catch (PDOException $e) {
-    /** @var Exception $e */
-    error_log("Closed tickets error: " . $e->getMessage());
-    $stats['closed_tickets'] = 0;
-}
-
-try {
     // Get user's assets count
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM assets WHERE assigned_to = ?");
     $stmt->execute([$user_id]);
@@ -175,9 +110,7 @@ try {
     $stmt->execute([$user_id]);
     $my_ticket_priority_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
-    /** @var Exception $e */
     error_log("Dashboard stats error: " . $e->getMessage());
-    // Keep default values from initialization
 }
 
 // Fetch user's recent assets
@@ -193,7 +126,6 @@ try {
     $stmt->execute([$user_id]);
     $recent_assets = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
-    /** @var Exception $e */
     error_log("Recent assets error: " . $e->getMessage());
 }
 
@@ -216,7 +148,6 @@ try {
     $stmt->execute([$user_id]);
     $recent_tickets = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
-    /** @var Exception $e */
     error_log("Recent tickets error: " . $e->getMessage());
 }
 
@@ -229,8 +160,6 @@ $ticket_status_values = json_encode(array_column($my_ticket_status_data, 'count'
 
 $ticket_priority_labels = json_encode(array_column($my_ticket_priority_data, 'priority'));
 $ticket_priority_values = json_encode(array_column($my_ticket_priority_data, 'count'));
-
-
 ?>
 
 <!DOCTYPE html>
@@ -306,26 +235,110 @@ $ticket_priority_values = json_encode(array_column($my_ticket_priority_data, 'co
             margin-bottom: 30px;
         }
 
+        /* Enhanced Stat Cards with Colors */
         .stat-card {
             background: white;
             border-radius: 16px;
             padding: 28px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
             transition: all 0.3s;
-            border-left: 4px solid #7c3aed;
             cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            transition: all 0.3s;
+            opacity: 0.1;
         }
 
         .stat-card:hover {
             transform: translateY(-4px);
-            box-shadow: 0 8px 20px rgba(124, 58, 237, 0.15);
+        }
+
+        .stat-card:hover::before {
+            transform: scale(1.2);
+            opacity: 0.15;
+        }
+
+        /* Color variants */
+        .stat-card.stat-purple {
+            border-left: 4px solid #7c3aed;
+        }
+
+        .stat-card.stat-purple::before {
+            background: linear-gradient(135deg, #7c3aed, #6d28d9);
+        }
+
+        .stat-card.stat-purple:hover {
+            box-shadow: 0 8px 20px rgba(124, 58, 237, 0.2);
+        }
+
+        .stat-card.stat-purple .stat-icon {
+            color: #7c3aed;
+        }
+
+        .stat-card.stat-blue {
+            border-left: 4px solid #3b82f6;
+        }
+
+        .stat-card.stat-blue::before {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+        }
+
+        .stat-card.stat-blue:hover {
+            box-shadow: 0 8px 20px rgba(59, 130, 246, 0.2);
+        }
+
+        .stat-card.stat-blue .stat-icon {
+            color: #3b82f6;
+        }
+
+        .stat-card.stat-green {
+            border-left: 4px solid #10b981;
+        }
+
+        .stat-card.stat-green::before {
+            background: linear-gradient(135deg, #10b981, #059669);
+        }
+
+        .stat-card.stat-green:hover {
+            box-shadow: 0 8px 20px rgba(16, 185, 129, 0.2);
+        }
+
+        .stat-card.stat-green .stat-icon {
+            color: #10b981;
+        }
+
+        .stat-card.stat-red {
+            border-left: 4px solid #ef4444;
+        }
+
+        .stat-card.stat-red::before {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+        }
+
+        .stat-card.stat-red:hover {
+            box-shadow: 0 8px 20px rgba(239, 68, 68, 0.2);
+        }
+
+        .stat-card.stat-red .stat-icon {
+            color: #ef4444;
         }
 
         .stat-icon {
             font-size: 32px;
-            color: #7c3aed;
             margin-bottom: 16px;
             display: block;
+            position: relative;
+            z-index: 1;
         }
 
         .stat-number {
@@ -333,6 +346,8 @@ $ticket_priority_values = json_encode(array_column($my_ticket_priority_data, 'co
             font-weight: 700;
             color: #1a202c;
             margin-bottom: 8px;
+            position: relative;
+            z-index: 1;
         }
 
         .stat-label {
@@ -341,6 +356,8 @@ $ticket_priority_values = json_encode(array_column($my_ticket_priority_data, 'co
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.5px;
+            position: relative;
+            z-index: 1;
         }
 
         /* CTA Section */
@@ -465,45 +482,76 @@ $ticket_priority_values = json_encode(array_column($my_ticket_priority_data, 'co
             font-size: 14px;
         }
 
-        /* Asset List */
-        .asset-list {
-            list-style: none;
-            padding: 0;
-            margin: 0;
+        /* Table */
+        .table-container {
+            overflow-x: auto;
         }
 
-        .asset-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 20px 16px;
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table thead {
+            background: linear-gradient(135deg, #f7f4fe 0%, #ede9fe 100%);
+        }
+
+        .table thead th {
+            padding: 16px;
+            text-align: left;
+            font-weight: 700;
+            font-size: 13px;
+            color: #6d28d9;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .table tbody tr {
             border-bottom: 1px solid #e2e8f0;
             transition: all 0.2s;
         }
 
-        .asset-item:hover {
+        .table tbody tr:hover {
             background: #fafbfc;
         }
 
-        .asset-item:last-child {
-            border-bottom: none;
+        .table tbody td {
+            padding: 20px 16px;
+            font-size: 14px;
+            color: #2d3748;
         }
 
+        /* Asset Info */
         .asset-info {
-            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
 
-        .asset-info h4 {
+        .asset-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .asset-details h4 {
             font-size: 15px;
             font-weight: 600;
             color: #1a202c;
-            margin-bottom: 6px;
+            margin-bottom: 2px;
         }
 
-        .asset-info p {
-            color: #718096;
+        .asset-details p {
             font-size: 13px;
-            margin: 0;
+            color: #718096;
         }
 
         /* Ticket List */
@@ -830,6 +878,15 @@ $ticket_priority_values = json_encode(array_column($my_ticket_priority_data, 'co
                 width: 100%;
                 justify-content: center;
             }
+
+            .table-container {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .table {
+                min-width: 800px;
+            }
         }
     </style>
     <link rel="stylesheet" href="../auth/inc/navigation.css">
@@ -846,25 +903,25 @@ $ticket_priority_values = json_encode(array_column($my_ticket_priority_data, 'co
 
         <!-- Statistics -->
         <div class="stats-grid">
-            <div class="stat-card" onclick="window.location.href='../public/asset.php'">
+            <div class="stat-card stat-purple" onclick="window.location.href='../public/asset.php'">
                 <i class="fas fa-boxes stat-icon"></i>
                 <div class="stat-number"><?php echo $stats['my_assets']; ?></div>
                 <div class="stat-label">My Assets</div>
             </div>
 
-            <div class="stat-card" onclick="window.location.href='../public/tickets.php'">
+            <div class="stat-card stat-blue" onclick="window.location.href='../public/tickets.php'">
                 <i class="fas fa-ticket-alt stat-icon"></i>
                 <div class="stat-number"><?php echo $stats['total_tickets']; ?></div>
                 <div class="stat-label">Total Tickets</div>
             </div>
 
-            <div class="stat-card" onclick="window.location.href='../public/tickets.php?filter=open'">
+            <div class="stat-card stat-green" onclick="window.location.href='../public/tickets.php?filter=open'">
                 <i class="fas fa-folder-open stat-icon"></i>
                 <div class="stat-number"><?php echo $stats['open_tickets']; ?></div>
                 <div class="stat-label">Open Tickets</div>
             </div>
 
-            <div class="stat-card" onclick="window.location.href='../public/tickets.php?filter=urgent'">
+            <div class="stat-card stat-red" onclick="window.location.href='../public/tickets.php?filter=urgent'">
                 <i class="fas fa-exclamation-circle stat-icon"></i>
                 <div class="stat-number"><?php echo $stats['urgent_tickets']; ?></div>
                 <div class="stat-label">Urgent Tickets</div>
@@ -927,19 +984,42 @@ $ticket_priority_values = json_encode(array_column($my_ticket_priority_data, 'co
             </div>
 
             <?php if (count($recent_assets) > 0): ?>
-                <ul class="asset-list">
-                    <?php foreach ($recent_assets as $asset): ?>
-                        <li class="asset-item">
-                            <div class="asset-info">
-                                <h4><?php echo htmlspecialchars($asset['asset_name']); ?></h4>
-                                <p><?php echo htmlspecialchars($asset['asset_code']); ?> • <?php echo htmlspecialchars($asset['category']); ?></p>
-                            </div>
-                            <span class="status-badge status-<?php echo strtolower(str_replace(' ', '-', $asset['status'])); ?>">
-                                <?php echo htmlspecialchars($asset['status']); ?>
-                            </span>
-                        </li>
-                    <?php endforeach; ?>
-                </ul>
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Asset</th>
+                                <th>Category</th>
+                                <th>Status</th>
+                                <th>Added On</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($recent_assets as $asset): ?>
+                                <tr>
+                                    <td>
+                                        <div class="asset-info">
+                                            <div class="asset-icon">
+                                                <i class="fas fa-box"></i>
+                                            </div>
+                                            <div class="asset-details">
+                                                <h4><?php echo htmlspecialchars($asset['asset_name']); ?></h4>
+                                                <p><?php echo htmlspecialchars($asset['asset_code']); ?></p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td><?php echo htmlspecialchars($asset['category']); ?></td>
+                                    <td>
+                                        <span class="status-badge status-<?php echo strtolower(str_replace(' ', '-', $asset['status'])); ?>">
+                                            <?php echo htmlspecialchars($asset['status']); ?>
+                                        </span>
+                                    </td>
+                                    <td><?php echo date('M j, Y', strtotime($asset['created_at'])); ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
                 <div class="quick-actions">
                     <a href="../public/asset.php" class="btn btn-primary">
                         <i class="fas fa-arrow-right"></i> View All My Assets
@@ -1109,7 +1189,13 @@ $ticket_priority_values = json_encode(array_column($my_ticket_priority_data, 'co
             'In Use': '#3b82f6',
             'Maintenance': '#f59e0b',
             'Retired': '#6b7280',
-            'Damaged': '#ef4444'
+            'Damaged': '#ef4444',
+            'available': '#10b981',
+            'in_use': '#3b82f6',
+            'in use': '#3b82f6',
+            'maintenance': '#f59e0b',
+            'retired': '#6b7280',
+            'damaged': '#ef4444'
         };
 
         const ticketStatusColors = {

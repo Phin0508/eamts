@@ -791,7 +791,7 @@ function buildPaginationUrl($page, $per_page) {
                 <p>Manage and track all support tickets</p>
             </div>
              <a href="create_ticket.php" class="btn btn-secondary">
-                 Create Ticket
+                 <i class="fas fa-plus"></i>Create Ticket
             </a>
             <a href="ticketHistory.php" class="btn btn-secondary">
                 <i class="fas fa-history"></i> Ticket History
@@ -1092,7 +1092,7 @@ function buildPaginationUrl($page, $per_page) {
             }
         });
 
-        // Table row click functionality (optional enhancement)
+        // Table row click functionality 
         document.addEventListener('DOMContentLoaded', function() {
             const tableRows = document.querySelectorAll('.table tbody tr');
             tableRows.forEach(row => {

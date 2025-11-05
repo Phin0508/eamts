@@ -3,8 +3,6 @@ session_start();
 require_once '../auth/config/database.php';
 require_once '../auth/helpers/EmailHelper.php';
 
-// Explicitly declare Exception class for IDE
-use Exception;
 
 // ============= VERIFY EMAIL HELPER - ADD THIS RIGHT AFTER REQUIRES =============
 if (!class_exists('EmailHelper')) {

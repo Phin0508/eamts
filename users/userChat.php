@@ -914,424 +914,534 @@ try {
         </div>
     </div>
 
-    <script>
-        // PHP template variables - replace these in your actual file
-        // const currentUserId = <?php echo $user_id; ?>;
-        // const currentUserName = "<?php echo htmlspecialchars($user_name); ?>";
+    // Place this BEFORE the closing </body> tag
+<script>
+    // PHP variables - MUST be at the top
+    const currentUserId = <?php echo json_encode($user_id); ?>;
+    const currentUserName = <?php echo json_encode($user_name); ?>;
+    
+    console.log('%c=== USER CHAT INITIALIZATION ===', 'background: #7c3aed; color: white; padding: 10px; font-weight: bold; font-size: 14px;');
+    console.log('🔑 Current User ID:', currentUserId, '(Type:', typeof currentUserId + ')');
+    console.log('👤 Current User Name:', currentUserName);
+    console.log('✅ Variables loaded successfully');
+    
+    // Update debug panel immediately
+    if (document.getElementById('jsUserId')) {
+        document.getElementById('jsUserId').textContent = currentUserId;
+    }
+    
+    // Validate user ID
+    if (!currentUserId || currentUserId === 0 || currentUserId === '0') {
+        console.error('❌ CRITICAL: Invalid user ID');
+        alert('Session error: Invalid user ID. Please log in again.');
+        if (document.getElementById('apiStatus')) {
+            document.getElementById('apiStatus').textContent = '❌ Invalid ID';
+            document.getElementById('apiStatus').style.color = '#ef4444';
+        }
+    } else {
+        console.log('✅ User ID validated');
+    }
 
-        let activeConversationId = null;
-        let activeUserId = null;
-        let messagePolling = null;
-        let statusPolling = null;
-        let allUsers = [];
-        let lastMessageId = 0; // Track the last message ID
+    let activeConversationId = null;
+    let activeUserId = null;
+    let messagePolling = null;
+    let statusPolling = null;
+    let allUsers = [];
+    let lastMessageId = 0;
 
-        // Initialize
-        document.addEventListener('DOMContentLoaded', function() {
+    // Enhanced loadUsers with better error handling
+    async function loadUsers() {
+        console.log('📡 Starting loadUsers()...');
+        
+        try {
+            const apiUrl = '../api/chat_get_users.php';
+            console.log('🌐 Fetching from:', apiUrl);
+            
+            if (document.getElementById('apiStatus')) {
+                document.getElementById('apiStatus').textContent = '⏳ Loading...';
+                document.getElementById('apiStatus').style.color = '#f59e0b';
+            }
+            
+            const response = await fetch(apiUrl, {
+                method: 'GET',
+                credentials: 'same-origin',
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+            
+            console.log('📬 Response received:', {
+                status: response.status,
+                statusText: response.statusText,
+                ok: response.ok,
+                headers: Object.fromEntries([...response.headers.entries()])
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('❌ HTTP Error Response:', errorText);
+                
+                if (document.getElementById('apiStatus')) {
+                    document.getElementById('apiStatus').textContent = `❌ HTTP ${response.status}`;
+                    document.getElementById('apiStatus').style.color = '#ef4444';
+                }
+                
+                throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 100)}`);
+            }
+
+            const contentType = response.headers.get('content-type');
+            console.log('📄 Content-Type:', contentType);
+            
+            const responseText = await response.text();
+            console.log('📝 Raw Response:', responseText.substring(0, 500));
+            
+            let users;
+            try {
+                users = JSON.parse(responseText);
+            } catch (parseError) {
+                console.error('❌ JSON Parse Error:', parseError);
+                console.error('🔍 Response Text:', responseText);
+                
+                if (document.getElementById('apiStatus')) {
+                    document.getElementById('apiStatus').textContent = '❌ Invalid JSON';
+                    document.getElementById('apiStatus').style.color = '#ef4444';
+                }
+                
+                throw new Error('Invalid JSON: ' + parseError.message);
+            }
+            
+            console.log('✅ Users parsed successfully:', users);
+            console.log('📊 Total users:', users.length);
+            
+            if (users.error) {
+                console.error('❌ API returned error:', users.error);
+                throw new Error(users.error + (users.message ? ': ' + users.message : ''));
+            }
+            
+            if (document.getElementById('apiStatus')) {
+                document.getElementById('apiStatus').textContent = '✅ Connected';
+                document.getElementById('apiStatus').style.color = '#10b981';
+            }
+            
+            if (document.getElementById('usersCount')) {
+                document.getElementById('usersCount').textContent = users.length;
+            }
+            
+            allUsers = users;
+            displayUsers(users);
+            
+            console.log('✅ Users displayed successfully');
+            
+        } catch (error) {
+            console.error('❌ LoadUsers Error:', error);
+            console.error('📚 Stack:', error.stack);
+            
+            if (document.getElementById('apiStatus')) {
+                document.getElementById('apiStatus').textContent = '❌ Failed';
+                document.getElementById('apiStatus').style.color = '#ef4444';
+            }
+            
+            const usersList = document.getElementById('usersList');
+            if (usersList) {
+                usersList.innerHTML = `
+                    <div class="no-users-state">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <p>Could not load users</p>
+                        <p style="font-size: 12px; margin-top: 10px; color: #ef4444; max-width: 300px;">
+                            ${error.message}
+                        </p>
+                        <button onclick="loadUsers()" style="margin-top: 15px; padding: 10px 20px; background: #7c3aed; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">
+                            🔄 Retry Loading
+                        </button>
+                    </div>
+                `;
+            }
+        }
+    }
+
+    function displayUsers(users) {
+        console.log('🎨 Displaying', users.length, 'users');
+        
+        const usersList = document.getElementById('usersList');
+        if (!usersList) {
+            console.error('❌ usersList element not found!');
+            return;
+        }
+
+        if (users.length === 0) {
+            usersList.innerHTML = `
+                <div class="no-users-state">
+                    <i class="fas fa-users"></i>
+                    <p>No colleagues available</p>
+                </div>
+            `;
+            return;
+        }
+
+        usersList.innerHTML = users.map(user => `
+            <div class="user-item" data-status="${user.status}" onclick="openChat(${user.user_id}, '${escapeHtml(user.name)}', '${user.status}')">
+                <div class="user-avatar">
+                    <div class="avatar">${user.initials}</div>
+                    <span class="status-indicator status-${user.status}"></span>
+                </div>
+                <div class="user-info">
+                    <h4>${escapeHtml(user.name)}</h4>
+                    <p>
+                        <i class="fas fa-building"></i>
+                        ${escapeHtml(user.department)} • ${escapeHtml(user.role)}
+                    </p>
+                </div>
+                ${user.unread > 0 ? `<span class="unread-badge">${user.unread}</span>` : ''}
+            </div>
+        `).join('');
+        
+        console.log('✅ Users rendered to DOM');
+    }
+
+    function filterUsers(searchTerm = '', statusFilter = 'all') {
+        if (!statusFilter) {
+            const activeTab = document.querySelector('.filter-tab.active');
+            statusFilter = activeTab ? activeTab.dataset.filter : 'all';
+        }
+
+        let filtered = allUsers;
+
+        if (searchTerm) {
+            filtered = filtered.filter(user =>
+                user.name.toLowerCase().includes(searchTerm) ||
+                user.department.toLowerCase().includes(searchTerm) ||
+                user.role.toLowerCase().includes(searchTerm)
+            );
+        }
+
+        if (statusFilter === 'online') {
+            filtered = filtered.filter(user => user.status === 'online');
+        }
+
+        displayUsers(filtered);
+    }
+
+    async function openChat(userId, userName, status) {
+        console.log('💬 Opening chat with:', userName, '(ID:', userId + ')');
+        
+        activeUserId = userId;
+        lastMessageId = 0;
+
+        document.getElementById('emptyState').style.display = 'none';
+        document.getElementById('chatArea').style.display = 'flex';
+
+        const initials = userName.split(' ').map(n => n[0]).join('');
+        document.getElementById('headerAvatar').textContent = initials;
+        document.getElementById('headerName').textContent = userName;
+        document.getElementById('headerStatus').className = `status-indicator status-${status}`;
+        document.getElementById('headerStatusDot').className = `status-dot ${status}`;
+        document.getElementById('headerStatusLabel').textContent = getStatusText(status);
+
+        document.querySelectorAll('.user-item').forEach(item => item.classList.remove('active'));
+        event.currentTarget.classList.add('active');
+
+        if (window.innerWidth <= 768) {
+            document.getElementById('chatSidebar').classList.remove('mobile-active');
+            document.getElementById('backBtn').style.display = 'flex';
+        }
+
+        await getOrCreateConversation(userId);
+        await loadMessages(true);
+
+        if (messagePolling) clearInterval(messagePolling);
+        messagePolling = setInterval(() => loadMessages(false), 2000);
+    }
+
+    async function getOrCreateConversation(userId) {
+        try {
+            const formData = new FormData();
+            formData.append('user_id', userId);
+
+            const response = await fetch('../api/chat_get_conversation.php', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            activeConversationId = data.conversation_id;
+        } catch (error) {
+            console.error('Error getting conversation:', error);
+        }
+    }
+
+    async function loadMessages(fullReload = false) {
+        if (!activeConversationId) return;
+
+        try {
+            const url = fullReload ?
+                `../api/chat_get_messages.php?conversation_id=${activeConversationId}` :
+                `../api/chat_get_messages.php?conversation_id=${activeConversationId}&after_id=${lastMessageId}`;
+
+            const response = await fetch(url);
+            const messages = await response.json();
+
+            if (messages.length === 0 && !fullReload) return;
+
+            const messagesArea = document.getElementById('messagesArea');
+            const shouldScroll = messagesArea.scrollHeight - messagesArea.scrollTop <= messagesArea.clientHeight + 100;
+
+            if (fullReload) {
+                messagesArea.innerHTML = messages.map(msg => createMessageHTML(msg)).join('');
+                messagesArea.scrollTop = messagesArea.scrollHeight;
+            } else {
+                messages.forEach(msg => {
+                    const messageHTML = createMessageHTML(msg);
+                    messagesArea.insertAdjacentHTML('beforeend', messageHTML);
+                });
+
+                if (shouldScroll) {
+                    messagesArea.scrollTop = messagesArea.scrollHeight;
+                }
+
+                if (messages.length > 0) {
+                    const lastMsg = messages[messages.length - 1];
+                    if (lastMsg.sender_id != currentUserId) {
+                        document.title = '(1) New Message - Chat';
+                        setTimeout(() => {
+                            document.title = 'Chat - E-Asset Management System';
+                        }, 3000);
+                    }
+                }
+            }
+
+            if (messages.length > 0) {
+                lastMessageId = messages[messages.length - 1].message_id;
+            }
+        } catch (error) {
+            console.error('Error loading messages:', error);
+        }
+    }
+
+    function createMessageHTML(msg) {
+        const isSent = msg.sender_id == currentUserId;
+        const initials = msg.sender_name.split(' ').map(n => n[0]).join('');
+
+        return `
+            <div class="message ${isSent ? 'sent' : 'received'}" data-message-id="${msg.message_id}">
+                ${!isSent ? `
+                    <div class="message-avatar">
+                        <div class="avatar">${initials}</div>
+                    </div>
+                ` : ''}
+                <div class="message-content">
+                    <div class="message-bubble">${escapeHtml(msg.message)}</div>
+                    <div class="message-time">
+                        <i class="fas fa-clock"></i>
+                        ${formatTime(msg.created_at)}
+                        ${isSent ? '<i class="fas fa-check-double" style="color: #10b981;"></i>' : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    async function sendMessage() {
+        const input = document.getElementById('messageInput');
+        const message = input.value.trim();
+
+        if (!message || !activeConversationId) return;
+
+        const sendBtn = document.getElementById('sendBtn');
+        sendBtn.disabled = true;
+
+        try {
+            const formData = new FormData();
+            formData.append('conversation_id', activeConversationId);
+            formData.append('message', message);
+
+            const response = await fetch('../api/chat_send_message.php', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (response.ok) {
+                input.value = '';
+                input.style.height = 'auto';
+                await loadMessages(false);
+                loadUsers();
+            }
+        } catch (error) {
+            console.error('Error sending message:', error);
+        } finally {
+            sendBtn.disabled = false;
+            input.focus();
+        }
+    }
+
+    function setupEventListeners() {
+        console.log('🎯 Setting up event listeners...');
+        
+        document.getElementById('sendBtn').addEventListener('click', sendMessage);
+        document.getElementById('messageInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        document.getElementById('messageInput').addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+        });
+
+        document.getElementById('searchUsers').addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            filterUsers(searchTerm);
+        });
+
+        document.querySelectorAll('.filter-tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+
+                const filter = this.dataset.filter;
+                const searchTerm = document.getElementById('searchUsers').value.toLowerCase();
+                filterUsers(searchTerm, filter);
+            });
+        });
+
+        document.getElementById('backBtn').addEventListener('click', function() {
+            document.getElementById('chatSidebar').classList.add('mobile-active');
+        });
+
+        window.addEventListener('beforeunload', function() {
+            updateUserStatus('offline');
+        });
+        
+        console.log('✅ Event listeners setup complete');
+    }
+
+    function startStatusPolling() {
+        updateUserStatus('online');
+        statusPolling = setInterval(() => {
+            updateUserStatus('online');
+            loadUsers();
+        }, 30000);
+    }
+
+    async function updateUserStatus(status) {
+        try {
+            const formData = new FormData();
+            formData.append('status', status);
+            await fetch('../api/chat_update_status.php', {
+                method: 'POST',
+                body: formData
+            });
+        } catch (error) {
+            console.error('Error updating status:', error);
+        }
+    }
+
+    function updateMainContainer() {
+        const mainContainer = document.getElementById('mainContainer');
+        const sidebar = document.querySelector('.sidebar');
+
+        if (sidebar && sidebar.classList.contains('collapsed')) {
+            mainContainer.classList.add('sidebar-collapsed');
+        } else {
+            mainContainer.classList.remove('sidebar-collapsed');
+        }
+    }
+
+    function getStatusText(status) {
+        const texts = {
+            'online': 'Online',
+            'away': 'Away',
+            'busy': 'Busy',
+            'offline': 'Offline'
+        };
+        return texts[status] || 'Unknown';
+    }
+
+    function formatTime(timestamp) {
+        const date = new Date(timestamp);
+        const now = new Date();
+        const diff = now - date;
+
+        if (diff < 60000) return 'Just now';
+        if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+        if (diff < 86400000) return date.toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit'
+        });
+
+        const yesterday = new Date(now);
+        yesterday.setDate(yesterday.getDate() - 1);
+        if (date.toDateString() === yesterday.toDateString()) {
+            return 'Yesterday ' + date.toLocaleTimeString('en-US', {
+                hour: 'numeric',
+                minute: '2-digit'
+            });
+        }
+
+        return date.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric'
+            }) + ' ' +
+            date.toLocaleTimeString('en-US', {
+                hour: 'numeric',
+                minute: '2-digit'
+            });
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML.replace(/\n/g, '<br>');
+    }
+
+    // Initialize everything
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('🚀 DOM Content Loaded - Initializing chat...');
+        
+        try {
             loadUsers();
             startStatusPolling();
             setupEventListeners();
             updateMainContainer();
-        });
+            
+            // Listen for sidebar changes
+            document.addEventListener('click', function(e) {
+                if (e.target.closest('.toggle-sidebar') || e.target.closest('.toggle-btn')) {
+                    setTimeout(updateMainContainer, 50);
+                }
+            });
 
-        function updateMainContainer() {
-            const mainContainer = document.getElementById('mainContainer');
+            // Observe sidebar changes
+            const observer = new MutationObserver(updateMainContainer);
             const sidebar = document.querySelector('.sidebar');
-
-            if (sidebar && sidebar.classList.contains('collapsed')) {
-                mainContainer.classList.add('sidebar-collapsed');
-            } else {
-                mainContainer.classList.remove('sidebar-collapsed');
-            }
-        }
-
-        // Listen for sidebar changes
-        document.addEventListener('click', function(e) {
-            if (e.target.closest('.toggle-sidebar') || e.target.closest('.toggle-btn')) {
-                setTimeout(updateMainContainer, 50);
-            }
-        });
-
-        // Observe sidebar changes
-        const observer = new MutationObserver(updateMainContainer);
-        const sidebar = document.querySelector('.sidebar');
-        if (sidebar) {
-            observer.observe(sidebar, {
-                attributes: true,
-                attributeFilter: ['class']
-            });
-        }
-
-        function setupEventListeners() {
-            // Send message
-            document.getElementById('sendBtn').addEventListener('click', sendMessage);
-            document.getElementById('messageInput').addEventListener('keypress', function(e) {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage();
-                }
-            });
-
-            // Auto-resize textarea
-            document.getElementById('messageInput').addEventListener('input', function() {
-                this.style.height = 'auto';
-                this.style.height = Math.min(this.scrollHeight, 120) + 'px';
-            });
-
-            // Search users
-            document.getElementById('searchUsers').addEventListener('input', function() {
-                const searchTerm = this.value.toLowerCase();
-                filterUsers(searchTerm);
-            });
-
-            // Filter tabs
-            document.querySelectorAll('.filter-tab').forEach(tab => {
-                tab.addEventListener('click', function() {
-                    document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
-                    this.classList.add('active');
-
-                    const filter = this.dataset.filter;
-                    const searchTerm = document.getElementById('searchUsers').value.toLowerCase();
-                    filterUsers(searchTerm, filter);
-                });
-            });
-
-            // Back button for mobile
-            document.getElementById('backBtn').addEventListener('click', function() {
-                document.getElementById('chatSidebar').classList.add('mobile-active');
-            });
-
-            // Update status before leaving
-            window.addEventListener('beforeunload', function() {
-                updateUserStatus('offline');
-            });
-        }
-
-        async function loadUsers() {
-            try {
-                console.log('Loading users...');
-                const response = await fetch('../api/chat_get_users.php');
-                console.log('Response status:', response.status);
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                const users = await response.json();
-                console.log('Users loaded:', users);
-                allUsers = users;
-
-                displayUsers(users);
-            } catch (error) {
-                console.error('Error loading users:', error);
-                document.getElementById('usersList').innerHTML = `
-            <div class="no-users-state">
-                <i class="fas fa-exclamation-circle"></i>
-                <p>Could not load users</p>
-                <p style="font-size: 12px; margin-top: 10px;">Error: ${error.message}</p>
-            </div>
-        `;
-            }
-        }
-
-        function displayUsers(users) {
-            const usersList = document.getElementById('usersList');
-
-            if (users.length === 0) {
-                usersList.innerHTML = `
-            <div class="no-users-state">
-                <i class="fas fa-users"></i>
-                <p>No colleagues available</p>
-            </div>
-        `;
-                return;
-            }
-
-            usersList.innerHTML = users.map(user => `
-        <div class="user-item" data-status="${user.status}" onclick="openChat(${user.user_id}, '${escapeHtml(user.name)}', '${user.status}')">
-            <div class="user-avatar">
-                <div class="avatar">${user.initials}</div>
-                <span class="status-indicator status-${user.status}"></span>
-            </div>
-            <div class="user-info">
-                <h4>${escapeHtml(user.name)}</h4>
-                <p>
-                    <i class="fas fa-building"></i>
-                    ${escapeHtml(user.department)} • ${escapeHtml(user.role)}
-                </p>
-            </div>
-            ${user.unread > 0 ? `<span class="unread-badge">${user.unread}</span>` : ''}
-        </div>
-    `).join('');
-        }
-
-        function filterUsers(searchTerm = '', statusFilter = 'all') {
-            // Get current active filter if not provided
-            if (!statusFilter) {
-                const activeTab = document.querySelector('.filter-tab.active');
-                statusFilter = activeTab ? activeTab.dataset.filter : 'all';
-            }
-
-            let filtered = allUsers;
-
-            // Apply search filter
-            if (searchTerm) {
-                filtered = filtered.filter(user =>
-                    user.name.toLowerCase().includes(searchTerm) ||
-                    user.department.toLowerCase().includes(searchTerm) ||
-                    user.role.toLowerCase().includes(searchTerm)
-                );
-            }
-
-            // Apply status filter
-            if (statusFilter === 'online') {
-                filtered = filtered.filter(user => user.status === 'online');
-            }
-
-            displayUsers(filtered);
-        }
-
-        async function openChat(userId, userName, status) {
-            activeUserId = userId;
-            lastMessageId = 0; // Reset for new conversation
-
-            // Update UI
-            document.getElementById('emptyState').style.display = 'none';
-            document.getElementById('chatArea').style.display = 'flex';
-
-            // Update header
-            const initials = userName.split(' ').map(n => n[0]).join('');
-            document.getElementById('headerAvatar').textContent = initials;
-            document.getElementById('headerName').textContent = userName;
-            document.getElementById('headerStatus').className = `status-indicator status-${status}`;
-            document.getElementById('headerStatusDot').className = `status-dot ${status}`;
-            document.getElementById('headerStatusLabel').textContent = getStatusText(status);
-
-            // Mark user as active
-            document.querySelectorAll('.user-item').forEach(item => item.classList.remove('active'));
-            event.currentTarget.classList.add('active');
-
-            // Mobile view
-            if (window.innerWidth <= 768) {
-                document.getElementById('chatSidebar').classList.remove('mobile-active');
-                document.getElementById('backBtn').style.display = 'flex';
-            }
-
-            // Get or create conversation
-            await getOrCreateConversation(userId);
-
-            // Load all messages initially
-            await loadMessages(true);
-
-            // Start polling for new messages only
-            if (messagePolling) clearInterval(messagePolling);
-            messagePolling = setInterval(() => loadMessages(false), 2000);
-        }
-
-        async function getOrCreateConversation(userId) {
-            try {
-                const formData = new FormData();
-                formData.append('user_id', userId);
-
-                const response = await fetch('../api/chat_get_conversation.php', {
-                    method: 'POST',
-                    body: formData
-                });
-                const data = await response.json();
-                activeConversationId = data.conversation_id;
-            } catch (error) {
-                console.error('Error getting conversation:', error);
-            }
-        }
-
-        async function loadMessages(fullReload = false) {
-            if (!activeConversationId) return;
-
-            try {
-                // Build URL based on whether it's a full reload or incremental update
-                const url = fullReload ?
-                    `../api/chat_get_messages.php?conversation_id=${activeConversationId}` :
-                    `../api/chat_get_messages.php?conversation_id=${activeConversationId}&after_id=${lastMessageId}`;
-
-                const response = await fetch(url);
-                const messages = await response.json();
-
-                // If no new messages and not a full reload, just return
-                if (messages.length === 0 && !fullReload) return;
-
-                const messagesArea = document.getElementById('messagesArea');
-                const shouldScroll = messagesArea.scrollHeight - messagesArea.scrollTop <= messagesArea.clientHeight + 100;
-
-                if (fullReload) {
-                    // Full reload - replace all messages
-                    messagesArea.innerHTML = messages.map(msg => createMessageHTML(msg)).join('');
-                    messagesArea.scrollTop = messagesArea.scrollHeight;
-                } else {
-                    // Append only new messages
-                    messages.forEach(msg => {
-                        const messageHTML = createMessageHTML(msg);
-                        messagesArea.insertAdjacentHTML('beforeend', messageHTML);
-                    });
-
-                    // Auto-scroll if user was near bottom
-                    if (shouldScroll) {
-                        messagesArea.scrollTop = messagesArea.scrollHeight;
-                    }
-
-                    // Show notification for new messages from others
-                    if (messages.length > 0) {
-                        const lastMsg = messages[messages.length - 1];
-                        if (lastMsg.sender_id != currentUserId) {
-                            document.title = '(1) New Message - Chat';
-                            setTimeout(() => {
-                                document.title = 'Chat - E-Asset Management System';
-                            }, 3000);
-                        }
-                    }
-                }
-
-                // Update last message ID
-                if (messages.length > 0) {
-                    lastMessageId = messages[messages.length - 1].message_id;
-                }
-            } catch (error) {
-                console.error('Error loading messages:', error);
-            }
-        }
-
-        function createMessageHTML(msg) {
-            const isSent = msg.sender_id == currentUserId;
-            const initials = msg.sender_name.split(' ').map(n => n[0]).join('');
-
-            return `
-        <div class="message ${isSent ? 'sent' : 'received'}" data-message-id="${msg.message_id}">
-            ${!isSent ? `
-                <div class="message-avatar">
-                    <div class="avatar">${initials}</div>
-                </div>
-            ` : ''}
-            <div class="message-content">
-                <div class="message-bubble">${escapeHtml(msg.message)}</div>
-                <div class="message-time">
-                    <i class="fas fa-clock"></i>
-                    ${formatTime(msg.created_at)}
-                    ${isSent ? '<i class="fas fa-check-double" style="color: #10b981;"></i>' : ''}
-                </div>
-            </div>
-        </div>
-    `;
-        }
-
-        async function sendMessage() {
-            const input = document.getElementById('messageInput');
-            const message = input.value.trim();
-
-            if (!message || !activeConversationId) return;
-
-            // Disable send button
-            const sendBtn = document.getElementById('sendBtn');
-            sendBtn.disabled = true;
-
-            try {
-                const formData = new FormData();
-                formData.append('conversation_id', activeConversationId);
-                formData.append('message', message);
-
-                const response = await fetch('../api/chat_send_message.php', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                if (response.ok) {
-                    input.value = '';
-                    input.style.height = 'auto';
-
-                    // Immediately load new messages
-                    await loadMessages(false);
-                    loadUsers(); // Refresh user list to update unread counts
-                }
-            } catch (error) {
-                console.error('Error sending message:', error);
-            } finally {
-                sendBtn.disabled = false;
-                input.focus();
-            }
-        }
-
-        function startStatusPolling() {
-            updateUserStatus('online');
-            statusPolling = setInterval(() => {
-                updateUserStatus('online');
-                loadUsers();
-            }, 30000); // Update every 30 seconds
-        }
-
-        async function updateUserStatus(status) {
-            try {
-                const formData = new FormData();
-                formData.append('status', status);
-                await fetch('../api/chat_update_status.php', {
-                    method: 'POST',
-                    body: formData
-                });
-            } catch (error) {
-                console.error('Error updating status:', error);
-            }
-        }
-
-        function getStatusText(status) {
-            const texts = {
-                'online': 'Online',
-                'away': 'Away',
-                'busy': 'Busy',
-                'offline': 'Offline'
-            };
-            return texts[status] || 'Unknown';
-        }
-
-        function formatTime(timestamp) {
-            const date = new Date(timestamp);
-            const now = new Date();
-            const diff = now - date;
-
-            if (diff < 60000) return 'Just now';
-            if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
-            if (diff < 86400000) return date.toLocaleTimeString('en-US', {
-                hour: 'numeric',
-                minute: '2-digit'
-            });
-
-            const yesterday = new Date(now);
-            yesterday.setDate(yesterday.getDate() - 1);
-            if (date.toDateString() === yesterday.toDateString()) {
-                return 'Yesterday ' + date.toLocaleTimeString('en-US', {
-                    hour: 'numeric',
-                    minute: '2-digit'
+            if (sidebar) {
+                observer.observe(sidebar, {
+                    attributes: true,
+                    attributeFilter: ['class']
                 });
             }
-
-            return date.toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric'
-                }) + ' ' +
-                date.toLocaleTimeString('en-US', {
-                    hour: 'numeric',
-                    minute: '2-digit'
-                });
+            
+            console.log('✅✅✅ Chat fully initialized!');
+        } catch (error) {
+            console.error('❌ Initialization error:', error);
         }
+    });
 
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML.replace(/\n/g, '<br>');
-        }
-
-        // Cleanup on page unload
-        window.addEventListener('beforeunload', () => {
-            if (messagePolling) clearInterval(messagePolling);
-            if (statusPolling) clearInterval(statusPolling);
-        });
-    </script>
+    // Cleanup
+    window.addEventListener('beforeunload', () => {
+        if (messagePolling) clearInterval(messagePolling);
+        if (statusPolling) clearInterval(statusPolling);
+    });
+    
+    // Global error handlers
+    window.addEventListener('error', function(e) {
+        console.error('💥 Global Error:', e.error);
+    });
+    
+    window.addEventListener('unhandledrejection', function(e) {
+        console.error('💥 Unhandled Promise Rejection:', e.reason);
+    });
+</script>
 </body>
 
 </html>
