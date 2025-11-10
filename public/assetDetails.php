@@ -74,8 +74,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_recurring'])) {
         $stmt = $pdo->prepare("INSERT INTO recurring_maintenance (asset_id, schedule_name, maintenance_type, frequency_days, 
         start_date, next_due_date, assigned_to, notify_days_before, is_active, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
 
-        if ($stmt->execute([$asset_id, $schedule_name, $maintenance_type, $frequency_days, $start_date, $next_due_date, $assigned_to,
-         $notify_days_before, $is_active, $_SESSION['user_id']])) {
+        if ($stmt->execute([
+            $asset_id,
+            $schedule_name,
+            $maintenance_type,
+            $frequency_days,
+            $start_date,
+            $next_due_date,
+            $assigned_to,
+            $notify_days_before,
+            $is_active,
+            $_SESSION['user_id']
+        ])) {
             $success_message = "Recurring maintenance schedule created successfully!";
         } else {
             $error_message = "Error creating recurring maintenance schedule.";
@@ -86,8 +96,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_recurring'])) {
 }
 
 // Update Recurring Maintenance Status
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recurring_id']) && isset($_POST['is_active']) 
-    && !isset($_POST['complete_recurring']) && !isset($_POST['add_maintenance']) && !isset($_POST['add_recurring'])) {
+if (
+    $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recurring_id']) && isset($_POST['is_active'])
+    && !isset($_POST['complete_recurring']) && !isset($_POST['add_maintenance']) && !isset($_POST['add_recurring'])
+) {
     $recurring_id = intval($_POST['recurring_id']);
     $is_active = intval($_POST['is_active']);
 
@@ -126,6 +138,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complete_recurring'])
             $update_stmt->execute([$next_due, $recurring_id]);
 
             $success_message = "Maintenance completed and schedule updated!";
+        }
+    } catch (PDOException $e) {
+        $error_message = "Database error: " . $e->getMessage();
+    }
+}
+// Delete Recurring Maintenance Schedule
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_recurring'])) {
+    $recurring_id = intval($_POST['recurring_id']);
+
+    try {
+        $stmt = $pdo->prepare("DELETE FROM recurring_maintenance WHERE id = ? AND asset_id = ?");
+        if ($stmt->execute([$recurring_id, $asset_id])) {
+            $success_message = "Recurring maintenance schedule deleted successfully!";
+        } else {
+            $error_message = "Error deleting recurring maintenance schedule.";
         }
     } catch (PDOException $e) {
         $error_message = "Database error: " . $e->getMessage();
@@ -213,7 +240,10 @@ try {
 // Get all users for assignment dropdown
 $users = [];
 try {
-    $users_query = "SELECT user_id, username, first_name, last_name, email FROM users ORDER BY first_name, last_name";
+    $users_query = "SELECT user_id, username, first_name, last_name, email 
+                    FROM users 
+                    WHERE is_deleted = 0 
+                    ORDER BY first_name, last_name";
     $users_result = $pdo->query($users_query);
     $users = $users_result->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
@@ -687,6 +717,20 @@ $status_labels = [
                 white-space: nowrap;
             }
         }
+
+        .btn-danger {
+            background-color: #ef4444;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background-color: #dc2626;
+        }
+
+        .btn-small {
+            padding: 8px 16px;
+            font-size: 14px;
+        }
     </style>
 </head>
 
@@ -726,8 +770,10 @@ $status_labels = [
                             <div class="alert-icon"><?php echo $alert_icon; ?></div>
                             <div>
                                 <strong><?php echo htmlspecialchars($upcoming['schedule_name']); ?></strong><br>
-                                <?php echo $alert_text; ?> - Due: <?php echo date('M d, Y',
-                                 strtotime($upcoming['next_due_date'])); ?>
+                                <?php echo $alert_text; ?> - Due: <?php echo date(
+                                                                        'M d, Y',
+                                                                        strtotime($upcoming['next_due_date'])
+                                                                    ); ?>
                             </div>
                         </div>
                     <?php endforeach; ?>
@@ -736,7 +782,7 @@ $status_labels = [
 
             <!-- Asset Header -->
             <div class="asset-header">
-                <h1>📦 <?php echo htmlspecialchars($asset['asset_name']); ?></h1>
+                <h1> <?php echo htmlspecialchars($asset['asset_name']); ?></h1>
                 <div class="asset-code">Code: <?php echo htmlspecialchars($asset['asset_code']); ?></div>
 
                 <div class="asset-info-grid">
@@ -756,7 +802,7 @@ $status_labels = [
                         <div class="info-label">Status</div>
                         <div class="info-value">
                             <?php
-                            
+
                             $status_value = strtolower(str_replace(' ', '-', $asset['status'] ?? 'available'));
                             ?>
                             <span class="status-badge status-<?php echo $status_value; ?>">
@@ -798,7 +844,7 @@ $status_labels = [
             <!-- Warranty Card -->
             <div class="warranty-card">
                 <div class="warranty-header">
-                    <h2>🛡️ Warranty & Purchase Information</h2>
+                    <h2> Warranty & Purchase Information</h2>
                     <span class="warranty-status <?php echo $warranty_class; ?>">
                         <?php echo $warranty_status; ?>
                     </span>
@@ -854,7 +900,7 @@ $status_labels = [
             <div class="tab-content active" id="maintenance-tab">
                 <div class="section-card">
                     <div class="section-header">
-                        <h2>🔧 Maintenance History</h2>
+                        <h2> Maintenance History</h2>
                         <button class="btn btn-primary" id="addMaintenanceBtn">+ Add Maintenance Record</button>
                     </div>
 
@@ -899,7 +945,7 @@ $status_labels = [
             <div class="tab-content" id="recurring-tab">
                 <div class="section-card">
                     <div class="section-header">
-                        <h2>🔄 Recurring Maintenance Schedules</h2>
+                        <h2> Recurring Maintenance Schedules</h2>
                         <button class="btn btn-primary" id="addRecurringBtn">+ Add Recurring Schedule</button>
                     </div>
 
@@ -970,7 +1016,7 @@ $status_labels = [
                                     </div>
                                 </div>
 
-                                <div style="margin-top: 15px;">
+                                <div style="margin-top: 15px; display: flex; gap: 10px;">
                                     <?php if ($schedule['is_active']): ?>
                                         <button class="btn btn-success btn-small complete-recurring-btn"
                                             data-recurring-id="<?php echo $schedule['id']; ?>"
@@ -978,6 +1024,11 @@ $status_labels = [
                                             ✓ Mark as Complete
                                         </button>
                                     <?php endif; ?>
+                                    <button class="btn btn-danger btn-small delete-recurring-btn"
+                                        data-recurring-id="<?php echo $schedule['id']; ?>"
+                                        data-schedule-name="<?php echo htmlspecialchars($schedule['schedule_name']); ?>">
+                                        Delete Schedule
+                                    </button>
                                 </div>
                             </div>
                         <?php endforeach; ?>
@@ -1194,6 +1245,42 @@ $status_labels = [
             </form>
         </div>
     </div>
+    <!-- Delete Recurring Maintenance Modal -->
+    <div id="deleteRecurringModal" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3>Delete Recurring Schedule</h3>
+                <span class="modal-close" data-modal="deleteRecurringModal">&times;</span>
+            </div>
+            <form method="POST" action="">
+                <input type="hidden" id="delete_recurring_id" name="recurring_id">
+
+                <div class="alert-box danger" style="margin-bottom: 20px;">
+                    <div class="alert-icon">⚠️</div>
+                    <div>
+                        <strong>Warning: This action cannot be undone!</strong>
+                        <p style="margin: 10px 0 0 0;">You are about to delete the following schedule:</p>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Schedule Name</label>
+                    <input type="text" id="delete_schedule_name" readonly style="background-color: #f9fafb; font-weight: 600;">
+                </div>
+
+                <div style="background: #fffbeb; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b; margin-bottom: 20px;">
+                    <p style="margin: 0; color: #92400e; font-size: 14px;">
+                        ℹ️ Note: Only the recurring schedule will be deleted. Past maintenance records will be preserved.
+                    </p>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" data-close="deleteRecurringModal">Cancel</button>
+                    <button type="submit" name="delete_recurring" class="btn btn-danger">Delete Schedule</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
     <script>
         // Tab switching
@@ -1218,7 +1305,8 @@ $status_labels = [
         const modals = {
             maintenance: document.getElementById('maintenanceModal'),
             recurring: document.getElementById('recurringModal'),
-            completeRecurring: document.getElementById('completeRecurringModal')
+            completeRecurring: document.getElementById('completeRecurringModal'),
+            deleteRecurring: document.getElementById('deleteRecurringModal')
         };
 
         // Open modals
@@ -1240,6 +1328,17 @@ $status_labels = [
                 document.getElementById('complete_schedule_name').value = scheduleName;
 
                 modals.completeRecurring.classList.add('active');
+            });
+        });
+        document.querySelectorAll('.delete-recurring-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const recurringId = this.getAttribute('data-recurring-id');
+                const scheduleName = this.getAttribute('data-schedule-name');
+
+                document.getElementById('delete_recurring_id').value = recurringId;
+                document.getElementById('delete_schedule_name').value = scheduleName;
+
+                modals.deleteRecurring.classList.add('active');
             });
         });
 

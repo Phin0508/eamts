@@ -153,7 +153,7 @@ try {
     error_log("Ticket statistics error: " . $e->getMessage());
 }
 
-// MAINTENANCE STATISTICS
+// MAINTENANCE STATISTICS - REPLACE YOUR EXISTING CODE WITH THIS
 try {
     // Get maintenance alerts (assets needing maintenance)
     $maintenance_alert_query = "";
@@ -186,7 +186,7 @@ try {
     $stmt->execute($maintenance_params);
     $stats['maintenance_alerts'] = $stmt->fetchColumn();
 
-    // Get recurring maintenance due (within next 7 days or overdue)
+    // Get recurring maintenance due SOON (within next 30 days, NOT overdue)
     $recurring_due_query = "";
     $recurring_params = [];
 
@@ -196,7 +196,8 @@ try {
             FROM recurring_maintenance rm
             JOIN assets a ON rm.asset_id = a.id
             WHERE rm.is_active = 1 
-            AND rm.next_due_date <= DATE_ADD(NOW(), INTERVAL 7 DAY)
+            AND rm.next_due_date >= NOW()
+            AND rm.next_due_date <= DATE_ADD(NOW(), INTERVAL 30 DAY)
         ";
     } else {
         $recurring_due_query = "
@@ -204,7 +205,8 @@ try {
             FROM recurring_maintenance rm
             JOIN assets a ON rm.asset_id = a.id
             WHERE rm.is_active = 1 
-            AND rm.next_due_date <= DATE_ADD(NOW(), INTERVAL 7 DAY)
+            AND rm.next_due_date >= NOW()
+            AND rm.next_due_date <= DATE_ADD(NOW(), INTERVAL 30 DAY)
             AND a.department = ?
         ";
         $recurring_params = [$department];
@@ -214,7 +216,7 @@ try {
     $stmt->execute($recurring_params);
     $stats['recurring_due'] = $stmt->fetchColumn();
 
-    // Get overdue recurring maintenance count
+    // Get OVERDUE recurring maintenance count (SEPARATE from upcoming)
     $overdue_query = "";
     $overdue_params = [];
 
@@ -241,6 +243,7 @@ try {
     $stmt = $pdo->prepare($overdue_query);
     $stmt->execute($overdue_params);
     $stats['overdue_maintenance'] = $stmt->fetchColumn();
+    
 } catch (PDOException $e) {
     error_log("Maintenance statistics error: " . $e->getMessage());
     $stats['maintenance_alerts'] = 0;

@@ -658,16 +658,15 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             min-height: 100vh;
         }
 
-        .container {
-            margin-left: 260px;
-            padding: 30px;
-            transition: margin-left 0.3s ease;
-            min-height: 100vh;
-        }
+        .main-content {
+        margin-left: 260px;
+        transition: margin-left 0.3s ease;
+        min-height: 100vh;
+    }
 
-        .container.sidebar-collapsed {
-            margin-left: 80px;
-        }
+    .dashboard-content {
+        padding: 30px;
+    }
 
         .header {
             background: white;
@@ -1318,7 +1317,9 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
 <body>
     <?php include("../auth/inc/Msidebar.php"); ?>
 
-    <div class="container" id="mainContainer">
+    <main class="main-content" id="mainContainer">
+    <div class="dashboard-content">
+        <!-- Your existing header code -->
         <div class="header">
             <div class="header-content">
                 <h1><i class="fas fa-building"></i> Department Tickets</h1>
@@ -1630,18 +1631,7 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
         let currentSort = '<?php echo $sort_by; ?>';
         let currentOrder = '<?php echo $sort_order; ?>';
 
-        // Sidebar toggle functionality
-        document.addEventListener('DOMContentLoaded', function() {
-            const sidebar = document.getElementById('sidebar');
-            const mainContainer = document.getElementById('mainContainer');
-            const toggleBtn = document.querySelector('.sidebar-toggle');
-            
-            if (toggleBtn && sidebar && mainContainer) {
-                toggleBtn.addEventListener('click', function() {
-                    sidebar.classList.toggle('collapsed');
-                    mainContainer.classList.toggle('sidebar-collapsed');
-                });
-            }
+
 
             // Mobile menu toggle
             const mobileMenuBtn = document.querySelector('.mobile-menu-btn');
@@ -1651,14 +1641,7 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                 });
             }
 
-            // Close mobile sidebar when clicking outside
-            document.addEventListener('click', function(event) {
-                if (window.innerWidth <= 768) {
-                    if (sidebar && mobileMenuBtn && !sidebar.contains(event.target) && !mobileMenuBtn.contains(event.target)) {
-                        sidebar.classList.remove('mobile-open');
-                    }
-                }
-            });
+   
 
             // Remove highlight after first click on highlighted row
             const highlightedRows = document.querySelectorAll('.highlight-new');
@@ -1686,7 +1669,7 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                 // Clear the session variable after first load
                 <?php unset($_SESSION['highlight_ticket_id']); ?>
             <?php endif; ?>
-        });
+        
 
         function sortTable(column) {
             const url = new URL(window.location.href);

@@ -376,7 +376,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                     
                     <center>
-                        <a href='" . $SYSTEM_URL . "/users/userTicket.php?id=" . $ticket_id . "' class='btn'>
+                        <a href='" . $SYSTEM_URL . "/public/login.php?id'>
                             🔍 View Ticket Details
                         </a>
                     </center>
@@ -459,7 +459,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                     
                     <center>
-                        <a href='" . $SYSTEM_URL . "/users/userTicket.php?id=" . $ticket_id . "' class='btn'>
+                        <a href='" . $SYSTEM_URL . "/public/login.php>
                             🔍 View Ticket Details
                         </a>
                     </center>

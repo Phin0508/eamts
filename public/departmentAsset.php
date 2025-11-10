@@ -14,22 +14,43 @@ $user_id = $_SESSION['user_id'];
 $user_role = $_SESSION['role'];
 $user_department = $_SESSION['department'];
 
+// Get department ID from URL
+$dept_id = $_GET['dept_id'] ?? null;
+$dept_filter = 'all';
+
+// Get department name from dept_id
+if ($dept_id) {
+    $dept_query = "SELECT dept_name FROM departments WHERE dept_id = ?";
+    $dept_stmt = $pdo->prepare($dept_query);
+    $dept_stmt->execute([$dept_id]);
+    $dept_result = $dept_stmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($dept_result) {
+        $dept_filter = $dept_result['dept_name'];
+    }
+}
+
 // Get filter parameters
 $status_filter = $_GET['status'] ?? 'all';
 $category_filter = $_GET['category'] ?? 'all';
 $search_query = $_GET['search'] ?? '';
 
-// Build the query based on user role
+// Build the query based on user role and dept_id
 if ($user_role === 'admin') {
-    // Admin can see all departments or filter by specific department
-    $dept_filter = $_GET['department'] ?? 'all';
-    
-    if ($dept_filter === 'all') {
-        $where_clause = "WHERE 1=1";
-        $params = [];
-    } else {
+    // If dept_id is provided, filter by that department
+    if ($dept_id && $dept_filter !== 'all') {
         $where_clause = "WHERE a.department = ?";
         $params = [$dept_filter];
+    } elseif (isset($_GET['department']) && $_GET['department'] !== 'all') {
+        // Filter from dropdown
+        $dept_filter = $_GET['department'];
+        $where_clause = "WHERE a.department = ?";
+        $params = [$dept_filter];
+    } else {
+        // Show all departments
+        $where_clause = "WHERE 1=1";
+        $params = [];
+        $dept_filter = 'all';
     }
 } else {
     // Manager and employee can only see their own department
@@ -118,6 +139,7 @@ $categories = $pdo->query("SELECT DISTINCT category FROM assets WHERE category I
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -278,24 +300,66 @@ $categories = $pdo->query("SELECT DISTINCT category FROM assets WHERE category I
             z-index: 1;
         }
 
-        .stat-card.total { border-left-color: #7c3aed; }
-        .stat-card.total .stat-icon { background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%); color: #7c3aed; }
+        .stat-card.total {
+            border-left-color: #7c3aed;
+        }
 
-        .stat-card.available { border-left-color: #10b981; }
-        .stat-card.available .number { color: #10b981; }
-        .stat-card.available .stat-icon { background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%); color: #059669; }
+        .stat-card.total .stat-icon {
+            background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%);
+            color: #7c3aed;
+        }
 
-        .stat-card.in-use { border-left-color: #3b82f6; }
-        .stat-card.in-use .number { color: #3b82f6; }
-        .stat-card.in-use .stat-icon { background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); color: #2563eb; }
+        .stat-card.available {
+            border-left-color: #10b981;
+        }
 
-        .stat-card.maintenance { border-left-color: #f59e0b; }
-        .stat-card.maintenance .number { color: #f59e0b; }
-        .stat-card.maintenance .stat-icon { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); color: #d97706; }
+        .stat-card.available .number {
+            color: #10b981;
+        }
 
-        .stat-card.value { border-left-color: #8b5cf6; }
-        .stat-card.value .number { color: #8b5cf6; }
-        .stat-card.value .stat-icon { background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%); color: #7c3aed; }
+        .stat-card.available .stat-icon {
+            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+            color: #059669;
+        }
+
+        .stat-card.in-use {
+            border-left-color: #3b82f6;
+        }
+
+        .stat-card.in-use .number {
+            color: #3b82f6;
+        }
+
+        .stat-card.in-use .stat-icon {
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+            color: #2563eb;
+        }
+
+        .stat-card.maintenance {
+            border-left-color: #f59e0b;
+        }
+
+        .stat-card.maintenance .number {
+            color: #f59e0b;
+        }
+
+        .stat-card.maintenance .stat-icon {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            color: #d97706;
+        }
+
+        .stat-card.value {
+            border-left-color: #8b5cf6;
+        }
+
+        .stat-card.value .number {
+            color: #8b5cf6;
+        }
+
+        .stat-card.value .stat-icon {
+            background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%);
+            color: #7c3aed;
+        }
 
         /* Filters Section */
         .filters-section {
@@ -705,6 +769,7 @@ $categories = $pdo->query("SELECT DISTINCT category FROM assets WHERE category I
         }
     </style>
 </head>
+
 <body>
     <?php include("../auth/inc/sidebar.php"); ?>
 
@@ -723,7 +788,7 @@ $categories = $pdo->query("SELECT DISTINCT category FROM assets WHERE category I
                     </p>
                 </div>
                 <a href="departments.php" class="btn btn-primary">
-                    <i class="fas fa-arrow-left"></i> Back 
+                    <i class="fas fa-arrow-left"></i> Back to Departments
                 </a>
             </div>
         </div>
@@ -786,18 +851,18 @@ $categories = $pdo->query("SELECT DISTINCT category FROM assets WHERE category I
             <form method="GET" action="">
                 <div class="filters-row">
                     <?php if ($user_role === 'admin'): ?>
-                    <div class="filter-group">
-                        <label><i class="fas fa-building"></i> Department</label>
-                        <select name="department" onchange="this.form.submit()">
-                            <option value="all" <?php echo $dept_filter === 'all' ? 'selected' : ''; ?>>All Departments</option>
-                            <?php foreach ($departments_list as $dept): ?>
-                            <option value="<?php echo htmlspecialchars($dept['dept_name']); ?>" 
-                                    <?php echo $dept_filter === $dept['dept_name'] ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($dept['dept_name']); ?>
-                            </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
+                        <div class="filter-group">
+                            <label><i class="fas fa-building"></i> Department</label>
+                            <select name="department" onchange="this.form.submit()">
+                                <option value="all" <?php echo $dept_filter === 'all' ? 'selected' : ''; ?>>All Departments</option>
+                                <?php foreach ($departments_list as $dept): ?>
+                                    <option value="<?php echo htmlspecialchars($dept['dept_name']); ?>"
+                                        <?php echo $dept_filter === $dept['dept_name'] ? 'selected' : ''; ?>>
+                                        <?php echo htmlspecialchars($dept['dept_name']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
                     <?php endif; ?>
 
                     <div class="filter-group">
@@ -816,18 +881,18 @@ $categories = $pdo->query("SELECT DISTINCT category FROM assets WHERE category I
                         <select name="category" onchange="this.form.submit()">
                             <option value="all" <?php echo $category_filter === 'all' ? 'selected' : ''; ?>>All Categories</option>
                             <?php foreach ($categories as $category): ?>
-                            <option value="<?php echo htmlspecialchars($category); ?>" 
+                                <option value="<?php echo htmlspecialchars($category); ?>"
                                     <?php echo $category_filter === $category ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($category); ?>
-                            </option>
+                                    <?php echo htmlspecialchars($category); ?>
+                                </option>
                             <?php endforeach; ?>
                         </select>
                     </div>
 
                     <div class="filter-group">
                         <label><i class="fas fa-search"></i> Search</label>
-                        <input type="text" name="search" placeholder="Search assets..." 
-                               value="<?php echo htmlspecialchars($search_query); ?>">
+                        <input type="text" name="search" placeholder="Search assets..."
+                            value="<?php echo htmlspecialchars($search_query); ?>">
                     </div>
 
                     <div class="filter-group">
@@ -849,86 +914,86 @@ $categories = $pdo->query("SELECT DISTINCT category FROM assets WHERE category I
             <div class="assets-grid">
                 <?php if (count($assets) > 0): ?>
                     <?php foreach ($assets as $asset): ?>
-                    <div class="asset-card">
-                        <span class="badge badge-<?php echo $asset['status']; ?>">
-                            <?php echo ucwords(str_replace('_', ' ', $asset['status'])); ?>
-                        </span>
+                        <div class="asset-card">
+                            <span class="badge badge-<?php echo $asset['status']; ?>">
+                                <?php echo ucwords(str_replace('_', ' ', $asset['status'])); ?>
+                            </span>
 
-                        <div class="asset-card-header">
-                            <div class="asset-icon">📦</div>
-                            <div class="asset-title">
-                                <h3><?php echo htmlspecialchars($asset['asset_name']); ?></h3>
-                                <span class="asset-code"><?php echo htmlspecialchars($asset['asset_code']); ?></span>
-                            </div>
-                        </div>
-
-                        <div class="asset-details">
-                            <?php if ($asset['brand']): ?>
-                            <div class="detail-row">
-                                <strong><i class="fas fa-copyright"></i> Brand:</strong>
-                                <span><?php echo htmlspecialchars($asset['brand']); ?></span>
-                            </div>
-                            <?php endif; ?>
-
-                            <?php if ($asset['model']): ?>
-                            <div class="detail-row">
-                                <strong><i class="fas fa-tag"></i> Model:</strong>
-                                <span><?php echo htmlspecialchars($asset['model']); ?></span>
-                            </div>
-                            <?php endif; ?>
-
-                            <?php if ($asset['category']): ?>
-                            <div class="detail-row">
-                                <strong><i class="fas fa-layer-group"></i> Category:</strong>
-                                <span><?php echo htmlspecialchars($asset['category']); ?></span>
-                            </div>
-                            <?php endif; ?>
-
-                            <?php if ($asset['location']): ?>
-                            <div class="detail-row">
-                                <strong><i class="fas fa-map-marker-alt"></i> Location:</strong>
-                                <span><?php echo htmlspecialchars($asset['location']); ?></span>
-                            </div>
-                            <?php endif; ?>
-
-                            <?php if ($asset['purchase_cost']): ?>
-                            <div class="detail-row">
-                                <strong><i class="fas fa-dollar-sign"></i> Value:</strong>
-                                <span>$<?php echo number_format($asset['purchase_cost'], 2); ?></span>
-                            </div>
-                            <?php endif; ?>
-                        </div>
-
-                        <?php if ($asset['assigned_to']): ?>
-                        <div class="assigned-user">
-                            <h4><i class="fas fa-user"></i> Assigned To</h4>
-                            <div class="user-info">
-                                <div class="user-avatar">
-                                    <?php echo strtoupper(substr($asset['assigned_user_name'], 0, 1)); ?>
-                                </div>
-                                <div class="user-details">
-                                    <div class="user-name"><?php echo htmlspecialchars($asset['assigned_user_name']); ?></div>
-                                    <div class="user-email"><?php echo htmlspecialchars($asset['assigned_user_email']); ?></div>
-                                    <?php if ($asset['assigned_user_emp_id']): ?>
-                                    <div class="user-email">ID: <?php echo htmlspecialchars($asset['assigned_user_emp_id']); ?></div>
-                                    <?php endif; ?>
+                            <div class="asset-card-header">
+                                <div class="asset-icon">📦</div>
+                                <div class="asset-title">
+                                    <h3><?php echo htmlspecialchars($asset['asset_name']); ?></h3>
+                                    <span class="asset-code"><?php echo htmlspecialchars($asset['asset_code']); ?></span>
                                 </div>
                             </div>
+
+                            <div class="asset-details">
+                                <?php if ($asset['brand']): ?>
+                                    <div class="detail-row">
+                                        <strong><i class="fas fa-copyright"></i> Brand:</strong>
+                                        <span><?php echo htmlspecialchars($asset['brand']); ?></span>
+                                    </div>
+                                <?php endif; ?>
+
+                                <?php if ($asset['model']): ?>
+                                    <div class="detail-row">
+                                        <strong><i class="fas fa-tag"></i> Model:</strong>
+                                        <span><?php echo htmlspecialchars($asset['model']); ?></span>
+                                    </div>
+                                <?php endif; ?>
+
+                                <?php if ($asset['category']): ?>
+                                    <div class="detail-row">
+                                        <strong><i class="fas fa-layer-group"></i> Category:</strong>
+                                        <span><?php echo htmlspecialchars($asset['category']); ?></span>
+                                    </div>
+                                <?php endif; ?>
+
+                                <?php if ($asset['location']): ?>
+                                    <div class="detail-row">
+                                        <strong><i class="fas fa-map-marker-alt"></i> Location:</strong>
+                                        <span><?php echo htmlspecialchars($asset['location']); ?></span>
+                                    </div>
+                                <?php endif; ?>
+
+                                <?php if ($asset['purchase_cost']): ?>
+                                    <div class="detail-row">
+                                        <strong><i class="fas fa-dollar-sign"></i> Value:</strong>
+                                        <span>$<?php echo number_format($asset['purchase_cost'], 2); ?></span>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+
+                            <?php if ($asset['assigned_to']): ?>
+                                <div class="assigned-user">
+                                    <h4><i class="fas fa-user"></i> Assigned To</h4>
+                                    <div class="user-info">
+                                        <div class="user-avatar">
+                                            <?php echo strtoupper(substr($asset['assigned_user_name'], 0, 1)); ?>
+                                        </div>
+                                        <div class="user-details">
+                                            <div class="user-name"><?php echo htmlspecialchars($asset['assigned_user_name']); ?></div>
+                                            <div class="user-email"><?php echo htmlspecialchars($asset['assigned_user_email']); ?></div>
+                                            <?php if ($asset['assigned_user_emp_id']): ?>
+                                                <div class="user-email">ID: <?php echo htmlspecialchars($asset['assigned_user_emp_id']); ?></div>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php else: ?>
+                                <div class="assigned-user not-assigned">
+                                    <h4><i class="fas fa-user-slash"></i> Not Assigned</h4>
+                                    <div style="color: #6b7280; font-size: 14px;">This asset is not currently assigned to anyone</div>
+                                </div>
+                            <?php endif; ?>
                         </div>
-                        <?php else: ?>
-                        <div class="assigned-user not-assigned">
-                            <h4><i class="fas fa-user-slash"></i> Not Assigned</h4>
-                            <div style="color: #6b7280; font-size: 14px;">This asset is not currently assigned to anyone</div>
-                        </div>
-                        <?php endif; ?>
-                    </div>
                     <?php endforeach; ?>
                 <?php else: ?>
-                <div class="empty-state">
-                    <div class="empty-state-icon">📦</div>
-                    <h3>No assets found</h3>
-                    <p>No assets match your current filters. Try adjusting your search criteria.</p>
-                </div>
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📦</div>
+                        <h3>No assets found</h3>
+                        <p>No assets match your current filters. Try adjusting your search criteria.</p>
+                    </div>
                 <?php endif; ?>
             </div>
         </div>
@@ -939,7 +1004,7 @@ $categories = $pdo->query("SELECT DISTINCT category FROM assets WHERE category I
         function updateMainContainer() {
             const mainContainer = document.getElementById('mainContainer');
             const sidebar = document.querySelector('.sidebar');
-            
+
             if (sidebar && sidebar.classList.contains('collapsed')) {
                 mainContainer.classList.add('sidebar-collapsed');
             } else {
@@ -961,8 +1026,12 @@ $categories = $pdo->query("SELECT DISTINCT category FROM assets WHERE category I
         const observer = new MutationObserver(updateMainContainer);
         const sidebar = document.querySelector('.sidebar');
         if (sidebar) {
-            observer.observe(sidebar, { attributes: true, attributeFilter: ['class'] });
+            observer.observe(sidebar, {
+                attributes: true,
+                attributeFilter: ['class']
+            });
         }
     </script>
 </body>
+
 </html>
