@@ -113,6 +113,7 @@ if (
     }
 }
 
+
 // Mark Recurring Maintenance as Complete
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complete_recurring'])) {
     $recurring_id = intval($_POST['recurring_id']);
@@ -132,8 +133,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complete_recurring'])
              maintenance_date, performed_by, cost, notes, created_by, created_at) VALUES (?, ?, NOW(), ?, ?, ?, ?, NOW())");
             $maint_stmt->execute([$asset_id, $recurring['maintenance_type'], $performed_by, $cost, $notes, $_SESSION['user_id']]);
 
-            // Update next due date and last completed
-            $next_due = date('Y-m-d', strtotime($recurring['next_due_date'] . ' + ' . $recurring['frequency_days'] . ' days'));
+            // Calculate next due date from TODAY if overdue, otherwise from the scheduled date
+            $today = new DateTime();
+            $scheduled_date = new DateTime($recurring['next_due_date']);
+            
+            // If the scheduled date is in the past (overdue), calculate from today
+            // Otherwise, calculate from the scheduled date to maintain the schedule
+            if ($scheduled_date < $today) {
+                // Overdue: Start fresh from today
+                $next_due = date('Y-m-d', strtotime('today + ' . $recurring['frequency_days'] . ' days'));
+            } else {
+                // Not overdue yet: Maintain the regular schedule
+                $next_due = date('Y-m-d', strtotime($recurring['next_due_date'] . ' + ' . $recurring['frequency_days'] . ' days'));
+            }
+            
             $update_stmt = $pdo->prepare("UPDATE recurring_maintenance SET next_due_date = ?, last_completed_date = NOW() WHERE id = ?");
             $update_stmt->execute([$next_due, $recurring_id]);
 

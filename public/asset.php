@@ -1618,6 +1618,7 @@ $total_upcoming_maintenance = count($upcoming_maintenance_alerts);
     user-select: none;
 }
 
+
 /* Responsive Pagination */
 @media (max-width: 768px) {
     .pagination-container {

@@ -1197,3 +1197,80 @@
 [10-Nov-2025 16:43:22 Europe/Berlin] Login attempt for: zjenphin@gmail.com
 [10-Nov-2025 16:43:22 Europe/Berlin] Remember me checked: No
 [10-Nov-2025 16:43:22 Europe/Berlin] Login successful for user: phin.ee
+[11-Nov-2025 04:31:04 Europe/Berlin] === PAGE LOAD ===
+[11-Nov-2025 04:31:04 Europe/Berlin] Request method: GET
+[11-Nov-2025 04:31:04 Europe/Berlin] Session user_id exists: No
+[11-Nov-2025 04:31:04 Europe/Berlin] Cookie remember_token exists: No
+[11-Nov-2025 04:31:04 Europe/Berlin] All cookies: Array
+(
+)
+
+[11-Nov-2025 04:31:04 Europe/Berlin] === END OF PAGE LOAD ===
+
+[11-Nov-2025 04:31:11 Europe/Berlin] === PAGE LOAD ===
+[11-Nov-2025 04:31:11 Europe/Berlin] Request method: POST
+[11-Nov-2025 04:31:11 Europe/Berlin] Session user_id exists: No
+[11-Nov-2025 04:31:11 Europe/Berlin] Cookie remember_token exists: No
+[11-Nov-2025 04:31:11 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[11-Nov-2025 04:31:11 Europe/Berlin] === FORM SUBMISSION ===
+[11-Nov-2025 04:31:11 Europe/Berlin] Login attempt for: zjenphin@gmail.com
+[11-Nov-2025 04:31:11 Europe/Berlin] Remember me checked: No
+[11-Nov-2025 04:31:11 Europe/Berlin] === END OF PAGE LOAD ===
+
+[11-Nov-2025 04:31:16 Europe/Berlin] === PAGE LOAD ===
+[11-Nov-2025 04:31:16 Europe/Berlin] Request method: POST
+[11-Nov-2025 04:31:16 Europe/Berlin] Session user_id exists: No
+[11-Nov-2025 04:31:16 Europe/Berlin] Cookie remember_token exists: No
+[11-Nov-2025 04:31:16 Europe/Berlin] All cookies: Array
+(
+    [0] => PHPSESSID
+)
+
+[11-Nov-2025 04:31:16 Europe/Berlin] === FORM SUBMISSION ===
+[11-Nov-2025 04:31:16 Europe/Berlin] Login attempt for: zjenphin@gmail.com
+[11-Nov-2025 04:31:16 Europe/Berlin] Remember me checked: No
+[11-Nov-2025 04:31:16 Europe/Berlin] Login successful for user: phin.ee
+[11-Nov-2025 08:27:53 Europe/Berlin] === END OF PAGE LOAD ===
+
+[11-Nov-2025 08:28:07 Europe/Berlin] === END OF PAGE LOAD ===
+
+[11-Nov-2025 08:30:20 Europe/Berlin] === END OF PAGE LOAD ===
+
+[11-Nov-2025 08:31:50 Europe/Berlin] === END OF PAGE LOAD ===
+
+[11-Nov-2025 09:05:09 Europe/Berlin] === FORM SUBMISSION ===
+[11-Nov-2025 09:05:09 Europe/Berlin] Login attempt for: zjenphin@gmail.com
+[11-Nov-2025 09:05:09 Europe/Berlin] Remember me checked: No
+[11-Nov-2025 09:05:09 Europe/Berlin] === END OF PAGE LOAD ===
+
+[11-Nov-2025 09:06:38 Europe/Berlin] === FORM SUBMISSION ===
+[11-Nov-2025 09:06:38 Europe/Berlin] Login attempt for: zjenphin@gmail.com
+[11-Nov-2025 09:06:38 Europe/Berlin] Remember me checked: No
+[11-Nov-2025 09:06:38 Europe/Berlin] === END OF PAGE LOAD ===
+
+[11-Nov-2025 09:06:44 Europe/Berlin] === FORM SUBMISSION ===
+[11-Nov-2025 09:06:44 Europe/Berlin] Login attempt for: zjenphin@gmail.com
+[11-Nov-2025 09:06:44 Europe/Berlin] Remember me checked: No
+[11-Nov-2025 09:06:44 Europe/Berlin] === END OF PAGE LOAD ===
+
+[11-Nov-2025 09:11:50 Europe/Berlin] === FORM SUBMISSION ===
+[11-Nov-2025 09:11:50 Europe/Berlin] Login attempt for: zjenphin@gmail.com
+[11-Nov-2025 09:11:50 Europe/Berlin] Remember me checked: No
+[11-Nov-2025 09:11:50 Europe/Berlin] === END OF PAGE LOAD ===
+
+[11-Nov-2025 09:11:53 Europe/Berlin] === END OF PAGE LOAD ===
+
+[11-Nov-2025 09:12:24 Europe/Berlin] === FORM SUBMISSION ===
+[11-Nov-2025 09:12:24 Europe/Berlin] Login attempt for: zjenphin@gmail.com
+[11-Nov-2025 09:12:24 Europe/Berlin] Remember me checked: No
+[11-Nov-2025 09:12:24 Europe/Berlin] Login successful for user: phin.ee
+[11-Nov-2025 16:34:43 Europe/Berlin] === END OF PAGE LOAD ===
+
+[11-Nov-2025 16:37:05 Europe/Berlin] === END OF PAGE LOAD ===
+
+[11-Nov-2025 17:05:43 Europe/Berlin] === END OF PAGE LOAD ===
+

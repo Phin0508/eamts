@@ -28,12 +28,12 @@ $debug_mode = false;
 // Get redirect parameter if exists
 $redirect_to = isset($_GET['redirect']) ? $_GET['redirect'] : '';
 
-// DEBUG logging
+/*  DEBUG logging
 error_log("=== PAGE LOAD ===");
 error_log("Request method: " . $_SERVER['REQUEST_METHOD']);
 error_log("Session user_id exists: " . (isset($_SESSION['user_id']) ? 'Yes' : 'No'));
 error_log("Cookie remember_token exists: " . (isset($_COOKIE['remember_token']) ? 'Yes' : 'No'));
-error_log("All cookies: " . print_r(array_keys($_COOKIE), true));
+error_log("All cookies: " . print_r(array_keys($_COOKIE), true)); */
 
 // Handle logout message
 if (isset($_GET['message']) && $_GET['message'] === 'logged_out') {
@@ -48,13 +48,13 @@ if (isset($_GET['message']) && $_GET['message'] === 'registered') {
 // Auto-login with remember token
 if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && $_SERVER['REQUEST_METHOD'] !== 'POST' && !$just_registered) {
     error_log(">>> ATTEMPTING AUTO-LOGIN <<<");
-    
+
     try {
         $token = $_COOKIE['remember_token'];
         $token_hash = hash('sha256', $token);
-        
+
         error_log("Remember token found: " . substr($token, 0, 10) . "...");
-        
+
         $stmt = $pdo->prepare("
             SELECT u.user_id, u.first_name, u.last_name, u.email, u.username, 
                    u.role, u.department, u.is_active, u.is_verified
@@ -67,12 +67,12 @@ if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && $_SERVE
         ");
         $stmt->execute([$token_hash]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
-        
+
         if ($user) {
             error_log("Remember me auto-login successful for user: " . $user['username']);
-            
+
             session_regenerate_id(true);
-            
+
             $_SESSION['user_id'] = $user['user_id'];
             $_SESSION['username'] = $user['username'];
             $_SESSION['first_name'] = $user['first_name'];
@@ -81,16 +81,16 @@ if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && $_SERVE
             $_SESSION['role'] = $user['role'];
             $_SESSION['department'] = $user['department'];
             $_SESSION['login_time'] = time();
-            
+
             $update_stmt = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE user_id = ?");
             $update_stmt->execute([$user['user_id']]);
-            
+
             // Redirect
             if (!empty($redirect_to) && strpos($redirect_to, '/') === 0 && strpos($redirect_to, '//') === false) {
                 header("Location: " . $redirect_to);
                 exit();
             }
-            
+
             switch ($user['role']) {
                 case 'admin':
                     header("Location: dashboard.php");
@@ -119,7 +119,7 @@ if (isset($_SESSION['user_id'])) {
         header("Location: " . $redirect_to);
         exit();
     }
-    
+
     if ($_SESSION['role'] === 'admin' || $_SESSION['role'] === 'manager') {
         header("Location: dashboard.php");
     } else {
@@ -131,24 +131,24 @@ if (isset($_SESSION['user_id'])) {
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     error_log("=== FORM SUBMISSION ===");
-    
+
     try {
         $username = trim($_POST['username'] ?? '');
         $password = $_POST['password'] ?? '';
         $remember_me = isset($_POST['remember_me']);
-        
+
         error_log("Login attempt for: " . $username);
         error_log("Remember me checked: " . ($remember_me ? 'Yes' : 'No'));
-        
+
         $errors = [];
-        
+
         if (empty($username)) {
             $errors[] = "Username or email is required";
         }
         if (empty($password)) {
             $errors[] = "Password is required";
         }
-        
+
         if (empty($errors)) {
             $stmt = $pdo->prepare("
                 SELECT user_id, first_name, last_name, email, username, password_hash, 
@@ -159,14 +159,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ");
             $stmt->execute([$username, $username]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
-            
+
             if ($user && password_verify($password, $user['password_hash'])) {
                 if ($user['is_verified'] == 0) {
                     $errors[] = "Your account is pending verification. Please wait for admin approval.";
                 } else {
                     // Regenerate session
                     session_regenerate_id(true);
-                    
+
                     $_SESSION['user_id'] = $user['user_id'];
                     $_SESSION['username'] = $user['username'];
                     $_SESSION['first_name'] = $user['first_name'];
@@ -175,39 +175,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_SESSION['role'] = $user['role'];
                     $_SESSION['department'] = $user['department'];
                     $_SESSION['login_time'] = time();
-                    
+
                     error_log("Login successful for user: " . $user['username']);
-                    
+
                     // Update last login
                     $update_stmt = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE user_id = ?");
                     $update_stmt->execute([$user['user_id']]);
-                    
+
                     // Handle Remember Me - MUST happen BEFORE any redirect
                     if ($remember_me) {
                         error_log("Processing remember me...");
-                        
+
                         try {
                             // Clear existing tokens
                             $clear_stmt = $pdo->prepare("DELETE FROM remember_tokens WHERE user_id = ?");
                             $clear_stmt->execute([$user['user_id']]);
-                            
+
                             // Generate new token
                             $token = bin2hex(random_bytes(32));
                             $token_hash = hash('sha256', $token);
                             $expires = date('Y-m-d H:i:s', time() + (30 * 24 * 60 * 60));
-                            
+
                             error_log("Creating token for user: " . $user['user_id']);
                             error_log("Token (first 10): " . substr($token, 0, 10));
-                            
+
                             // Save to database
                             $remember_stmt = $pdo->prepare("
                                 INSERT INTO remember_tokens (user_id, token_hash, expires_at, created_at) 
                                 VALUES (?, ?, ?, NOW())
                             ");
                             $remember_stmt->execute([$user['user_id'], $token_hash, $expires]);
-                            
+
                             error_log("Token saved to database");
-                            
+
                             // CRITICAL: Set cookie BEFORE any output or redirect
                             // Using simple setcookie for better compatibility
                             $cookie_result = setcookie(
@@ -219,35 +219,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 false,                      // secure (false for http, true for https)
                                 true                        // httponly
                             );
-                            
+
                             error_log("setcookie() returned: " . ($cookie_result ? 'true' : 'false'));
-                            
+
                             // Additional check
                             if (headers_sent($file, $line)) {
                                 error_log("!!! ERROR: Headers already sent in $file on line $line !!!");
                             } else {
                                 error_log("Headers NOT sent yet - cookie should work");
                             }
-                            
                         } catch (PDOException $e) {
                             error_log("Remember me error: " . $e->getMessage());
                         }
                     }
-                    
+
                     // NOW we can redirect (after cookie is set)
                     if (empty($errors)) {
                         $redirect = !empty($_POST['redirect']) ? $_POST['redirect'] : $redirect_to;
-                        
+
                         if (!empty($redirect) && strpos($redirect, '/') === 0 && strpos($redirect, '//') === false) {
                             header("Location: " . $redirect);
                             exit();
                         }
-                        
+
                         if ($user['must_change_password'] == 1) {
                             header("Location: ../public/change_password.php");
                             exit();
                         }
-                        
+
                         switch ($user['role']) {
                             case 'admin':
                                 header("Location: dashboard.php");
@@ -267,7 +266,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             } else {
                 $errors[] = "Invalid username/email or password";
-                
+
                 if ($user) {
                     try {
                         $log_stmt = $pdo->prepare("
@@ -281,14 +280,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
         }
-        
+
         if (!empty($errors)) {
             $error_message = implode("<br>", $errors);
         }
-        
     } catch (PDOException $e) {
         error_log("Database error: " . $e->getMessage());
-        
+
         if ($debug_mode) {
             $error_message = "Database Error: " . $e->getMessage();
         } else {
@@ -296,7 +294,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } catch (Exception $e) {
         error_log("Error: " . $e->getMessage());
-        
+
         if ($debug_mode) {
             $error_message = "Error: " . $e->getMessage();
         } else {
@@ -312,6 +310,7 @@ ob_end_flush();
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -594,12 +593,46 @@ ob_end_flush();
             .login-wrapper {
                 grid-template-columns: 1fr;
             }
+
             .login-branding {
                 display: none;
             }
         }
+
+        .caps-lock-warning {
+            display: none;
+            position: absolute;
+            right: 50px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #fff3cd;
+            color: #856404;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            white-space: nowrap;
+            z-index: 2;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .caps-lock-warning i {
+            margin-right: 6px;
+        }
+
+        .caps-lock-warning::after {
+            content: '';
+            position: absolute;
+            right: -6px;
+            top: 50%;
+            transform: translateY(-50%);
+            border-left: 6px solid #fff3cd;
+            border-top: 6px solid transparent;
+            border-bottom: 6px solid transparent;
+        }
     </style>
 </head>
+
 <body>
     <div class="login-wrapper">
         <div class="login-branding">
@@ -623,17 +656,17 @@ ob_end_flush();
             </div>
 
             <?php if (!empty($success_message)): ?>
-            <div class="alert alert-success">
-                <i class="fas fa-check-circle"></i>
-                <span><?php echo htmlspecialchars($success_message); ?></span>
-            </div>
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle"></i>
+                    <span><?php echo htmlspecialchars($success_message); ?></span>
+                </div>
             <?php endif; ?>
 
             <?php if (!empty($error_message)): ?>
-            <div class="alert alert-error">
-                <i class="fas fa-exclamation-circle"></i>
-                <span><?php echo $error_message; ?></span>
-            </div>
+                <div class="alert alert-error">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <span><?php echo $error_message; ?></span>
+                </div>
             <?php endif; ?>
 
             <form method="POST" action="">
@@ -645,9 +678,9 @@ ob_end_flush();
                     <label for="username">Username or Email <span class="required">*</span></label>
                     <div class="input-wrapper">
                         <i class="fas fa-user input-icon"></i>
-                        <input type="text" id="username" name="username" 
-                               value="<?php echo htmlspecialchars($_POST['username'] ?? ''); ?>" 
-                               placeholder="Enter your username or email" required autofocus>
+                        <input type="text" id="username" name="username"
+                            value="<?php echo htmlspecialchars($_POST['username'] ?? ''); ?>"
+                            placeholder="Enter your username or email" required autofocus>
                     </div>
                 </div>
 
@@ -655,8 +688,12 @@ ob_end_flush();
                     <label for="password">Password <span class="required">*</span></label>
                     <div class="input-wrapper">
                         <i class="fas fa-lock input-icon"></i>
-                        <input type="password" id="password" name="password" 
-                               placeholder="Enter your password" required>
+                        <input type="password" id="password" name="password"
+                            placeholder="Enter your password" required>
+                        <div class="caps-lock-warning" id="capsLockWarning">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            Caps Lock is ON
+                        </div>
                         <span class="password-toggle" onclick="togglePassword()">
                             <i class="fas fa-eye" id="toggleIcon"></i>
                         </span>
@@ -686,23 +723,46 @@ ob_end_flush();
 
     <script>
         function togglePassword() {
-            const passwordField = document.getElementById('password');
-            const toggleIcon = document.getElementById('toggleIcon');
-            
-            if (passwordField.type === 'password') {
-                passwordField.type = 'text';
-                toggleIcon.classList.remove('fa-eye');
-                toggleIcon.classList.add('fa-eye-slash');
-            } else {
-                passwordField.type = 'password';
-                toggleIcon.classList.remove('fa-eye-slash');
-                toggleIcon.classList.add('fa-eye');
-            }
-        }
+    const passwordField = document.getElementById('password');
+    const toggleIcon = document.getElementById('toggleIcon');
+    
+    if (passwordField.type === 'password') {
+        passwordField.type = 'text';
+        toggleIcon.classList.remove('fa-eye');
+        toggleIcon.classList.add('fa-eye-slash');
+    } else {
+        passwordField.type = 'password';
+        toggleIcon.classList.remove('fa-eye-slash');
+        toggleIcon.classList.add('fa-eye');
+    }
+}
 
-        // Debug
-        console.log('Cookies:', document.cookie);
-        console.log('Has remember_token:', document.cookie.includes('remember_token'));
+// NEW: Caps Lock detection
+const passwordField = document.getElementById('password');
+const capsLockWarning = document.getElementById('capsLockWarning');
+
+// Check on keypress
+passwordField.addEventListener('keyup', function(event) {
+    const isCapsLock = event.getModifierState && event.getModifierState('CapsLock');
+    capsLockWarning.style.display = isCapsLock ? 'block' : 'none';
+});
+
+// Check on focus (in case Caps Lock is already on)
+passwordField.addEventListener('focus', function(event) {
+    // We can only detect on the first keypress after focus
+    // So we'll check on the next keyup event
+});
+
+// Hide when field loses focus
+passwordField.addEventListener('blur', function() {
+    capsLockWarning.style.display = 'none';
+});
+
+// Debug (existing code)
+console.log('Cookies:', document.cookie);
+console.log('Has remember_token:', document.cookie.includes('remember_token'));
+
     </script>
 </body>
+
 </html>

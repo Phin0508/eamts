@@ -1,164 +1,236 @@
 <?php
-session_start();
+                                        session_start();
 
-// Clear any existing remember me cookies to prevent auto-login
-if (isset($_COOKIE['remember_token'])) {
-    setcookie('remember_token', '', time() - 3600, '/', '', isset($_SERVER['HTTPS']), true);
-    unset($_COOKIE['remember_token']);
-}
+                                        // Clear any existing remember me cookies to prevent auto-login
+                                        if (isset($_COOKIE['remember_token'])) {
+                                            setcookie('remember_token', '', time() - 3600, '/', '', isset($_SERVER['HTTPS']), true);
+                                            unset($_COOKIE['remember_token']);
+                                        }
 
-// Include database configuration
-include("../auth/config/database.php");
+                                        // Include database configuration
+                                        include("../auth/config/database.php");
 
-$error_message = '';
-$success_message = '';
+                                        $error_message = '';
+                                        $success_message = '';
 
-// Fetch active departments from database for the dropdown
-$departments_list = [];
-try {
-    $dept_query = $pdo->query("SELECT dept_id, dept_name, dept_code FROM departments WHERE is_active = 1 ORDER BY dept_name ASC");
-    $departments_list = $dept_query->fetchAll(PDO::FETCH_ASSOC);
-} catch (PDOException $e) {
-    // If departments table doesn't exist or error, use fallback
-    $departments_list = [
-        ['dept_name' => 'IT', 'dept_code' => 'IT'],
-        ['dept_name' => 'Human Resources', 'dept_code' => 'HR'],
-        ['dept_name' => 'Finance', 'dept_code' => 'FIN'],
-        ['dept_name' => 'Operations', 'dept_code' => 'OPS'],
-        ['dept_name' => 'Sales', 'dept_code' => 'SALES'],
-        ['dept_name' => 'Marketing', 'dept_code' => 'MKT'],
-        ['dept_name' => 'Engineering', 'dept_code' => 'ENG'],
-        ['dept_name' => 'Support', 'dept_code' => 'SUP']
-    ];
-}
+                                        // Fetch active departments from database for the dropdown
+                                        $departments_list = [];
+                                        try {
+                                            $dept_query = $pdo->query("SELECT dept_id, dept_name, dept_code FROM departments WHERE is_active = 1 ORDER BY dept_name ASC");
+                                            $departments_list = $dept_query->fetchAll(PDO::FETCH_ASSOC);
+                                        } catch (PDOException $e) {
+                                            // If departments table doesn't exist or error, use fallback
+                                            $departments_list = [
+                                                ['dept_name' => 'IT', 'dept_code' => 'IT'],
+                                                ['dept_name' => 'Human Resources', 'dept_code' => 'HR'],
+                                                ['dept_name' => 'Finance', 'dept_code' => 'FIN'],
+                                                ['dept_name' => 'Operations', 'dept_code' => 'OPS'],
+                                                ['dept_name' => 'Sales', 'dept_code' => 'SALES'],
+                                                ['dept_name' => 'Marketing', 'dept_code' => 'MKT'],
+                                                ['dept_name' => 'Engineering', 'dept_code' => 'ENG'],
+                                                ['dept_name' => 'Support', 'dept_code' => 'SUP']
+                                            ];
+                                        }
+                                        // Fetch the last employee ID and generate suggestion
+                                        $last_emp_id = '';
+                                        $suggested_emp_id = '';
+                                        $emp_id_pattern = '';
 
-/**
- * Enhanced password validation function
- */
-function validatePassword($password) {
-    $errors = [];
-    
-    if (strlen($password) < 8) {
-        $errors[] = "Password must be at least 8 characters long";
-    }
-    
-    if (strlen($password) > 128) {
-        $errors[] = "Password must not exceed 128 characters";
-    }
-    
-    if (!preg_match('/[A-Z]/', $password)) {
-        $errors[] = "Password must contain at least one uppercase letter";
-    }
-    
-    if (!preg_match('/[a-z]/', $password)) {
-        $errors[] = "Password must contain at least one lowercase letter";
-    }
-    
-    if (!preg_match('/[0-9]/', $password)) {
-        $errors[] = "Password must contain at least one number";
-    }
-    
-    if (!preg_match('/[!@#$%^&*()_+\-=\[\]{};:\'",.<>?\/\\|`~]/', $password)) {
-        $errors[] = "Password must contain at least one special character (!@#$%^&*()_+-=[]{}etc.)";
-    }
-    
-    $common_patterns = [
-        '/(.)\1{2,}/',
-        '/^[0-9]+$/',
-        '/^[a-zA-Z]+$/',
-    ];
-    
-    foreach ($common_patterns as $pattern) {
-        if (preg_match($pattern, $password)) {
-            $errors[] = "Password contains common patterns. Please use a more complex password";
-            break;
-        }
-    }
-    
-    $weak_passwords = [
-        'password', 'Password', 'password1', 'Password1', 'Password123',
-        '12345678', '123456789', 'qwerty123', 'abc123456', 'password123',
-        'admin123', 'welcome123', 'letmein123'
-    ];
-    
-    foreach ($weak_passwords as $weak) {
-        if (stripos($password, $weak) !== false) {
-            $errors[] = "Password is too common. Please choose a stronger password";
-            break;
-        }
-    }
-    
-    return $errors;
-}
+                                        try {
+                                            // Get the most recent employee ID
+                                            $emp_query = $pdo->query("
+        SELECT employee_id 
+        FROM users 
+        WHERE employee_id IS NOT NULL 
+        AND employee_id != '' 
+        ORDER BY created_at DESC 
+        LIMIT 1
+    ");
 
-// Handle form submission
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    try {
-        $first_name = trim($_POST['firstName']);
-        $last_name = trim($_POST['lastName']);
-        $email = trim($_POST['email']);
-        $username = trim($_POST['username']);
-        $password = $_POST['password'];
-        $confirm_password = $_POST['confirmPassword'];
-        $phone = !empty($_POST['phone']) ? trim($_POST['phone']) : null;
-        $department = !empty($_POST['department']) ? $_POST['department'] : null;
-        $role = $_POST['role'];
-        $employee_id = !empty($_POST['employeeId']) ? trim($_POST['employeeId']) : null;
-        
-        $errors = [];
-        
-        if (empty($first_name)) $errors[] = "First name is required";
-        if (empty($last_name)) $errors[] = "Last name is required";
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = "Valid email is required";
-        if (strlen($username) < 3) $errors[] = "Username must be at least 3 characters";
-        
-        $password_errors = validatePassword($password);
-        if (!empty($password_errors)) {
-            $errors = array_merge($errors, $password_errors);
-        }
-        
-        if ($password !== $confirm_password) {
-            $errors[] = "Passwords do not match";
-        }
-        
-        if (!empty($username) && stripos($password, $username) !== false) {
-            $errors[] = "Password cannot contain your username";
-        }
-        if (!empty($first_name) && strlen($first_name) > 2 && stripos($password, $first_name) !== false) {
-            $errors[] = "Password cannot contain your first name";
-        }
-        if (!empty($last_name) && strlen($last_name) > 2 && stripos($password, $last_name) !== false) {
-            $errors[] = "Password cannot contain your last name";
-        }
-        
-        if (empty($department)) $errors[] = "Department is required";
-        if (empty($role)) $errors[] = "Role is required";
-        
-        $allowed_roles = ['admin', 'manager'];
-        if (!in_array($role, $allowed_roles)) {
-            $errors[] = "Invalid role selected";
-        }
-        
-        if (!empty($department)) {
-            $dept_check = $pdo->prepare("SELECT dept_id FROM departments WHERE dept_name = ? AND is_active = 1");
-            $dept_check->execute([$department]);
-            if ($dept_check->rowCount() === 0) {
-                $errors[] = "Invalid department selected";
-            }
-        }
-        
-        if (empty($errors)) {
-            $check_stmt = $pdo->prepare("SELECT user_id FROM users WHERE username = ? OR email = ? OR (employee_id IS NOT NULL AND employee_id = ?)");
-            $check_stmt->execute([$username, $email, $employee_id]);
-            if ($check_stmt->rowCount() > 0) {
-                $errors[] = "Username, email, or employee ID already exists";
-            }
-        }
+                                            if ($emp_query->rowCount() > 0) {
+                                                $last_emp_id = $emp_query->fetchColumn();
 
-        if (empty($errors)) {
-            $password_hash = password_hash($password, PASSWORD_ARGON2ID);
+                                                // Try to parse the pattern and suggest next ID
+                                                // Common patterns: EMP-001, EMP001, E-001, etc.
+                                                if (preg_match('/^([A-Z\-]+)(\d+)$/', $last_emp_id, $matches)) {
+                                                    $prefix = $matches[1];
+                                                    $number = intval($matches[2]);
+                                                    $padding = strlen($matches[2]); // Preserve leading zeros
 
-            $stmt = $pdo->prepare("
+                                                    // Generate next ID
+                                                    $next_number = $number + 1;
+                                                    $suggested_emp_id = $prefix . str_pad($next_number, $padding, '0', STR_PAD_LEFT);
+                                                    $emp_id_pattern = $prefix . str_pad('X', $padding, 'X');
+                                                } else {
+                                                    // If pattern doesn't match, just show the last ID
+                                                    $suggested_emp_id = '';
+                                                    $emp_id_pattern = 'e.g., ' . $last_emp_id;
+                                                }
+                                            } else {
+                                                // No employees yet, suggest a starting format
+                                                $suggested_emp_id = 'EMP-00001';
+                                                $emp_id_pattern = 'EMP-XXXXX';
+                                            }
+
+                                            // Get total count of employees for reference
+                                            $count_query = $pdo->query("SELECT COUNT(*) FROM users WHERE employee_id IS NOT NULL");
+                                            $total_employees = $count_query->fetchColumn();
+                                        } catch (PDOException $e) {
+                                            // Fallback if query fails
+                                            $last_emp_id = '';
+                                            $suggested_emp_id = 'EMP-00001';
+                                            $emp_id_pattern = 'EMP-XXXXX';
+                                            $total_employees = 0;
+                                        }
+
+
+                                        /**
+                                         * Enhanced password validation function
+                                         */
+                                        function validatePassword($password)
+                                        {
+                                            $errors = [];
+
+                                            if (strlen($password) < 8) {
+                                                $errors[] = "Password must be at least 8 characters long";
+                                            }
+
+                                            if (strlen($password) > 128) {
+                                                $errors[] = "Password must not exceed 128 characters";
+                                            }
+
+                                            if (!preg_match('/[A-Z]/', $password)) {
+                                                $errors[] = "Password must contain at least one uppercase letter";
+                                            }
+
+                                            if (!preg_match('/[a-z]/', $password)) {
+                                                $errors[] = "Password must contain at least one lowercase letter";
+                                            }
+
+                                            if (!preg_match('/[0-9]/', $password)) {
+                                                $errors[] = "Password must contain at least one number";
+                                            }
+
+                                            if (!preg_match('/[!@#$%^&*()_+\-=\[\]{};:\'",.<>?\/\\|`~]/', $password)) {
+                                                $errors[] = "Password must contain at least one special character (!@#$%^&*()_+-=[]{}etc.)";
+                                            }
+
+                                            $common_patterns = [
+                                                '/(.)\1{2,}/',
+                                                '/^[0-9]+$/',
+                                                '/^[a-zA-Z]+$/',
+                                            ];
+
+                                            foreach ($common_patterns as $pattern) {
+                                                if (preg_match($pattern, $password)) {
+                                                    $errors[] = "Password contains common patterns. Please use a more complex password";
+                                                    break;
+                                                }
+                                            }
+
+                                            $weak_passwords = [
+                                                'password',
+                                                'Password',
+                                                'password1',
+                                                'Password1',
+                                                'Password123',
+                                                '12345678',
+                                                '123456789',
+                                                'qwerty123',
+                                                'abc123456',
+                                                'password123',
+                                                'admin123',
+                                                'welcome123',
+                                                'letmein123'
+                                            ];
+
+                                            foreach ($weak_passwords as $weak) {
+                                                if (stripos($password, $weak) !== false) {
+                                                    $errors[] = "Password is too common. Please choose a stronger password";
+                                                    break;
+                                                }
+                                            }
+
+                                            return $errors;
+                                        }
+
+                                        // Handle form submission
+                                        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                                            try {
+                                                $first_name = trim($_POST['firstName']);
+                                                $last_name = trim($_POST['lastName']);
+                                                $email = trim($_POST['email']);
+                                                $username = trim($_POST['username']);
+                                                $password = $_POST['password'];
+                                                $confirm_password = $_POST['confirmPassword'];
+                                                $phone = !empty($_POST['phone']) ? trim($_POST['phone']) : null;
+                                                $department = !empty($_POST['department']) ? $_POST['department'] : null;
+                                                $role = $_POST['role'];
+                                                $employee_id = !empty($_POST['employeeId']) ? trim($_POST['employeeId']) : null;
+
+                                                $errors = [];
+
+                                                if (empty($first_name)) $errors[] = "First name is required";
+                                                if (empty($last_name)) $errors[] = "Last name is required";
+                                                if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = "Valid email is required";
+                                                if (strlen($username) < 3) $errors[] = "Username must be at least 3 characters";
+
+                                                $password_errors = validatePassword($password);
+                                                if (!empty($password_errors)) {
+                                                    $errors = array_merge($errors, $password_errors);
+                                                }
+
+                                                if ($password !== $confirm_password) {
+                                                    $errors[] = "Passwords do not match";
+                                                }
+
+                                                if (!empty($username) && stripos($password, $username) !== false) {
+                                                    $errors[] = "Password cannot contain your username";
+                                                }
+                                                if (!empty($first_name) && strlen($first_name) > 2 && stripos($password, $first_name) !== false) {
+                                                    $errors[] = "Password cannot contain your first name";
+                                                }
+                                                if (!empty($last_name) && strlen($last_name) > 2 && stripos($password, $last_name) !== false) {
+                                                    $errors[] = "Password cannot contain your last name";
+                                                }
+
+                                                if (empty($department)) $errors[] = "Department is required";
+                                                if (empty($role)) $errors[] = "Role is required";
+
+                                                $allowed_roles = ['admin', 'manager'];
+                                                if (!in_array($role, $allowed_roles)) {
+                                                    $errors[] = "Invalid role selected";
+                                                }
+
+
+                                                if (!empty($department)) {
+                                                    $dept_check = $pdo->prepare("SELECT dept_id FROM departments WHERE dept_name = ? AND is_active = 1");
+                                                    $dept_check->execute([$department]);
+                                                    if ($dept_check->rowCount() === 0) {
+                                                        $errors[] = "Invalid department selected";
+                                                    }
+                                                }
+
+                                                if (empty($errors)) {
+                                                    $check_stmt = $pdo->prepare("SELECT user_id FROM users WHERE username = ? OR email = ? OR (employee_id IS NOT NULL AND employee_id = ?)");
+                                                    $check_stmt->execute([$username, $email, $employee_id]);
+                                                    if ($check_stmt->rowCount() > 0) {
+                                                        $errors[] = "Username, email, or employee ID already exists";
+                                                    }
+                                                }
+                                                if (!empty($employee_id)) {
+                                                    $emp_check = $pdo->prepare("SELECT user_id, CONCAT(first_name, ' ', last_name) as full_name FROM users WHERE employee_id = ?");
+                                                    $emp_check->execute([$employee_id]);
+                                                    if ($emp_check->rowCount() > 0) {
+                                                        $existing_user = $emp_check->fetch(PDO::FETCH_ASSOC);
+                                                        $errors[] = "Employee ID '$employee_id' is already assigned to another user. Please use a unique Employee ID.";
+                                                    }
+                                                }
+
+                                                if (empty($errors)) {
+                                                    $password_hash = password_hash($password, PASSWORD_ARGON2ID);
+
+                                                    $stmt = $pdo->prepare("
                 INSERT INTO users (
                     first_name, last_name, email, username, password_hash, 
                     phone, department, role, employee_id, is_active, is_verified, 
@@ -168,36 +240,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 )
             ");
 
-            if ($stmt->execute([
-                $first_name,
-                $last_name,
-                $email,
-                $username,
-                $password_hash,
-                $phone,
-                $department,
-                $role,
-                $employee_id
-            ])) {
-                $_SESSION['just_registered'] = true;
-                header("Location: login.php?message=registered&from=signup");
-                exit();
-            } else {
-                $errors[] = "Failed to create account. Please try again.";
-            }
-        }
-        
-        if (!empty($errors)) {
-            $error_message = implode("<br>", $errors);
-        }
-        
-    } catch (PDOException $e) {
-        $error_message = "Database error: " . $e->getMessage();
-    }
-}
-?>
+                                                    if ($stmt->execute([
+                                                        $first_name,
+                                                        $last_name,
+                                                        $email,
+                                                        $username,
+                                                        $password_hash,
+                                                        $phone,
+                                                        $department,
+                                                        $role,
+                                                        $employee_id
+                                                    ])) {
+                                                        $_SESSION['just_registered'] = true;
+                                                        header("Location: login.php?message=registered&from=signup");
+                                                        exit();
+                                                    } else {
+                                                        $errors[] = "Failed to create account. Please try again.";
+                                                    }
+                                                }
+
+                                                if (!empty($errors)) {
+                                                    $error_message = implode("<br>", $errors);
+                                                }
+                                            } catch (PDOException $e) {
+                                                $error_message = "Database error: " . $e->getMessage();
+                                            }
+                                        }
+                                        ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -205,166 +277,651 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f8f9fc; min-height: 100vh; display: flex; align-items: center;
-            justify-content: center; padding: 40px 20px; position: relative; overflow-x: hidden;
+            background: #f8f9fc;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+            position: relative;
+            overflow-x: hidden;
         }
+
         body::before {
-            content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
             background: linear-gradient(135deg, rgba(124, 58, 237, 0.05) 0%, rgba(109, 40, 217, 0.05) 25%,
-                rgba(124, 58, 237, 0.03) 50%, rgba(109, 40, 217, 0.03) 75%, rgba(124, 58, 237, 0.05) 100%);
-            animation: rotate 20s linear infinite; z-index: 0;
+                    rgba(124, 58, 237, 0.03) 50%, rgba(109, 40, 217, 0.03) 75%, rgba(124, 58, 237, 0.05) 100%);
+            animation: rotate 20s linear infinite;
+            z-index: 0;
         }
-        @keyframes rotate { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        @keyframes rotate {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
         .signup-wrapper {
-            position: relative; z-index: 1; width: 100%; max-width: 1200px;
-            display: grid; grid-template-columns: 400px 1fr; background: white;
-            border-radius: 24px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.08); overflow: hidden;
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 1200px;
+            display: grid;
+            grid-template-columns: 400px 1fr;
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
         }
+
         .signup-branding {
             background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
-            padding: 60px 40px; display: flex; flex-direction: column; justify-content: center;
-            color: white; position: relative; overflow: hidden;
+            padding: 60px 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            color: white;
+            position: relative;
+            overflow: hidden;
         }
+
         .signup-branding::before {
-            content: ''; position: absolute; top: -50%; right: -50%; width: 200%; height: 200%;
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
             background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
             animation: pulse 15s ease-in-out infinite;
         }
-        @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 0.5; } 50% { transform: scale(1.2); opacity: 0.8; } }
-        .brand-content { position: relative; z-index: 1; }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+                opacity: 0.5;
+            }
+
+            50% {
+                transform: scale(1.2);
+                opacity: 0.8;
+            }
+        }
+
+        .brand-content {
+            position: relative;
+            z-index: 1;
+        }
+
         .brand-logo {
-            width: 90px; height: 90px; background: rgba(255, 255, 255, 0.15);
-            backdrop-filter: blur(10px); border-radius: 20px; display: flex;
-            align-items: center; justify-content: center; font-size: 42px;
-            margin-bottom: 30px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+            width: 90px;
+            height: 90px;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 42px;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
         }
-        .brand-content h1 { font-size: 28px; font-weight: 700; margin-bottom: 16px; line-height: 1.3; }
-        .brand-content p { font-size: 15px; opacity: 0.9; line-height: 1.6; margin-bottom: 40px; }
-        .feature-list { list-style: none; }
+
+        .brand-content h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            line-height: 1.3;
+        }
+
+        .brand-content p {
+            font-size: 15px;
+            opacity: 0.9;
+            line-height: 1.6;
+            margin-bottom: 40px;
+        }
+
+        .feature-list {
+            list-style: none;
+        }
+
         .feature-list li {
-            display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
-            font-size: 14px; opacity: 0.95;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            font-size: 14px;
+            opacity: 0.95;
         }
+
         .feature-list li i {
-            width: 28px; height: 28px; background: rgba(255, 255, 255, 0.2);
-            border-radius: 7px; display: flex; align-items: center; justify-content: center;
-            font-size: 12px; flex-shrink: 0;
+            width: 28px;
+            height: 28px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 7px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            flex-shrink: 0;
         }
-        .signup-container { padding: 50px 60px; overflow-y: auto; max-height: 90vh; }
-        .signup-container::-webkit-scrollbar { width: 8px; }
-        .signup-container::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
-        .signup-container::-webkit-scrollbar-thumb { background: #7c3aed; border-radius: 10px; }
-        .signup-header { margin-bottom: 35px; }
-        .signup-header h2 { font-size: 32px; font-weight: 700; color: #1a202c; margin-bottom: 8px; }
-        .signup-header p { color: #718096; font-size: 15px; }
+
+        .signup-container {
+            padding: 50px 60px;
+            overflow-y: auto;
+            max-height: 90vh;
+        }
+
+        .signup-container::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .signup-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+
+        .signup-container::-webkit-scrollbar-thumb {
+            background: #7c3aed;
+            border-radius: 10px;
+        }
+
+        .signup-header {
+            margin-bottom: 35px;
+        }
+
+        .signup-header h2 {
+            font-size: 32px;
+            font-weight: 700;
+            color: #1a202c;
+            margin-bottom: 8px;
+        }
+
+        .signup-header p {
+            color: #718096;
+            font-size: 15px;
+        }
+
         .alert {
-            padding: 14px 18px; border-radius: 12px; margin-bottom: 24px; font-size: 14px;
-            display: flex; align-items: flex-start; gap: 10px; animation: slideDown 0.3s ease;
-            font-weight: 500; line-height: 1.5;
+            padding: 14px 18px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            font-size: 14px;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            animation: slideDown 0.3s ease;
+            font-weight: 500;
+            line-height: 1.5;
         }
-        @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
         .alert-error {
             background: linear-gradient(135deg, #ffe6e6 0%, #ffd4d4 100%);
-            color: #721c24; border-left: 4px solid #dc3545;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
         }
+
         .alert-success {
             background: linear-gradient(135deg, #d4f4dd 0%, #c3e6cb 100%);
-            color: #155724; border-left: 4px solid #28a745;
+            color: #155724;
+            border-left: 4px solid #28a745;
         }
-        .alert i { margin-top: 2px; flex-shrink: 0; }
-        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
-        .form-group { margin-bottom: 20px; }
-        .form-group label { display: block; margin-bottom: 10px; color: #2d3748; font-weight: 600; font-size: 14px; }
-        .form-group label .required { color: #ef4444; }
-        .input-wrapper { position: relative; }
+
+        .alert i {
+            margin-top: 2px;
+            flex-shrink: 0;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 10px;
+            color: #2d3748;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .form-group label .required {
+            color: #ef4444;
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+
         .input-icon {
-            position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
-            color: #718096; font-size: 14px; z-index: 1;
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #718096;
+            font-size: 14px;
+            z-index: 1;
         }
-        .form-group input, .form-group select {
-            width: 100%; padding: 13px 16px 13px 45px; border: 2px solid #e2e8f0;
-            border-radius: 12px; font-size: 14px; font-family: inherit;
-            transition: all 0.3s; background: white;
-        }
-        .form-group input:focus, .form-group select:focus {
-            outline: none; border-color: #7c3aed; box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.1);
-        }
+
+        .form-group input,
         .form-group select {
-            padding-left: 45px; cursor: pointer; appearance: none;
+            width: 100%;
+            padding: 13px 16px 13px 45px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: all 0.3s;
+            background: white;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #7c3aed;
+            box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.1);
+        }
+
+        .form-group select {
+            padding-left: 45px;
+            cursor: pointer;
+            appearance: none;
             background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23718096' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
-            background-repeat: no-repeat; background-position: right 16px center;
+            background-repeat: no-repeat;
+            background-position: right 16px center;
         }
-        .password-wrapper { position: relative; }
+
+        .password-wrapper {
+            position: relative;
+        }
+
         .password-toggle {
-            position: absolute; right: 16px; top: 50%; transform: translateY(-50%);
-            cursor: pointer; color: #718096; font-size: 16px; transition: color 0.3s; z-index: 2;
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            color: #718096;
+            font-size: 16px;
+            transition: color 0.3s;
+            z-index: 2;
         }
-        .password-toggle:hover { color: #7c3aed; }
-        .password-strength { height: 4px; background: #e2e8f0; border-radius: 2px; margin-top: 8px; overflow: hidden; }
-        .password-strength-bar { height: 100%; width: 0%; transition: all 0.3s; border-radius: 2px; }
-        .password-strength-bar.strength-weak { width: 25%; background: #ef4444; }
-        .password-strength-bar.strength-fair { width: 50%; background: #f59e0b; }
-        .password-strength-bar.strength-good { width: 75%; background: #3b82f6; }
-        .password-strength-bar.strength-strong { width: 100%; background: #10b981; }
-        .strength-text { margin-top: 6px; font-size: 12px; font-weight: 600; }
-        .password-requirements { margin-top: 12px; padding: 14px; background: #f7fafc; border-radius: 10px; display: none; }
-        .password-requirements.show { display: block; }
+
+        .password-toggle:hover {
+            color: #7c3aed;
+        }
+
+        .password-strength {
+            height: 4px;
+            background: #e2e8f0;
+            border-radius: 2px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+
+        .password-strength-bar {
+            height: 100%;
+            width: 0%;
+            transition: all 0.3s;
+            border-radius: 2px;
+        }
+
+        .password-strength-bar.strength-weak {
+            width: 25%;
+            background: #ef4444;
+        }
+
+        .password-strength-bar.strength-fair {
+            width: 50%;
+            background: #f59e0b;
+        }
+
+        .password-strength-bar.strength-good {
+            width: 75%;
+            background: #3b82f6;
+        }
+
+        .password-strength-bar.strength-strong {
+            width: 100%;
+            background: #10b981;
+        }
+
+        .strength-text {
+            margin-top: 6px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .password-requirements {
+            margin-top: 12px;
+            padding: 14px;
+            background: #f7fafc;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .password-requirements.show {
+            display: block;
+        }
+
         .requirement {
-            font-size: 13px; color: #718096; padding: 5px 0; display: flex;
-            align-items: center; gap: 8px; transition: color 0.3s;
+            font-size: 13px;
+            color: #718096;
+            padding: 5px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: color 0.3s;
         }
-        .requirement::before { content: '○'; color: #cbd5e0; font-weight: bold; font-size: 16px; }
-        .requirement.met { color: #10b981; }
-        .requirement.met::before { content: '✓'; color: #10b981; }
-        .checkbox-group { display: flex; align-items: flex-start; gap: 10px; margin: 24px 0; }
+
+        .requirement::before {
+            content: '○';
+            color: #cbd5e0;
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .requirement.met {
+            color: #10b981;
+        }
+
+        .requirement.met::before {
+            content: '✓';
+            color: #10b981;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            margin: 24px 0;
+        }
+
         .checkbox-group input[type="checkbox"] {
-            margin-top: 3px; width: 18px; height: 18px; cursor: pointer;
-            accent-color: #7c3aed; flex-shrink: 0;
+            margin-top: 3px;
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: #7c3aed;
+            flex-shrink: 0;
         }
+
         .checkbox-group label {
-            font-size: 14px; color: #4a5568; cursor: pointer;
-            flex: 1; font-weight: 500; line-height: 1.5;
+            font-size: 14px;
+            color: #4a5568;
+            cursor: pointer;
+            flex: 1;
+            font-weight: 500;
+            line-height: 1.5;
         }
-        .checkbox-group a { color: #7c3aed; text-decoration: none; font-weight: 600; }
-        .checkbox-group a:hover { text-decoration: underline; }
+
+        .checkbox-group a {
+            color: #7c3aed;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .checkbox-group a:hover {
+            text-decoration: underline;
+        }
+
         .btn-signup {
-            width: 100%; padding: 16px; background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
-            color: white; border: none; border-radius: 12px; font-size: 16px; font-weight: 700;
-            cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 14px rgba(124, 58, 237, 0.4);
-            display: flex; align-items: center; justify-content: center; gap: 10px;
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 14px rgba(124, 58, 237, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
         }
-        .btn-signup:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(124, 58, 237, 0.5); }
-        .btn-signup:active { transform: translateY(0); }
+
+        .btn-signup:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(124, 58, 237, 0.5);
+        }
+
+        .btn-signup:active {
+            transform: translateY(0);
+        }
+
         .divider {
-            display: flex; align-items: center; text-align: center; margin: 28px 0;
-            color: #718096; font-size: 14px;
+            display: flex;
+            align-items: center;
+            text-align: center;
+            margin: 28px 0;
+            color: #718096;
+            font-size: 14px;
         }
-        .divider::before, .divider::after { content: ''; flex: 1; border-bottom: 1px solid #e2e8f0; }
-        .divider span { padding: 0 16px; font-weight: 600; }
-        .login-link { text-align: center; color: #718096; font-size: 15px; }
-        .login-link a { color: #7c3aed; text-decoration: none; font-weight: 700; transition: color 0.3s; }
-        .login-link a:hover { color: #6d28d9; text-decoration: underline; }
+
+        .divider::before,
+        .divider::after {
+            content: '';
+            flex: 1;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .divider span {
+            padding: 0 16px;
+            font-weight: 600;
+        }
+
+        .login-link {
+            text-align: center;
+            color: #718096;
+            font-size: 15px;
+        }
+
+        .login-link a {
+            color: #7c3aed;
+            text-decoration: none;
+            font-weight: 700;
+            transition: color 0.3s;
+        }
+
+        .login-link a:hover {
+            color: #6d28d9;
+            text-decoration: underline;
+        }
+
         @media (max-width: 1100px) {
-            .signup-wrapper { grid-template-columns: 1fr; max-width: 700px; }
-            .signup-branding { display: none; }
-            .signup-container { max-height: none; }
+            .signup-wrapper {
+                grid-template-columns: 1fr;
+                max-width: 700px;
+            }
+
+            .signup-branding {
+                display: none;
+            }
+
+            .signup-container {
+                max-height: none;
+            }
         }
+
         @media (max-width: 768px) {
-            body { padding: 20px 15px; }
-            .signup-container { padding: 40px 30px; }
-            .signup-header h2 { font-size: 26px; }
-            .form-row { grid-template-columns: 1fr; gap: 0; }
+            body {
+                padding: 20px 15px;
+            }
+
+            .signup-container {
+                padding: 40px 30px;
+            }
+
+            .signup-header h2 {
+                font-size: 26px;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+                gap: 0;
+            }
         }
+
         @media (max-width: 480px) {
-            .signup-container { padding: 30px 20px; }
-            .signup-header h2 { font-size: 24px; }
-            .form-group input, .form-group select { padding: 12px 14px 12px 40px; }
+            .signup-container {
+                padding: 30px 20px;
+            }
+
+            .signup-header h2 {
+                font-size: 24px;
+            }
+
+            .form-group input,
+            .form-group select {
+                padding: 12px 14px 12px 40px;
+            }
+        }
+
+        .emp-id-helper {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            border: 2px solid #0ea5e9;
+            border-radius: 12px;
+            padding: 16px;
+            margin-top: 8px;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .emp-id-helper-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            color: #0369a1;
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .emp-id-helper-content {
+            display: grid;
+            gap: 10px;
+        }
+
+        .emp-id-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: white;
+            border-radius: 8px;
+            font-size: 13px;
+        }
+
+        .emp-id-label {
+            color: #64748b;
+            font-weight: 500;
+        }
+
+        .emp-id-value {
+            color: #1e293b;
+            font-weight: 700;
+            font-family: 'Courier New', monospace;
+        }
+
+        .emp-id-suggested {
+            background: #dcfce7;
+            border: 1px solid #86efac;
+        }
+
+        .emp-id-suggested .emp-id-value {
+            color: #16a34a;
+        }
+
+        .use-suggested-btn {
+            padding: 6px 14px;
+            background: #0ea5e9;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .use-suggested-btn:hover {
+            background: #0284c7;
+            transform: scale(1.05);
+        }
+
+        .emp-id-stats {
+            display: flex;
+            gap: 12px;
+            padding: 8px 12px;
+            background: white;
+            border-radius: 8px;
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        .emp-id-stats-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .emp-id-stats-item i {
+            color: #0ea5e9;
         }
     </style>
 </head>
+
 <body>
     <div class="signup-wrapper">
         <div class="signup-branding">
@@ -388,16 +945,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <p>Fill in your details to get started</p>
             </div>
             <?php if (!empty($success_message)): ?>
-            <div class="alert alert-success">
-                <i class="fas fa-check-circle"></i>
-                <span><?php echo htmlspecialchars($success_message); ?></span>
-            </div>
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle"></i>
+                    <span><?php echo htmlspecialchars($success_message); ?></span>
+                </div>
             <?php endif; ?>
             <?php if (!empty($error_message)): ?>
-            <div class="alert alert-error">
-                <i class="fas fa-exclamation-circle"></i>
-                <span><?php echo $error_message; ?></span>
-            </div>
+                <div class="alert alert-error">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <span><?php echo $error_message; ?></span>
+                </div>
             <?php endif; ?>
             <form id="signupForm" method="POST" action="">
                 <div class="form-row">
@@ -405,16 +962,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <label for="firstName">First Name <span class="required">*</span></label>
                         <div class="input-wrapper">
                             <i class="fas fa-user input-icon"></i>
-                            <input type="text" id="firstName" name="firstName" placeholder="John" 
-                                   value="<?php echo htmlspecialchars($_POST['firstName'] ?? ''); ?>" required>
+                            <input type="text" id="firstName" name="firstName" placeholder="John"
+                                value="<?php echo htmlspecialchars($_POST['firstName'] ?? ''); ?>" required>
                         </div>
                     </div>
                     <div class="form-group">
                         <label for="lastName">Last Name <span class="required">*</span></label>
                         <div class="input-wrapper">
                             <i class="fas fa-user input-icon"></i>
-                            <input type="text" id="lastName" name="lastName" placeholder="Doe" 
-                                   value="<?php echo htmlspecialchars($_POST['lastName'] ?? ''); ?>" required>
+                            <input type="text" id="lastName" name="lastName" placeholder="Doe"
+                                value="<?php echo htmlspecialchars($_POST['lastName'] ?? ''); ?>" required>
                         </div>
                     </div>
                 </div>
@@ -422,16 +979,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <label for="email">Email Address <span class="required">*</span></label>
                     <div class="input-wrapper">
                         <i class="fas fa-envelope input-icon"></i>
-                        <input type="email" id="email" name="email" placeholder="john.doe@company.com" 
-                               value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>" required>
+                        <input type="email" id="email" name="email" placeholder="john.doe@company.com"
+                            value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>" required>
                     </div>
                 </div>
                 <div class="form-group">
                     <label for="username">Username <span class="required">*</span></label>
                     <div class="input-wrapper">
                         <i class="fas fa-at input-icon"></i>
-                        <input type="text" id="username" name="username" placeholder="johndoe" 
-                               value="<?php echo htmlspecialchars($_POST['username'] ?? ''); ?>" required>
+                        <input type="text" id="username" name="username" placeholder="johndoe"
+                            value="<?php echo htmlspecialchars($_POST['username'] ?? ''); ?>" required>
                     </div>
                 </div>
                 <div class="form-row">
@@ -471,8 +1028,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <label for="phone">Phone Number</label>
                     <div class="input-wrapper">
                         <i class="fas fa-phone input-icon"></i>
-                        <input type="tel" id="phone" name="phone" placeholder="+(60)123456789" 
-                               value="<?php echo htmlspecialchars($_POST['phone'] ?? ''); ?>">
+                        <input type="tel" id="phone" name="phone" placeholder="+(60)123456789"
+                            value="<?php echo htmlspecialchars($_POST['phone'] ?? ''); ?>">
                     </div>
                 </div>
                 <div class="form-row">
@@ -483,8 +1040,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <select id="department" name="department" required>
                                 <option value="">Select Department</option>
                                 <?php foreach ($departments_list as $dept): ?>
-                                    <option value="<?php echo htmlspecialchars($dept['dept_name']); ?>" 
-                                            <?php echo (($_POST['department'] ?? '') === $dept['dept_name']) ? 'selected' : ''; ?>>
+                                    <option value="<?php echo htmlspecialchars($dept['dept_name']); ?>"
+                                        <?php echo (($_POST['department'] ?? '') === $dept['dept_name']) ? 'selected' : ''; ?>>
                                         <?php echo htmlspecialchars($dept['dept_name']); ?>
                                         <?php if (isset($dept['dept_code'])): ?>
                                             (<?php echo htmlspecialchars($dept['dept_code']); ?>)
@@ -510,8 +1067,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <label for="employeeId">Employee ID</label>
                     <div class="input-wrapper">
                         <i class="fas fa-id-badge input-icon"></i>
-                        <input type="text" id="employeeId" name="employeeId" placeholder="EMP-12345" 
-                               value="<?php echo htmlspecialchars($_POST['employeeId'] ?? ''); ?>">
+                        <input type="text" id="employeeId" name="employeeId" placeholder="<?php echo htmlspecialchars($emp_id_pattern); ?>"
+                            value="<?php echo htmlspecialchars($_POST['employeeId'] ?? ''); ?>">
+                    </div>
+
+                    <div class="emp-id-helper" id="empIdHelper">
+                        <div class="emp-id-helper-header">
+                            <i class="fas fa-info-circle"></i>
+                            <span>Employee ID Check</span>
+                        </div>
+                        <div class="emp-id-helper-content">
+                            <?php if (!empty($last_emp_id)): ?>
+                                <div class="emp-id-info">
+                                    <span class="emp-id-label">Last Employee ID:</span>
+                                    <span class="emp-id-value"><?php echo htmlspecialchars($last_emp_id); ?></span>
+                                </div>
+                            <?php endif; ?>
+
+                            <?php if (!empty($suggested_emp_id)): ?>
+                                <div class="emp-id-info emp-id-suggested">
+                                    <span class="emp-id-label">Suggested ID:</span>
+                                    <div style="display: flex; align-items: center; gap: 10px;">
+                                        <span class="emp-id-value"><?php echo htmlspecialchars($suggested_emp_id); ?></span>
+                                        <button type="button" class="use-suggested-btn" onclick="useSuggestedId()">
+                                            <i class="fas fa-check"></i> Use This
+                                        </button>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
+
+                            <div class="emp-id-stats">
+                                <div class="emp-id-stats-item">
+                                    <i class="fas fa-users"></i>
+                                    <span>Total Employees: <strong><?php echo $total_employees; ?></strong></span>
+                                </div>
+                                <div class="emp-id-stats-item">
+                                    <i class="fas fa-hashtag"></i>
+                                    <span>Format: <strong><?php echo htmlspecialchars($emp_id_pattern); ?></strong></span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="checkbox-group">
@@ -551,17 +1146,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 number: /[0-9]/.test(password),
                 special: /[!@#$%^&*()_+\-=\[\]{};:'",.<>?\/\\|`~]/.test(password)
             };
-            
+
             document.getElementById('req-length').classList.toggle('met', requirements.length);
             document.getElementById('req-uppercase').classList.toggle('met', requirements.uppercase);
             document.getElementById('req-lowercase').classList.toggle('met', requirements.lowercase);
             document.getElementById('req-number').classList.toggle('met', requirements.number);
             document.getElementById('req-special').classList.toggle('met', requirements.special);
-            
+
             const metCount = Object.values(requirements).filter(Boolean).length;
             let strengthText = '';
             let strengthClass = '';
-            
+
             if (password.length === 0) {
                 strengthText = '';
             } else if (metCount <= 2) {
@@ -577,24 +1172,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 strengthText = 'Strong';
                 strengthClass = 'strength-strong';
             }
-            
+
             const strengthBar = document.getElementById('passwordStrengthBar');
             const strengthTextEl = document.getElementById('strengthText');
-            
+
             strengthBar.className = 'password-strength-bar ' + strengthClass;
             strengthTextEl.textContent = strengthText;
-            strengthTextEl.style.color = strengthClass === 'strength-strong' ? '#10b981' : 
-                                         strengthClass === 'strength-good' ? '#3b82f6' :
-                                         strengthClass === 'strength-fair' ? '#f59e0b' : '#ef4444';
-            
-            return { metCount, requirements };
+            strengthTextEl.style.color = strengthClass === 'strength-strong' ? '#10b981' :
+                strengthClass === 'strength-good' ? '#3b82f6' :
+                strengthClass === 'strength-fair' ? '#f59e0b' : '#ef4444';
+
+            return {
+                metCount,
+                requirements
+            };
         }
 
         document.getElementById('password').addEventListener('input', function(e) {
             const password = e.target.value;
             const strengthIndicator = document.querySelector('.password-strength');
             const requirements = document.getElementById('passwordRequirements');
-            
+
             if (password.length > 0) {
                 strengthIndicator.style.display = 'block';
                 requirements.classList.add('show');
@@ -614,41 +1212,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         document.getElementById('signupForm').addEventListener('submit', function(e) {
             let isValid = true;
-            
+
             const firstName = document.getElementById('firstName');
             if (firstName.value.trim().length < 1) {
                 isValid = false;
             }
-            
+
             const lastName = document.getElementById('lastName');
             if (lastName.value.trim().length < 1) {
                 isValid = false;
             }
-            
+
             const email = document.getElementById('email');
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             if (!emailRegex.test(email.value)) {
                 isValid = false;
             }
-            
+
             const username = document.getElementById('username');
             if (username.value.trim().length < 3) {
                 isValid = false;
             }
-            
+
             const password = document.getElementById('password');
             const passwordCheck = checkPasswordStrength(password.value);
-            
+
             if (password.value.length < 8 || passwordCheck.metCount < 5) {
                 alert('Password must meet all requirements');
                 isValid = false;
             }
-            
+
             if (username.value && password.value.toLowerCase().includes(username.value.toLowerCase())) {
                 alert('Password cannot contain your username');
                 isValid = false;
             }
-            
+
             if (firstName.value.length > 2 && password.value.toLowerCase().includes(firstName.value.toLowerCase())) {
                 alert('Password cannot contain your first name');
                 isValid = false;
@@ -657,38 +1255,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 alert('Password cannot contain your last name');
                 isValid = false;
             }
-            
+
             const confirmPassword = document.getElementById('confirmPassword');
             if (password.value !== confirmPassword.value) {
                 alert('Passwords do not match');
                 isValid = false;
             }
-            
+
             const department = document.getElementById('department');
             if (!department.value) {
                 isValid = false;
             }
-            
+
             const role = document.getElementById('role');
             if (!role.value) {
                 isValid = false;
             }
-            
+
             const terms = document.getElementById('terms');
             if (!terms.checked) {
                 alert('Please accept the Terms of Service and Privacy Policy');
                 isValid = false;
             }
-            
+
             if (!isValid) {
                 e.preventDefault();
             }
         });
 
         <?php if (!empty($success_message)): ?>
-        setTimeout(() => {
-            window.location.href = 'login.php?from=signup';
-        }, 3000);
+            setTimeout(() => {
+                window.location.href = 'login.php?from=signup';
+            }, 3000);
         <?php endif; ?>
 
         setTimeout(() => {
@@ -699,6 +1297,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 setTimeout(() => errorMsg.style.display = 'none', 500);
             }
         }, 8000);
+
+        function useSuggestedId() {
+            const suggestedId = '<?php echo addslashes($suggested_emp_id); ?>';
+            document.getElementById('employeeId').value = suggestedId;
+
+            // Visual feedback
+            const input = document.getElementById('employeeId');
+            input.style.borderColor = '#10b981';
+            input.style.background = '#f0fdf4';
+
+            setTimeout(() => {
+                input.style.borderColor = '';
+                input.style.background = '';
+            }, 1000);
+
+            // Show success message
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-check-double"></i> Applied!';
+            btn.style.background = '#16a34a';
+
+            setTimeout(() => {
+                btn.innerHTML = originalText;
+                btn.style.background = '';
+            }, 2000);
+        }
+
+        // Real-time duplicate check (optional)
+        let checkTimeout;
+        document.getElementById('employeeId').addEventListener('input', function(e) {
+            clearTimeout(checkTimeout);
+            const value = e.target.value.trim();
+
+            if (value.length > 0) {
+                checkTimeout = setTimeout(() => {
+                    // You can add AJAX call here to check for duplicates in real-time
+                    // For now, just visual feedback
+                    const input = e.target;
+                    if (value === '<?php echo addslashes($suggested_emp_id); ?>') {
+                        input.style.borderColor = '#10b981';
+                    } else {
+                        input.style.borderColor = '';
+                    }
+                }, 500);
+            }
+        });
     </script>
 </body>
+
 </html>

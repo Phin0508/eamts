@@ -163,7 +163,8 @@ if ($user_role === 'employee') {
 $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
 
 // Function to build pagination URL
-function buildPaginationUrl($page, $per_page) {
+function buildPaginationUrl($page, $per_page)
+{
     $params = $_GET;
     $params['page'] = $page;
     $params['per_page'] = $per_page;
@@ -173,6 +174,7 @@ function buildPaginationUrl($page, $per_page) {
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -194,15 +196,14 @@ function buildPaginationUrl($page, $per_page) {
         }
 
         /* Main Container */
-        .container {
+        .main-content {
             margin-left: 260px;
-            padding: 30px;
             transition: margin-left 0.3s ease;
             min-height: 100vh;
         }
 
-        .container.sidebar-collapsed {
-            margin-left: 80px;
+        .dashboard-content {
+            padding: 30px;
         }
 
         /* Header */
@@ -263,10 +264,21 @@ function buildPaginationUrl($page, $per_page) {
             box-shadow: 0 8px 20px rgba(124, 58, 237, 0.15);
         }
 
-        .stat-card.total { border-left-color: #7c3aed; }
-        .stat-card.open { border-left-color: #3b82f6; }
-        .stat-card.progress { border-left-color: #f59e0b; }
-        .stat-card.urgent { border-left-color: #ef4444; }
+        .stat-card.total {
+            border-left-color: #7c3aed;
+        }
+
+        .stat-card.open {
+            border-left-color: #3b82f6;
+        }
+
+        .stat-card.progress {
+            border-left-color: #f59e0b;
+        }
+
+        .stat-card.urgent {
+            border-left-color: #ef4444;
+        }
 
         .stat-icon {
             width: 56px;
@@ -279,10 +291,21 @@ function buildPaginationUrl($page, $per_page) {
             color: white;
         }
 
-        .stat-card.total .stat-icon { background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); }
-        .stat-card.open .stat-icon { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); }
-        .stat-card.progress .stat-icon { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
-        .stat-card.urgent .stat-icon { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
+        .stat-card.total .stat-icon {
+            background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+        }
+
+        .stat-card.open .stat-icon {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        }
+
+        .stat-card.progress .stat-icon {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        }
+
+        .stat-card.urgent .stat-icon {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        }
 
         .stat-info h3 {
             font-size: 32px;
@@ -715,14 +738,19 @@ function buildPaginationUrl($page, $per_page) {
 
         /* Responsive Design */
         @media (max-width: 1024px) {
-            .container {
+            .main-content {
                 margin-left: 80px;
             }
         }
 
         @media (max-width: 768px) {
-            .container {
+            .main-content {
                 margin-left: 0;
+                padding: 0;
+            }
+
+            .dashboard-content {
+                /* Add this */
                 padding: 20px;
             }
 
@@ -781,21 +809,26 @@ function buildPaginationUrl($page, $per_page) {
     </style>
     <link rel="stylesheet" href="../auth/inc/navigation.css">
 </head>
+
 <body>
     <?php include("../auth/inc/sidebar.php"); ?>
 
-    <div class="container" id="mainContainer">
+    <<main class="main-content" id="mainContainer">
+    <div class="dashboard-content">
+        <!-- Header (MOVED INSIDE dashboard-content) -->
         <div class="header">
             <div class="header-content">
                 <h1><i class="fas fa-ticket-alt"></i> Ticket Management</h1>
                 <p>Manage and track all support tickets</p>
             </div>
-             <a href="create_ticket.php" class="btn btn-secondary">
-                 <i class="fas fa-plus"></i>Create Ticket
-            </a>
-            <a href="ticketHistory.php" class="btn btn-secondary">
-                <i class="fas fa-history"></i> Ticket History
-            </a>
+            <div style="display: flex; gap: 12px;">
+                <a href="create_ticket.php" class="btn btn-secondary">
+                    <i class="fas fa-plus"></i> Create Ticket
+                </a>
+                <a href="ticketHistory.php" class="btn btn-secondary">
+                    <i class="fas fa-history"></i> Ticket History
+                </a>
+            </div>
         </div>
 
         <!-- Statistics -->
@@ -845,7 +878,7 @@ function buildPaginationUrl($page, $per_page) {
                     <i class="fas fa-search"></i>
                     <input type="text" name="search" placeholder="Search tickets..." value="<?php echo htmlspecialchars($search); ?>">
                 </div>
-                
+
                 <select name="priority" onchange="this.form.submit()">
                     <option value="all" <?php echo $filter_priority === 'all' ? 'selected' : ''; ?>>All Priorities</option>
                     <option value="urgent" <?php echo $filter_priority === 'urgent' ? 'selected' : ''; ?>>Urgent</option>
@@ -869,248 +902,243 @@ function buildPaginationUrl($page, $per_page) {
         <!-- Tickets Table -->
         <div class="section">
             <?php if (empty($tickets)): ?>
-            <div class="empty-state">
-                <div class="empty-state-icon">🎫</div>
-                <h3>No Tickets Found</h3>
-                <p>No support tickets match your current filters.</p>
-            </div>
+                <div class="empty-state">
+                    <div class="empty-state-icon">🎫</div>
+                    <h3>No Tickets Found</h3>
+                    <p>No support tickets match your current filters.</p>
+                </div>
             <?php else: ?>
-            <div class="table-container">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Ticket #</th>
-                            <th>Subject</th>
-                            <th>Type</th>
-                            <th>Priority</th>
-                            <th>Status</th>
-                            <th>Requester</th>
-                            <th>Assigned To</th>
-                            <th>Created</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($tickets as $ticket): ?>
-                        <tr>
-                            <td>
-                                <strong><?php echo htmlspecialchars($ticket['ticket_number']); ?></strong>
-                            </td>
-                            <td>
-                                <div class="ticket-subject">
-                                    <span><?php echo htmlspecialchars($ticket['subject']); ?></span>
-                                    <?php if ($ticket['asset_code']): ?>
-                                    <span class="asset-tag">
-                                        <i class="fas fa-laptop"></i> <?php echo htmlspecialchars($ticket['asset_code']); ?>
-                                    </span>
-                                    <?php endif; ?>
-                                </div>
-                            </td>
-                            <td>
-                                <span class="badge badge-type"><?php echo ucfirst(str_replace('_', ' ', $ticket['ticket_type'])); ?></span>
-                            </td>
-                            <td>
-                                <span class="badge badge-priority badge-<?php echo $ticket['priority']; ?>">
-                                    <?php echo ucfirst($ticket['priority']); ?>
-                                </span>
-                            </td>
-                            <td>
-                                <span class="badge badge-status badge-<?php echo $ticket['status']; ?>">
-                                    <?php echo ucfirst(str_replace('_', ' ', $ticket['status'])); ?>
-                                </span>
-                            </td>
-                            <td><?php echo htmlspecialchars($ticket['requester_name']); ?></td>
-                            <td>
-                                <?php echo $ticket['assigned_to_name'] ? htmlspecialchars($ticket['assigned_to_name']) : '<span class="text-muted">Unassigned</span>'; ?>
-                            </td>
-                            <td>
-                                <span class="date-time"><?php echo date('M d, Y', strtotime($ticket['created_at'])); ?></span>
-                            </td>
-                            <td>
-                                <div class="action-buttons">
-                                    <a href="ticketDetails.php?id=<?php echo $ticket['ticket_id']; ?>" class="btn-icon" title="View Details">
-                                        <i class="fas fa-eye"></i>
-                                    </a>
-                                    <?php if ($user_role !== 'employee' || $ticket['requester_id'] == $user_id): ?>
-                                    <a href="ticketEdit.php?id=<?php echo $ticket['ticket_id']; ?>" class="btn-icon" title="Edit">
-                                        <i class="fas fa-edit"></i>
-                                    </a>
-                                    <?php endif; ?>
-                                </div>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- Pagination -->
-            <div class="pagination-wrapper">
-                <div class="pagination-info">
-                    <span>
-                        Showing <strong><?php echo $offset + 1; ?></strong> to 
-                        <strong><?php echo min($offset + $items_per_page, $total_tickets); ?></strong> of 
-                        <strong><?php echo $total_tickets; ?></strong> tickets
-                    </span>
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Ticket #</th>
+                                <th>Subject</th>
+                                <th>Type</th>
+                                <th>Priority</th>
+                                <th>Status</th>
+                                <th>Requester</th>
+                                <th>Assigned To</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($tickets as $ticket): ?>
+                                <tr>
+                                    <td>
+                                        <strong><?php echo htmlspecialchars($ticket['ticket_number']); ?></strong>
+                                    </td>
+                                    <td>
+                                        <div class="ticket-subject">
+                                            <span><?php echo htmlspecialchars($ticket['subject']); ?></span>
+                                            <?php if ($ticket['asset_code']): ?>
+                                                <span class="asset-tag">
+                                                    <i class="fas fa-laptop"></i> <?php echo htmlspecialchars($ticket['asset_code']); ?>
+                                                </span>
+                                            <?php endif; ?>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-type"><?php echo ucfirst(str_replace('_', ' ', $ticket['ticket_type'])); ?></span>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-priority badge-<?php echo $ticket['priority']; ?>">
+                                            <?php echo ucfirst($ticket['priority']); ?>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-status badge-<?php echo $ticket['status']; ?>">
+                                            <?php echo ucfirst(str_replace('_', ' ', $ticket['status'])); ?>
+                                        </span>
+                                    </td>
+                                    <td><?php echo htmlspecialchars($ticket['requester_name']); ?></td>
+                                    <td>
+                                        <?php echo $ticket['assigned_to_name'] ? htmlspecialchars($ticket['assigned_to_name']) : '<span class="text-muted">Unassigned</span>'; ?>
+                                    </td>
+                                    <td>
+                                        <span class="date-time"><?php echo date('M d, Y', strtotime($ticket['created_at'])); ?></span>
+                                    </td>
+                                    <td>
+                                        <div class="action-buttons">
+                                            <a href="ticketDetails.php?id=<?php echo $ticket['ticket_id']; ?>" class="btn-icon" title="View Details">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            <?php if ($user_role !== 'employee' || $ticket['requester_id'] == $user_id): ?>
+                                                <a href="ticketEdit.php?id=<?php echo $ticket['ticket_id']; ?>" class="btn-icon" title="Edit">
+                                                    <i class="fas fa-edit"></i>
+                                                </a>
+                                            <?php endif; ?>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
                 </div>
 
-                <div class="per-page-selector">
-                    <label for="per_page">Show:</label>
-                    <select id="per_page" name="per_page" onchange="changePerPage(this.value)">
-                        <option value="10" <?php echo $items_per_page == 10 ? 'selected' : ''; ?>>10</option>
-                        <option value="25" <?php echo $items_per_page == 25 ? 'selected' : ''; ?>>25</option>
-                        <option value="50" <?php echo $items_per_page == 50 ? 'selected' : ''; ?>>50</option>
-                        <option value="100" <?php echo $items_per_page == 100 ? 'selected' : ''; ?>>100</option>
-                    </select>
-                </div>
-
-                <?php if ($total_pages > 1): ?>
-                <div class="pagination">
-                    <!-- Previous Button -->
-                    <?php if ($current_page > 1): ?>
-                        <a href="<?php echo buildPaginationUrl($current_page - 1, $items_per_page); ?>" title="Previous">
-                            <i class="fas fa-chevron-left"></i>
-                        </a>
-                    <?php else: ?>
-                        <span class="disabled">
-                            <i class="fas fa-chevron-left"></i>
+                <!-- Pagination -->
+                <div class="pagination-wrapper">
+                    <div class="pagination-info">
+                        <span>
+                            Showing <strong><?php echo $offset + 1; ?></strong> to
+                            <strong><?php echo min($offset + $items_per_page, $total_tickets); ?></strong> of
+                            <strong><?php echo $total_tickets; ?></strong> tickets
                         </span>
-                    <?php endif; ?>
+                    </div>
 
-                    <!-- Page Numbers -->
-                    <?php
-                    $range = 2; // Number of pages to show on each side of current page
-                    $start = max(1, $current_page - $range);
-                    $end = min($total_pages, $current_page + $range);
+                    <div class="per-page-selector">
+                        <label for="per_page">Show:</label>
+                        <select id="per_page" name="per_page" onchange="changePerPage(this.value)">
+                            <option value="10" <?php echo $items_per_page == 10 ? 'selected' : ''; ?>>10</option>
+                            <option value="25" <?php echo $items_per_page == 25 ? 'selected' : ''; ?>>25</option>
+                            <option value="50" <?php echo $items_per_page == 50 ? 'selected' : ''; ?>>50</option>
+                            <option value="100" <?php echo $items_per_page == 100 ? 'selected' : ''; ?>>100</option>
+                        </select>
+                    </div>
 
-                    // Show first page
-                    if ($start > 1) {
-                        echo '<a href="' . buildPaginationUrl(1, $items_per_page) . '">1</a>';
-                        if ($start > 2) {
-                            echo '<span class="dots">...</span>';
-                        }
-                    }
+                    <?php if ($total_pages > 1): ?>
+                        <div class="pagination">
+                            <!-- Previous Button -->
+                            <?php if ($current_page > 1): ?>
+                                <a href="<?php echo buildPaginationUrl($current_page - 1, $items_per_page); ?>" title="Previous">
+                                    <i class="fas fa-chevron-left"></i>
+                                </a>
+                            <?php else: ?>
+                                <span class="disabled">
+                                    <i class="fas fa-chevron-left"></i>
+                                </span>
+                            <?php endif; ?>
 
-                    // Show page numbers
-                    for ($i = $start; $i <= $end; $i++) {
-                        if ($i == $current_page) {
-                            echo '<span class="active">' . $i . '</span>';
-                        } else {
-                            echo '<a href="' . buildPaginationUrl($i, $items_per_page) . '">' . $i . '</a>';
-                        }
-                    }
+                            <!-- Page Numbers -->
+                            <?php
+                            $range = 2; // Number of pages to show on each side of current page
+                            $start = max(1, $current_page - $range);
+                            $end = min($total_pages, $current_page + $range);
 
-                    // Show last page
-                    if ($end < $total_pages) {
-                        if ($end < $total_pages - 1) {
-                            echo '<span class="dots">...</span>';
-                        }
-                        echo '<a href="' . buildPaginationUrl($total_pages, $items_per_page) . '">' . $total_pages . '</a>';
-                    }
-                    ?>
+                            // Show first page
+                            if ($start > 1) {
+                                echo '<a href="' . buildPaginationUrl(1, $items_per_page) . '">1</a>';
+                                if ($start > 2) {
+                                    echo '<span class="dots">...</span>';
+                                }
+                            }
 
-                    <!-- Next Button -->
-                    <?php if ($current_page < $total_pages): ?>
-                        <a href="<?php echo buildPaginationUrl($current_page + 1, $items_per_page); ?>" title="Next">
-                            <i class="fas fa-chevron-right"></i>
-                        </a>
-                    <?php else: ?>
-                        <span class="disabled">
-                            <i class="fas fa-chevron-right"></i>
-                        </span>
+                            // Show page numbers
+                            for ($i = $start; $i <= $end; $i++) {
+                                if ($i == $current_page) {
+                                    echo '<span class="active">' . $i . '</span>';
+                                } else {
+                                    echo '<a href="' . buildPaginationUrl($i, $items_per_page) . '">' . $i . '</a>';
+                                }
+                            }
+
+                            // Show last page
+                            if ($end < $total_pages) {
+                                if ($end < $total_pages - 1) {
+                                    echo '<span class="dots">...</span>';
+                                }
+                                echo '<a href="' . buildPaginationUrl($total_pages, $items_per_page) . '">' . $total_pages . '</a>';
+                            }
+                            ?>
+
+                            <!-- Next Button -->
+                            <?php if ($current_page < $total_pages): ?>
+                                <a href="<?php echo buildPaginationUrl($current_page + 1, $items_per_page); ?>" title="Next">
+                                    <i class="fas fa-chevron-right"></i>
+                                </a>
+                            <?php else: ?>
+                                <span class="disabled">
+                                    <i class="fas fa-chevron-right"></i>
+                                </span>
+                            <?php endif; ?>
+                        </div>
                     <?php endif; ?>
                 </div>
-                <?php endif; ?>
-            </div>
             <?php endif; ?>
         </div>
-    </div>
+        </div>
 
-    <script>
-        // Function to change items per page
-        function changePerPage(perPage) {
-            const url = new URL(window.location.href);
-            url.searchParams.set('per_page', perPage);
-            url.searchParams.set('page', '1'); // Reset to first page
-            window.location.href = url.toString();
-        }
-
-        // Sidebar toggle functionality
-        document.addEventListener('DOMContentLoaded', function() {
-            const sidebar = document.getElementById('sidebar');
-            const mainContainer = document.getElementById('mainContainer');
-            const toggleBtn = document.querySelector('.sidebar-toggle');
-            
-            if (toggleBtn && sidebar && mainContainer) {
-                toggleBtn.addEventListener('click', function() {
-                    sidebar.classList.toggle('collapsed');
-                    mainContainer.classList.toggle('sidebar-collapsed');
-                });
+        <script>
+            // Function to change items per page
+            function changePerPage(perPage) {
+                const url = new URL(window.location.href);
+                url.searchParams.set('per_page', perPage);
+                url.searchParams.set('page', '1'); // Reset to first page
+                window.location.href = url.toString();
             }
 
-            // Mobile menu toggle
-            const mobileMenuBtn = document.querySelector('.mobile-menu-btn');
-            if (mobileMenuBtn && sidebar) {
-                mobileMenuBtn.addEventListener('click', function() {
-                    sidebar.classList.toggle('mobile-open');
-                });
-            }
+            // KEEP ONLY THE MOBILE MENU CODE:
+            document.addEventListener('DOMContentLoaded', function() {
+                // Mobile menu toggle
+                const mobileMenuBtn = document.querySelector('.mobile-menu-btn');
+                const sidebar = document.getElementById('sidebar');
 
-            // Close mobile sidebar when clicking outside
-            document.addEventListener('click', function(event) {
-                if (window.innerWidth <= 768) {
-                    if (!sidebar.contains(event.target) && !mobileMenuBtn.contains(event.target)) {
-                        sidebar.classList.remove('mobile-open');
-                    }
+                if (mobileMenuBtn && sidebar) {
+                    mobileMenuBtn.addEventListener('click', function() {
+                        sidebar.classList.toggle('mobile-open');
+                    });
                 }
-            });
-        });
 
-        // Auto-hide success/error messages after 5 seconds
-        document.addEventListener('DOMContentLoaded', function() {
-            const messages = document.querySelectorAll('.alert, .message');
-            messages.forEach(message => {
-                setTimeout(() => {
-                    message.style.opacity = '0';
-                    message.style.transition = 'opacity 0.5s ease';
-                    setTimeout(() => message.remove(), 500);
-                }, 5000);
-            });
-        });
-
-        // Enhanced search functionality
-        document.addEventListener('DOMContentLoaded', function() {
-            const searchInput = document.querySelector('input[name="search"]');
-            if (searchInput) {
-                // Clear search when escape key is pressed
-                searchInput.addEventListener('keydown', function(e) {
-                    if (e.key === 'Escape') {
-                        this.value = '';
-                        this.form.submit();
-                    }
-                });
-            }
-        });
-
-        // Table row click functionality 
-        document.addEventListener('DOMContentLoaded', function() {
-            const tableRows = document.querySelectorAll('.table tbody tr');
-            tableRows.forEach(row => {
-                row.addEventListener('click', function(e) {
-                    // Don't trigger if clicking on action buttons
-                    if (!e.target.closest('.action-buttons')) {
-                        const viewLink = this.querySelector('a[href*="ticketDetails.php"]');
-                        if (viewLink) {
-                            window.location.href = viewLink.href;
+                // Close mobile sidebar when clicking outside
+                document.addEventListener('click', function(event) {
+                    if (window.innerWidth <= 768) {
+                        const mobileMenuBtn = document.querySelector('.mobile-menu-btn');
+                        if (sidebar && mobileMenuBtn &&
+                            !sidebar.contains(event.target) &&
+                            !mobileMenuBtn.contains(event.target)) {
+                            sidebar.classList.remove('mobile-open');
                         }
                     }
                 });
-                
-                // Add hover effect
-                row.style.cursor = 'pointer';
             });
-        });
-    </script>
+
+            // Auto-hide success/error messages after 5 seconds
+            document.addEventListener('DOMContentLoaded', function() {
+                const messages = document.querySelectorAll('.alert, .message');
+                messages.forEach(message => {
+                    setTimeout(() => {
+                        message.style.opacity = '0';
+                        message.style.transition = 'opacity 0.5s ease';
+                        setTimeout(() => message.remove(), 500);
+                    }, 5000);
+                });
+            });
+
+            // Enhanced search functionality
+            document.addEventListener('DOMContentLoaded', function() {
+                const searchInput = document.querySelector('input[name="search"]');
+                if (searchInput) {
+                    // Clear search when escape key is pressed
+                    searchInput.addEventListener('keydown', function(e) {
+                        if (e.key === 'Escape') {
+                            this.value = '';
+                            this.form.submit();
+                        }
+                    });
+                }
+            });
+
+            // Table row click functionality 
+            document.addEventListener('DOMContentLoaded', function() {
+                const tableRows = document.querySelectorAll('.table tbody tr');
+                tableRows.forEach(row => {
+                    row.addEventListener('click', function(e) {
+                        // Don't trigger if clicking on action buttons
+                        if (!e.target.closest('.action-buttons')) {
+                            const viewLink = this.querySelector('a[href*="ticketDetails.php"]');
+                            if (viewLink) {
+                                window.location.href = viewLink.href;
+                            }
+                        }
+                    });
+
+                    // Add hover effect
+                    row.style.cursor = 'pointer';
+                });
+            });
+        </script>
 
 </body>
+
 </html>
