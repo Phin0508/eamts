@@ -995,7 +995,7 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
             <div class="stat-card stat-purple" onclick="window.location.href='../public/asset.php'">
                 <i class="fas fa-boxes stat-icon"></i>
                 <div class="stat-number"><?php echo $stats['my_assets']; ?></div>
-                <div class="stat-label">My Assets</div>
+                <div class="stat-label">My Assets(Personal Assets)</div>
             </div>
 
             <?php if ($role === 'admin'): ?>
@@ -1004,14 +1004,6 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
                     <i class="fas fa-user-check stat-icon"></i>
                     <div class="stat-number"><?php echo $stats['pending_requests']; ?></div>
                     <div class="stat-label">Pending Verifications</div>
-                </div>
-
-                <!-- Maintenance Alerts - Red/Orange -->
-                <div class="stat-card <?php echo $stats['maintenance_alerts'] > 0 ? 'stat-red' : 'stat-orange'; ?>"
-                    onclick="window.location.href='../public/asset.php?filter=maintenance'">
-                    <i class="fas fa-exclamation-triangle stat-icon"></i>
-                    <div class="stat-number"><?php echo $stats['maintenance_alerts']; ?></div>
-                    <div class="stat-label">Maintenance Alerts</div>
                 </div>
 
                 <!-- Recurring Due - Orange/Red -->
@@ -1026,7 +1018,7 @@ $ticket_priority_values = json_encode(array_column($ticket_priority_data, 'count
                 <div class="stat-card stat-green" onclick="window.location.href='../public/asset.php'">
                     <i class="fas fa-chart-line stat-icon"></i>
                     <div class="stat-number"><?php echo $stats['total_assets']; ?></div>
-                    <div class="stat-label">Total Assets</div>
+                    <div class="stat-label">Total Assets(EAMTS)</div>
                 </div>
 
             <?php elseif ($role === 'manager'): ?>

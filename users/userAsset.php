@@ -28,7 +28,7 @@ $error_message = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complete_maintenance'])) {
     $recurring_id = intval($_POST['recurring_id']);
     $notes = trim($_POST['completion_notes']);
-    
+
     try {
         // Get recurring maintenance details
         $recurring_stmt = $pdo->prepare("SELECT r.*, a.id as asset_id FROM recurring_maintenance r 
@@ -36,23 +36,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complete_maintenance'
                                          WHERE r.id = ? AND a.assigned_to = ?");
         $recurring_stmt->execute([$recurring_id, $user_id]);
         $recurring = $recurring_stmt->fetch(PDO::FETCH_ASSOC);
-        
+
         if ($recurring) {
             // Add maintenance record
             $maint_stmt = $pdo->prepare("INSERT INTO asset_maintenance (asset_id, maintenance_type, maintenance_date, performed_by, notes, created_by, created_at) VALUES (?, ?, NOW(), ?, ?, ?, NOW())");
             $maint_stmt->execute([
-                $recurring['asset_id'], 
-                $recurring['maintenance_type'], 
+                $recurring['asset_id'],
+                $recurring['maintenance_type'],
                 $user_name,
                 $notes,
                 $user_id
             ]);
-            
+
             // Update next due date and last completed
             $next_due = date('Y-m-d', strtotime($recurring['next_due_date'] . ' + ' . $recurring['frequency_days'] . ' days'));
             $update_stmt = $pdo->prepare("UPDATE recurring_maintenance SET next_due_date = ?, last_completed_date = NOW() WHERE id = ?");
             $update_stmt->execute([$next_due, $recurring_id]);
-            
+
             $success_message = "Maintenance completed successfully! Next due date updated.";
         }
     } catch (PDOException $e) {
@@ -76,7 +76,7 @@ try {
     $stmt = $pdo->prepare($query);
     $stmt->execute([$user_id]);
     $assets = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
+
     // Calculate total value
     foreach ($assets as $asset) {
         if ($asset['purchase_cost']) {
@@ -114,14 +114,14 @@ try {
     $reminder_stmt = $pdo->prepare($reminder_query);
     $reminder_stmt->execute([$user_id]);
     $all_schedules = $reminder_stmt->fetchAll(PDO::FETCH_ASSOC);
-    
+
     // Filter for upcoming/overdue maintenance
     $today = new DateTime();
     foreach ($all_schedules as $schedule) {
         $due_date = new DateTime($schedule['next_due_date']);
         $interval = $today->diff($due_date);
         $days_until = $interval->days * ($interval->invert ? -1 : 1);
-        
+
         // Show if overdue or due within notification period
         if ($days_until < 0 || $days_until <= $schedule['notify_days_before']) {
             $schedule['days_until'] = $days_until;
@@ -170,73 +170,73 @@ foreach ($upcoming_maintenance as $reminder) {
     <link rel="stylesheet" href="../auth/inc/navigation.css">
     <style>
         .stats-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 20px;
-    margin-bottom: 30px;
-}
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
 
-/* Clean White Stat Cards */
-.stat-card {
-    background: white;
-    padding: 28px;
-    border-radius: 16px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-    transition: all 0.3s;
-    border-left: 4px solid #667eea;
-    cursor: pointer;
-}
+        /* Clean White Stat Cards */
+        .stat-card {
+            background: white;
+            padding: 28px;
+            border-radius: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            transition: all 0.3s;
+            border-left: 4px solid #667eea;
+            cursor: pointer;
+        }
 
-.stat-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 20px rgba(102, 126, 234, 0.15);
-}
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.15);
+        }
 
-/* Remove individual gradient classes */
-.stat-card.total,
-.stat-card.value,
-.stat-card.in-use,
-.stat-card.maintenance-due {
-    background: white;
-    color: inherit;
-}
+        /* Remove individual gradient classes */
+        .stat-card.total,
+        .stat-card.value,
+        .stat-card.in-use,
+        .stat-card.maintenance-due {
+            background: white;
+            color: inherit;
+        }
 
-.stat-card h3 {
-    font-size: 14px;
-    margin: 0 0 12px 0;
-    color: #718096;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
+        .stat-card h3 {
+            font-size: 14px;
+            margin: 0 0 12px 0;
+            color: #718096;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
 
-.stat-card .stat-number {
-    font-size: 36px;
-    font-weight: 700;
-    margin: 0;
-    color: #1a202c;
-    margin-bottom: 8px;
-}
+        .stat-card .stat-number {
+            font-size: 36px;
+            font-weight: 700;
+            margin: 0;
+            color: #1a202c;
+            margin-bottom: 8px;
+        }
 
-.stat-card .stat-label {
-    font-size: 13px;
-    color: #a0aec0;
-    margin-top: 8px;
-    font-weight: 500;
-}
+        .stat-card .stat-label {
+            font-size: 13px;
+            color: #a0aec0;
+            margin-top: 8px;
+            font-weight: 500;
+        }
 
-/* Optional: Add icon styling if you want to add icons */
-.stat-card-icon {
-    font-size: 28px;
-    margin-bottom: 12px;
-    color: #667eea;
-}
+        /* Optional: Add icon styling if you want to add icons */
+        .stat-card-icon {
+            font-size: 28px;
+            margin-bottom: 12px;
+            color: #667eea;
+        }
 
-@media (max-width: 768px) {
-    .stats-container {
-        grid-template-columns: repeat(2, 1fr);
-    }
-}
+        @media (max-width: 768px) {
+            .stats-container {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
 
         .alert {
             padding: 15px 20px;
@@ -791,7 +791,7 @@ foreach ($upcoming_maintenance as $reminder) {
     <div class="main-content">
         <div class="inventory-container">
             <div class="inventory-header">
-                <h1>💼 My Assets</h1>
+                <h1> My Assets</h1>
                 <div style="color: #6c757d;">
                     <strong><?php echo htmlspecialchars($user_name); ?></strong>
                 </div>
@@ -838,7 +838,7 @@ foreach ($upcoming_maintenance as $reminder) {
             <div class="tabs">
                 <button class="tab-button active" data-tab="assets">My Assets</button>
                 <button class="tab-button" data-tab="reminders">
-                    Maintenance Reminders 
+                    Maintenance Reminders
                     <?php if (count($upcoming_maintenance) > 0): ?>
                         <span style="background: #ef4444; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px; margin-left: 5px;">
                             <?php echo count($upcoming_maintenance); ?>
@@ -851,7 +851,7 @@ foreach ($upcoming_maintenance as $reminder) {
             <!-- Assets Tab -->
             <div class="tab-content active" id="assets-tab">
                 <?php if (count($assets) > 0): ?>
-                    <?php foreach ($assets as $asset): 
+                    <?php foreach ($assets as $asset):
                         // Calculate warranty status
                         $warranty_status = '';
                         $warranty_class = '';
@@ -859,7 +859,7 @@ foreach ($upcoming_maintenance as $reminder) {
                             $warranty_date = strtotime($asset['warranty_expiry']);
                             $current_date = time();
                             $days_until_expiry = ($warranty_date - $current_date) / (60 * 60 * 24);
-                            
+
                             if ($days_until_expiry < 0) {
                                 $warranty_status = 'Expired';
                                 $warranty_class = 'warranty-expired';
@@ -1017,12 +1017,12 @@ foreach ($upcoming_maintenance as $reminder) {
                                             </span>
                                         </div>
                                         <div class="reminder-schedule-name">
-                                            <?php echo htmlspecialchars($reminder['schedule_name']); ?> - 
+                                            <?php echo htmlspecialchars($reminder['schedule_name']); ?> -
                                             <?php echo htmlspecialchars($reminder['maintenance_type']); ?>
                                         </div>
                                     </div>
                                     <span class="reminder-badge <?php echo $reminder['is_overdue'] ? 'overdue' : 'upcoming'; ?>">
-                                        <?php 
+                                        <?php
                                         if ($reminder['is_overdue']) {
                                             echo '🚨 Overdue by ' . abs($reminder['days_until']) . ' day(s)';
                                         } else {
@@ -1055,12 +1055,9 @@ foreach ($upcoming_maintenance as $reminder) {
                                 </div>
 
                                 <div class="reminder-actions">
-                                    <button class="btn btn-success btn-small complete-btn" 
-                                            data-recurring-id="<?php echo $reminder['id']; ?>"
-                                            data-asset-name="<?php echo htmlspecialchars($reminder['asset_name']); ?>"
-                                            data-schedule-name="<?php echo htmlspecialchars($reminder['schedule_name']); ?>">
-                                        ✓ Mark as Complete
-                                    </button>
+                                    <div style="background: #f3f4f6; padding: 12px; border-radius: 6px; font-size: 13px; color: #6b7280;">
+                                        <strong>ℹ️ Note:</strong> Contact your supervisor or IT department to complete this maintenance task.
+                                    </div>
                                 </div>
                             </div>
                         <?php endforeach; ?>
@@ -1140,7 +1137,7 @@ foreach ($upcoming_maintenance as $reminder) {
             </div>
             <form method="POST" action="">
                 <input type="hidden" id="modal_recurring_id" name="recurring_id">
-                
+
                 <div class="form-group">
                     <label>Asset</label>
                     <input type="text" id="modal_asset_name" readonly style="background: #f3f4f6; border: 1px solid #d1d5db; padding: 10px; border-radius: 6px; width: 100%;">

@@ -255,7 +255,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <p><strong>Previous Status:</strong> " . ucfirst(str_replace('_', ' ', $old_status)) . "</p>
                 <p><strong>New Status:</strong> " . ucfirst(str_replace('_', ' ', $new_status)) . "</p>
                 <hr>
-                <p><a href='" . SYSTEM_URL . "/users/userTicket.php?id={$ticket_id}' style='display:inline-block; padding:10px 20px; background:#667eea; color:white; text-decoration:none; border-radius:5px;'>View Ticket Details</a></p>
+                <p><a href='" . SYSTEM_URL . "/public/ticketDetails.php?id={$ticket_id}' style='display:inline-block; padding:10px 20px; background:#667eea; color:white; text-decoration:none; border-radius:5px;'>View Ticket Details</a></p>
                 ";
                 
                 $emailHelper->sendEmail($ticket['requester_email'], $status_subject, $status_body);
@@ -349,7 +349,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <p style='background:#f7fafc; padding:15px; border-radius:8px;'>" . nl2br(htmlspecialchars($ticket['description'])) . "</p>
                     <hr>
                     <p>Please review this ticket and begin working on it as soon as possible.</p>
-                    <p><a href='" . SYSTEM_URL . "/tickets/ticketDetails.php?id={$ticket_id}' style='display:inline-block; padding:10px 20px; background:#667eea; color:white; text-decoration:none; border-radius:5px;'>View Ticket Details</a></p>
+                    <p><a href='" . SYSTEM_URL . "/public/ticketDetails.php?id={$ticket_id}' style='display:inline-block; padding:10px 20px; background:#667eea; color:white; text-decoration:none; border-radius:5px;'>View Ticket Details</a></p>
                     ";
                     
                     $emailHelper->sendEmail($assigned_user_email, $tech_subject, $tech_body);
@@ -367,7 +367,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <p><strong>Status:</strong> In Progress</p>
                     <hr>
                     <p>You will receive updates as progress is made on your ticket.</p>
-                    <p><a href='" . SYSTEM_URL . "/users/userTicket.php?id={$ticket_id}' style='display:inline-block; padding:10px 20px; background:#667eea; color:white; text-decoration:none; border-radius:5px;'>View Ticket Details</a></p>
+                    <p><a href='" . SYSTEM_URL . "/users/userTicketDetails.php?id={$ticket_id}' style='display:inline-block; padding:10px 20px; background:#667eea; color:white; text-decoration:none; border-radius:5px;'>View Ticket Details</a></p>
                     ";
                     
                     $emailHelper->sendEmail($ticket['requester_email'], $requester_subject, $requester_body);
